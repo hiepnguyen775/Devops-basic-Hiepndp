@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>📝 CloudNote</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; max-width: 680px; margin: 40px auto; padding: 0 16px; background: #f7f9fc; color: #1a2233; }
+    h1 { text-align: center; }
+    .card { background: #fff; padding: 16px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.06); margin-bottom: 20px; }
+    input, textarea { width: 100%; padding: 10px; margin: 6px 0; border: 1px solid #d0d7e2; border-radius: 8px; font: inherit; }
+    button { background: #1976d2; color: #fff; border: 0; padding: 9px 16px; border-radius: 8px; cursor: pointer; font: inherit; }
+    button.sm { padding: 5px 10px; font-size: 13px; }
+    button.danger { background: #c62828; }
+    button.ghost { background: #eef2f8; color: #1a2233; }
+    button:hover { filter: brightness(.95); }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .note { background: #fff; padding: 14px 16px; border-radius: 10px; margin-bottom: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.05); }
+    .note h3 { margin: 0 0 6px; }
+    .note small { color: #889; }
+    .note .actions { margin-top: 8px; display: flex; gap: 8px; }
+    #status { text-align: center; color: #c62828; min-height: 20px; }
+    .hidden { display: none; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; }
+  </style>
+</head>
+<body>
+  <h1>📝 CloudNote</h1>
+  <div id="status"></div>
+
+  <!-- Khu vực đăng nhập / đăng ký -->
+  <div id="auth" class="card">
+    <div class="row">
+      <input id="username" placeholder="Tên đăng nhập (≥3 ký tự)" />
+      <input id="password" type="password" placeholder="Mật khẩu (≥6 ký tự)" />
+    </div>
+    <div class="row">
+      <button onclick="doLogin()">Đăng nhập</button>
+      <button class="ghost" onclick="doRegister()">Đăng ký</button>
+    </div>
+  </div>
+
+  <!-- Khu vực ứng dụng (hiện sau khi đăng nhập) -->
+  <div id="app" class="hidden">
+    <div class="card topbar">
+      <span>👋 Xin chào, <b id="who"></b></span>
+      <button class="ghost sm" onclick="logout()">Đăng xuất</button>
+    </div>
+    <form id="form" class="card">
+      <input id="title" placeholder="Tiêu đề note..." maxlength="200" required />
+      <textarea id="content" placeholder="Nội dung..." rows="3"></textarea>
+      <button type="submit">Lưu note</button>
+    </form>
+    <div id="list"></div>
+  </div>
+
+  <script>
+    const API = "/api";
+    const $ = (id) => document.getElementById(id);
+    const tokenKey = "cloudnote_token";
+    const getToken = () => localStorage.getItem(tokenKey);
+
+    // Gắn Authorization header tự động
+    function authHeaders(extra = {}) {
+      const h = { ...extra };
+      const t = getToken();
+      if (t) h["Authorization"] = "Bearer " + t;
+      return h;
+    }
+
+    function setStatus(msg) { $("status").textContent = msg || ""; }
+
+    async function doRegister() {
+      try {
+        const res = await fetch(API + "/register", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: $("username").value, password: $("password").value }),
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || res.status);
+        setStatus("Đăng ký thành công, hãy đăng nhập.");
+      } catch (e) { setStatus("Đăng ký lỗi: " + e.message); }
+    }
+
+    async function doLogin() {
+      try {
+        // /login dùng form (OAuth2PasswordRequestForm)
+        const body = new URLSearchParams({ username: $("username").value, password: $("password").value });
+        const res = await fetch(API + "/login", { method: "POST", body });
+        if (!res.ok) throw new Error("Sai tài khoản hoặc mật khẩu");
+        const data = await res.json();
+        localStorage.setItem(tokenKey, data.access_token);
+        showApp();
+      } catch (e) { setStatus("Đăng nhập lỗi: " + e.message); }
+    }
+
+    function logout() { localStorage.removeItem(tokenKey); location.reload(); }
+
+    function showApp() {
+      $("auth").classList.add("hidden");
+      $("app").classList.remove("hidden");
+      $("who").textContent = $("username").value || "bạn";
+      setStatus(""); load();
+    }
+
+    async function load() {
+      try {
+        const res = await fetch(API + "/notes", { headers: authHeaders() });
+        if (res.status === 401) return logout();
+        const notes = await res.json();
+        $("list").innerHTML = notes.map(n => `
+          <div class="note" data-id="${n.id}">
+            <h3>${esc(n.title)}</h3>
+            <div>${esc(n.content || "")}</div>
+            <small>${new Date(n.created_at).toLocaleString("vi-VN")}</small>
+            <div class="actions">
+              <button class="ghost sm" onclick="editNote(${n.id}, ${jsAttr(n.title)}, ${jsAttr(n.content)})">Sửa</button>
+              <button class="danger sm" onclick="delNote(${n.id})">Xóa</button>
+            </div>
+          </div>`).join("") || "<p style='text-align:center;color:#889'>Chưa có note nào.</p>";
+      } catch (e) { setStatus("Không tải được note: " + e.message); }
+    }
+
+    $("form").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const body = { title: $("title").value.trim(), content: $("content").value.trim() };
+      if (!body.title) return;
+      try {
+        const res = await fetch(API + "/notes", {
+          method: "POST", headers: authHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        $("title").value = ""; $("content").value = ""; load();
+      } catch (e) { setStatus("Lưu thất bại: " + e.message); }
+    });
+
+    // PUT /api/notes/{id}
+    async function editNote(id, oldTitle, oldContent) {
+      const title = prompt("Sửa tiêu đề:", oldTitle);
+      if (title === null) return;
+      const content = prompt("Sửa nội dung:", oldContent);
+      if (content === null) return;
+      const res = await fetch(`${API}/notes/${id}`, {
+        method: "PUT", headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ title, content }),
+      });
+      if (res.ok) load(); else setStatus("Sửa thất bại");
+    }
+
+    // DELETE /api/notes/{id}
+    async function delNote(id) {
+      if (!confirm("Xóa note này?")) return;
+      const res = await fetch(`${API}/notes/${id}`, { method: "DELETE", headers: authHeaders() });
+      if (res.status === 204) load(); else setStatus("Xóa thất bại");
+    }
+
+    function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c])); }
+    function jsAttr(s) { return JSON.stringify(String(s || "")); }
+
+    // Tự vào app nếu đã có token
+    if (getToken()) showApp();
+  </script>
+</body>
+</html>

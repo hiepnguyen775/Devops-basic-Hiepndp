@@ -1,0 +1,26 @@
+# ServiceMonitor — để Prometheus (kube-prometheus-stack) tự scrape /metrics của backend.
+# Yêu cầu:
+#   1. Backend đã expose /metrics (Instrumentator — xem solutions/backend/app/main.py).
+#   2. Service "backend" có port ĐẶT TÊN là "http" (sửa k8s/20-backend.yaml):
+#        ports:
+#          - name: http
+#            port: 8000
+#            targetPort: 8000
+#   3. label "release: monitoring" phải khớp với release Helm đã cài kube-prometheus-stack.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cloudnote-backend
+  namespace: monitoring
+  labels:
+    release: monitoring          # khớp helm release name
+spec:
+  namespaceSelector:
+    matchNames: ["cloudnote"]
+  selector:
+    matchLabels:
+      app: backend               # khớp label Service backend
+  endpoints:
+    - port: http                 # tên port của Service (không phải số)
+      path: /metrics
+      interval: 15s
