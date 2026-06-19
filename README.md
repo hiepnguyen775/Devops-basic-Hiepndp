@@ -12,13 +12,16 @@
 | Giai đoạn | Ngày | Nội dung | Trạng thái |
 |-----------|------|----------|------------|
 | **GĐ 1** | 1–12 | Nền tảng Hệ thống & Linux (SysOps Foundation) | ✅ Hoàn thành |
-| **GĐ 2** | 13–30 | Git, Docker & Container hóa | 🚧 Đang viết |
-| **GĐ 3** | 31–50 | CI/CD, Kubernetes & Tự động hóa nâng cao | ⏳ Sắp tới |
-| **GĐ 4** | 51–60 | SRE, Chủ đề nâng cao & Dự án tốt nghiệp | ⏳ Sắp tới |
+| **GĐ 2** | 13–30 | Git, Docker & Container hóa | ✅ Hoàn thành |
+| **GĐ 3** | 31–50 | CI/CD, Kubernetes & Tự động hóa nâng cao | ✅ Hoàn thành |
+| **GĐ 4** | 51–60 | SRE, Chủ đề nâng cao & Dự án tốt nghiệp | ✅ Hoàn thành |
 
 ## 📂 Danh sách tài liệu
 
 - [Giai đoạn 1 — Nền tảng Linux & SysOps (Ngày 1–12)](./Giai-doan-1-Linux-SysOps.md)
+- [Giai đoạn 2 — Git, Docker & Cloud (Ngày 13–30)](./Giai-doan-2-Git-Docker-Cloud.md)
+- [Giai đoạn 3 — CI/CD, Kubernetes & Monitoring (Ngày 31–50)](./Giai-doan-3-CICD-K8s-Monitoring.md)
+- [Giai đoạn 4 — SRE & Dự án Tốt nghiệp (Ngày 51–60)](./Giai-doan-4-SRE-Capstone.md)
 
 ---
 
