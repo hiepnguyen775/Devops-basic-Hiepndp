@@ -47,6 +47,20 @@
 - **Xem lịch sử & khác biệt:** `git log --oneline`, `git diff`, `git show <commit>`.
 - **Quay lui:** `git restore <file>` (bỏ thay đổi working dir), `git restore --staged <file>` (bỏ staging), `git reset`.
 
+**Sơ đồ — vòng đời 1 file qua 3 trạng thái Git:**
+```mermaid
+flowchart LR
+    WD["📝 Working Directory<br/>(bạn sửa file)"] -->|"git add"| ST["📦 Staging Area<br/>(chuẩn bị commit)"]
+    ST -->|"git commit"| REPO["🗄️ Repository<br/>(lịch sử local)"]
+    REPO -->|"git push"| REMOTE["☁️ Remote · GitHub"]
+    ST -.->|"git restore --staged"| WD
+    REPO -.->|"git reset / restore"| WD
+    classDef a fill:#fff3e0,stroke:#f57c00;
+    classDef b fill:#e8f5e9,stroke:#2e7d32;
+    class WD,ST a;
+    class REPO,REMOTE b;
+```
+
 ### 🧪 Lab cơ bản
 
 1. Cấu hình Git với tên và email của bạn.
@@ -261,6 +275,29 @@ git reset --hard <hash-từ-reflog>  # quay về đúng điểm đó
 - **Tương tác:** `docker exec -it <container> bash`, `docker logs <container>`.
 - **Port mapping:** `-p 8080:80` (cổng host : cổng container).
 - **Volume cơ bản:** `-v đường_dẫn_host:đường_dẫn_container` để lưu dữ liệu bền vững.
+
+**Sơ đồ — Container vs Máy ảo (vì sao container nhẹ hơn):**
+```mermaid
+flowchart TB
+    subgraph VM["🖥️ Máy ảo (VM) — nặng, khởi động phút"]
+        direction TB
+        H1["Hạ tầng vật lý"] --> HV["Hypervisor"]
+        HV --> G1["Guest OS đầy đủ"] --> A1["App A"]
+        HV --> G2["Guest OS đầy đủ"] --> A2["App B"]
+    end
+    subgraph CT["📦 Container — nhẹ, khởi động giây"]
+        direction TB
+        H2["Hạ tầng vật lý"] --> OS["Host OS + Kernel (CHIA SẺ)"]
+        OS --> DK["Docker Engine"]
+        DK --> C1["App A"]
+        DK --> C2["App B"]
+        DK --> C3["App C"]
+    end
+    classDef vm fill:#fce4ec,stroke:#c2185b;
+    classDef ct fill:#e8f5e9,stroke:#2e7d32;
+    class H1,HV,G1,G2,A1,A2 vm;
+    class H2,OS,DK,C1,C2,C3 ct;
+```
 
 ### 🧪 Lab cơ bản
 
@@ -635,20 +672,20 @@ git reset --hard <hash-từ-reflog>  # quay về đúng điểm đó
 ### 🚀 Lab nâng cao (best-practice) — Mô hình hoàn chỉnh
 
 **Mô hình hệ thống mục tiêu:**
-```
-                    ┌─────────────┐
-   Internet  ──────▶│   nginx     │  reverse proxy (cổng 80/443)
-                    │ (frontend)  │
-                    └──────┬──────┘
-                           │  network: frontend
-                    ┌──────▼──────┐
-                    │  backend    │  API (multi-stage image, USER thường, HEALTHCHECK)
-                    │   API       │
-                    └──────┬──────┘
-                           │  network: backend (cô lập, internet không thấy)
-                    ┌──────▼──────┐
-                    │  Postgres   │  named volume (dbdata), pg_isready healthcheck
-                    └─────────────┘
+```mermaid
+flowchart TD
+    Net(("🌐 Internet")) -->|"80 / 443"| NG["🌍 nginx · reverse proxy"]
+    subgraph FE["🔵 network: frontend"]
+        NG
+    end
+    NG --> API["⚙️ backend API<br/>multi-stage · USER thường · HEALTHCHECK"]
+    subgraph BE["🟠 network: backend — cô lập, Internet KHÔNG thấy"]
+        API --> DB[("🗄️ Postgres<br/>named volume · pg_isready")]
+    end
+    classDef pub fill:#e3f2fd,stroke:#1976d2,color:#0d47a1;
+    classDef sec fill:#fff3e0,stroke:#f57c00,color:#e65100;
+    class NG pub;
+    class API,DB sec;
 ```
 
 **Yêu cầu best-practice:**
@@ -1241,19 +1278,20 @@ git reset --hard <hash-từ-reflog>  # quay về đúng điểm đó
 ### 🚀 Lab nâng cao (best-practice) — Mô hình hoàn chỉnh
 
 **Mô hình: từ code → hạ tầng → app, tất cả bằng code**
-```
-   GitHub repo (1 nguồn sự thật)
-   ├── infra/         (Terraform)  ─────────┐
-   │     tạo: VPC, VM, Security Group,      │ terraform apply
-   │          Elastic IP, (S3 remote state) │
-   │                                        ▼
-   │                              ┌──────────────────┐
-   └── app/  (Docker Compose) ───▶│  VM trên cloud   │
-         backend + db + nginx     │  user-data tự cài│
-         (image từ Docker Hub)    │  Docker + chạy   │
-                                  └──────────────────┘
-                                            │
-                                   Internet ▼  https://domain
+```mermaid
+flowchart LR
+    subgraph REPO["📁 GitHub repo · 1 nguồn sự thật"]
+        direction TB
+        INFRA["📐 infra/ · Terraform<br/>VPC · VM · Security Group · Elastic IP"]
+        APP["📦 app/ · Docker Compose<br/>backend + db + nginx"]
+    end
+    INFRA -->|"terraform apply<br/>(state ở S3)"| VM["☁️ VM trên cloud<br/>user-data tự cài Docker + chạy"]
+    APP -->|"image từ registry"| VM
+    VM -->|"https://domain"| User(("👤 Người dùng"))
+    classDef code fill:#ede7f6,stroke:#5e35b1;
+    classDef run fill:#e8f5e9,stroke:#2e7d32;
+    class INFRA,APP code;
+    class VM run;
 ```
 
 **Yêu cầu best-practice:**

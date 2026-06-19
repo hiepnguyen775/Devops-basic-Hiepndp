@@ -51,6 +51,18 @@
 - **Marketplace:** hàng nghìn action có sẵn (checkout, setup-node, docker build...).
 - **Secret:** lưu thông tin nhạy cảm trong GitHub Secrets, không hard-code.
 
+**Sơ đồ — cấu trúc Workflow → Job → Step:**
+```mermaid
+flowchart TB
+    Trig["⚡ Trigger · on: push / pull_request"] --> WF["📋 Workflow · .github/workflows/ci.yml"]
+    WF --> J1["🔧 Job: test"]
+    WF --> J2["🔧 Job: build (song song)"]
+    J1 --> S1["▸ checkout"] --> S2["▸ setup-node"] --> S3["▸ npm ci → npm test"]
+    classDef w fill:#e3f2fd,stroke:#1976d2;
+    class WF,J1,J2 w;
+```
+> Job chạy **song song** mặc định (dùng `needs:` để xếp thứ tự); step trong job chạy **tuần tự**.
+
 ### 🧪 Lab cơ bản
 
 1. Tạo `.github/workflows/ci.yml` chạy khi push: in `Hello CI`, chạy trên `ubuntu-latest`.
@@ -325,23 +337,18 @@
 ### 🚀 Lab nâng cao (best-practice) — Mô hình hoàn chỉnh
 
 **Mô hình pipeline CI/CD end-to-end:**
-```
-  Developer ──push──▶ GitHub
-                        │
-        ┌───────────────▼───────────────┐
-        │   CI (mỗi PR/push)            │
-        │   lint → test → scan (Trivy)  │  ◀── chặn merge nếu fail
-        └───────────────┬───────────────┘
-                        │ merge main
-        ┌───────────────▼───────────────┐
-        │   CD                          │
-        │   build image (tag=SHA)       │
-        │   push → registry             │
-        │   deploy (SSH/compose)        │
-        │   health check                │  ── fail? ──▶ rollback
-        └───────────────┬───────────────┘
-                        ▼
-                  App live (vài phút từ commit)
+```mermaid
+flowchart TD
+    Dev(("👤 Developer")) -->|push| GH["📁 GitHub"]
+    GH --> CI["🧪 CI · mỗi PR/push<br/>lint → test → scan (Trivy)"]
+    CI -->|"fail ❌ → chặn merge"| GH
+    CI -->|"pass ✅ → merge main"| CD["🚀 CD<br/>build image (tag=SHA) → push registry<br/>→ deploy → health check"]
+    CD -->|"❌ fail"| RB["↩️ rollback"]
+    CD -->|"✅ ok"| Live(("🌍 App live<br/>vài phút từ commit"))
+    classDef ci fill:#e3f2fd,stroke:#1976d2,color:#0d47a1;
+    classDef cd fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20;
+    class CI ci;
+    class CD cd;
 ```
 
 **Yêu cầu best-practice:**
@@ -383,6 +390,28 @@
 - **Declarative:** bạn mô tả **trạng thái mong muốn** (YAML), K8s tự điều chỉnh để đạt được.
 - **kubectl:** công cụ dòng lệnh điều khiển cluster.
 - **Self-healing:** pod chết → K8s tự tạo lại; đây là sức mạnh chính.
+
+**Sơ đồ — kiến trúc Kubernetes (Control Plane + Worker Nodes):**
+```mermaid
+flowchart TB
+    kubectl["💻 kubectl"] --> API
+    subgraph CP["🧠 Control Plane"]
+        API["API Server"] --> ETCD[("etcd · trạng thái cluster")]
+        API --> SCH["Scheduler"]
+        API --> CM["Controller Manager<br/>(vòng điều hòa)"]
+    end
+    subgraph N1["⚙️ Worker Node 1"]
+        K1["kubelet"] --> P1["Pod"]
+    end
+    subgraph N2["⚙️ Worker Node 2"]
+        K2["kubelet"] --> P2["Pod"]
+    end
+    API --> K1
+    API --> K2
+    classDef cp fill:#ede7f6,stroke:#5e35b1,color:#311b92;
+    class API,ETCD,SCH,CM cp;
+```
+> Controller liên tục so sánh *thực tế* với *mong muốn* (trong etcd) → tự điều chỉnh = **self-healing**.
 
 ### 🧪 Lab cơ bản
 
@@ -524,6 +553,22 @@
 - **Ingress Controller:** nginx-ingress, traefik — cần cài để Ingress hoạt động.
 - **Port:** `port` (service), `targetPort` (container), `nodePort` (trên node).
 
+**Sơ đồ — Ingress định tuyến → Service → Pod:**
+```mermaid
+flowchart TB
+    User(("🌐 Người dùng")) -->|"app.example.com"| ING["🚪 Ingress · nginx-ingress"]
+    ING -->|"/"| SF["Service: frontend (ClusterIP)"]
+    ING -->|"/api"| SB["Service: backend (ClusterIP)"]
+    SF --> F1["Pod fe"]
+    SF --> F2["Pod fe"]
+    SB --> B1["Pod be"]
+    SB --> B2["Pod be"]
+    B1 -->|"db-svc:5432"| DB[("Service: db → Postgres")]
+    classDef svc fill:#e3f2fd,stroke:#1976d2;
+    class SF,SB,DB svc;
+```
+> Service cho **IP/DNS ổn định** dù pod đổi IP liên tục; Ingress = 1 điểm vào cho nhiều service.
+
 ### 🧪 Lab cơ bản
 
 1. Tạo Service ClusterIP cho deployment, test truy cập nội bộ từ pod khác.
@@ -659,24 +704,20 @@
 ### 🚀 Lab nâng cao (best-practice) — Mô hình hoàn chỉnh
 
 **Mô hình full-stack trên K8s:**
+```mermaid
+flowchart TB
+    Net(("🌐 Internet")) --> ING["🚪 Ingress · nginx-ingress + cert-manager (TLS)"]
+    ING -->|"/"| FE["🖼️ frontend<br/>Deployment + Service ClusterIP"]
+    ING -->|"/api"| BE["⚙️ backend<br/>Deployment (3 replica) + Service"]
+    BE -->|"db-svc"| DB[("🗄️ database<br/>StatefulSet + PVC")]
+    CFG["⚙️ ConfigMap (cấu hình)"] -.-> BE
+    SEC["🔐 Secret (mật khẩu DB)"] -.-> DB
+    classDef pub fill:#e3f2fd,stroke:#1976d2;
+    classDef data fill:#fff3e0,stroke:#f57c00;
+    class ING,FE pub;
+    class DB data;
 ```
-            Internet
-               │
-        ┌──────▼───────┐
-        │   Ingress    │  (nginx-ingress + cert-manager TLS)
-        └──┬────────┬──┘
-     /     │        │  /api
-  ┌────────▼─┐   ┌──▼────────┐
-  │ frontend │   │  backend  │   Deployment (3 replica) + Service ClusterIP
-  │ Service  │   │  Service  │
-  └──────────┘   └────┬──────┘
-                      │
-              ┌───────▼────────┐
-              │   database     │   StatefulSet + PVC (lưu bền vững)
-              │  (db-svc)      │   Secret: mật khẩu DB
-              └────────────────┘
-   ConfigMap: cấu hình app · Namespace: tách môi trường
-```
+> Tất cả nằm trong 1 **Namespace** riêng; frontend/backend dùng ClusterIP + Ingress, database dùng StatefulSet + PVC.
 
 **Yêu cầu best-practice:**
 1. Frontend/backend dùng **Deployment + ClusterIP**, expose qua **Ingress**.
@@ -846,6 +887,19 @@
 - **Application CRD trong ArgoCD:** trỏ tới repo + path + cluster đích.
 - **Drift detection:** phát hiện khi cluster lệch khỏi Git và tự sửa.
 
+**Sơ đồ — luồng GitOps (pull-based, tự đồng bộ):**
+```mermaid
+flowchart LR
+    Dev(("👤")) -->|"PR / commit"| CR["📁 Config repo<br/>(manifests / Helm)"]
+    CR -->|"ArgoCD tự KÉO (pull)"| ARGO["🔄 ArgoCD<br/>(chạy trong cluster)"]
+    ARGO -->|"sync"| K8S["☸️ Kubernetes Cluster"]
+    K8S -.->|"so sánh liên tục"| ARGO
+    ARGO -.->|"sửa drift tự động (self-heal)"| K8S
+    classDef g fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20;
+    class CR,ARGO g;
+```
+> Khác CI/CD push: cluster **tự kéo** từ Git → không lộ credential cluster ra ngoài. Rollback = `git revert`.
+
 ### 🧪 Lab cơ bản
 
 1. Cài ArgoCD vào cluster minikube, truy cập UI.
@@ -909,6 +963,22 @@
 - **Alerting:** Alertmanager gửi cảnh báo khi metric vượt ngưỡng.
 - **Khái niệm:** counter, gauge, histogram, summary.
 - **Service discovery:** Prometheus tự tìm target trong K8s.
+
+**Sơ đồ — luồng observability (metric + log → Grafana → alert):**
+```mermaid
+flowchart LR
+    subgraph SRC["📡 Nguồn"]
+        M["Metrics<br/>app /metrics · node-exporter"]
+        L["Logs<br/>container · app"]
+    end
+    M -->|"pull (scrape)"| PROM["📊 Prometheus<br/>time-series + alert rule"]
+    L -->|"push (Promtail)"| LOKI["📜 Loki"]
+    PROM --> GRAF["📈 Grafana<br/>dashboard + alert"]
+    LOKI --> GRAF
+    PROM --> AM["🔔 Alertmanager → Slack/Email"]
+    classDef o fill:#fff3e0,stroke:#f57c00,color:#e65100;
+    class PROM,LOKI,GRAF o;
+```
 
 ### 🧪 Lab cơ bản
 
@@ -1308,28 +1378,20 @@
 ### 🚀 Lab nâng cao (best-practice) — Mô hình DevOps hoàn chỉnh
 
 **Mô hình hệ thống DevOps end-to-end:**
-```
-  Dev ──push──▶ GitHub (app repo)
-                  │
-        ┌─────────▼──────────┐
-        │ CI: lint→test→scan │  (Trivy, tfsec, SAST)
-        │ build image (SHA)  │
-        │ push → registry    │
-        │ cập nhật tag →      │──▶ GitHub (config repo: Helm/manifests)
-        └────────────────────┘             │
-                                  ┌─────────▼─────────┐
-                                  │  ArgoCD (GitOps)  │ tự sync
-                                  └─────────┬─────────┘
-                          ┌────────────────▼─────────────────┐
-                          │       Kubernetes Cluster          │
-                          │  (Terraform tạo, Helm deploy app) │
-                          │  app + ingress + HPA + probe      │
-                          └────────────────┬──────────────────┘
-                                           │ scrape metrics + logs
-                          ┌────────────────▼──────────────────┐
-                          │  Prometheus + Grafana + Loki       │
-                          │  dashboard (golden signals) + alert│
-                          └────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Dev(("👤 Dev")) -->|push| APPREPO["📁 app repo"]
+    APPREPO --> CI["🧪 CI · lint→test→scan (Trivy/tfsec)<br/>build image (SHA) → push registry → cập nhật tag"]
+    CI --> CFG["📁 config repo · Helm / manifests"]
+    CFG -->|"pull"| ARGO["🔄 ArgoCD · GitOps"]
+    ARGO --> K8S["☸️ Kubernetes<br/>Terraform tạo · Helm deploy<br/>app + ingress + HPA + probe"]
+    K8S -->|"metrics + logs"| OBS["📊 Prometheus + Grafana + Loki<br/>dashboard (golden signals) + alert"]
+    classDef ci fill:#e3f2fd,stroke:#1976d2;
+    classDef gitops fill:#e8f5e9,stroke:#2e7d32;
+    classDef obs fill:#fff3e0,stroke:#f57c00;
+    class CI ci;
+    class ARGO,K8S gitops;
+    class OBS obs;
 ```
 
 **Yêu cầu best-practice:**

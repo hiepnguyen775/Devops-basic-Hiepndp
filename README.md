@@ -43,6 +43,8 @@
 
 Mỗi giai đoạn kết thúc bằng **LAB tổng hợp (Milestone)** + **Phụ lục** (lỗi thường gặp, playbook xử lý sự cố, cheat sheet).
 
+> 🖼️ **Sơ đồ:** các bài LAB/Milestone quan trọng có sơ đồ kiến trúc vẽ bằng **Mermaid** — GitHub tự render thành hình đồ họa (mở file `.md` trên GitHub để xem). Tổng cộng 18 sơ đồ: SSH bastion, Git states, Container vs VM, pipeline CI/CD, kiến trúc K8s, Service/Ingress, GitOps, observability, SLO/error budget, HA/DR, sidecar mesh, và sơ đồ dự án tốt nghiệp.
+
 ---
 
 *Tài liệu được biên soạn và mở rộng để bám sát thực tế vận hành hệ thống.*

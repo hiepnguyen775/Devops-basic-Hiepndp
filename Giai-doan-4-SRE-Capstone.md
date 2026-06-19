@@ -40,6 +40,18 @@
 - **Toil:** công việc thủ công lặp lại — mục tiêu SRE là tự động hóa để giảm toil.
 - **Postmortem không đổ lỗi (blameless):** học từ sự cố, tập trung vào hệ thống thay vì con người.
 
+**Sơ đồ — SLI → SLO → SLA & Error Budget:**
+```mermaid
+flowchart LR
+    SLI["📏 SLI · đo thực tế<br/>(vd 99.95% request OK)"] --> SLO["🎯 SLO · mục tiêu nội bộ<br/>(≥ 99.9%)"]
+    SLO --> SLA["📜 SLA · cam kết khách<br/>(≥ 99.5% — phạt nếu vi phạm)"]
+    SLO --> EB["💰 Error Budget = 100% − SLO<br/>(0.1% ≈ 43 phút down/tháng)"]
+    EB -->|"còn budget"| FEAT["🚀 ưu tiên tính năng mới"]
+    EB -->|"cạn budget"| STAB["🛡️ đóng băng feature · sửa ổn định"]
+    classDef k fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20;
+    class SLI,SLO,SLA,EB k;
+```
+
 ### 🧪 Lab cơ bản
 
 1. Định nghĩa SLI/SLO cho app của bạn (vd: 99% request < 300ms, uptime 99.5%).
@@ -101,6 +113,25 @@
 - **Disaster Recovery (DR):** RTO (thời gian phục hồi), RPO (mất dữ liệu tối đa chấp nhận).
 - **Chiến lược DR:** backup-restore, pilot light, warm standby, multi-site.
 - **Chaos engineering:** chủ động gây lỗi để kiểm tra khả năng chịu lỗi.
+
+**Sơ đồ — HA (nhiều replica + DB replication) & DR (backup off-site):**
+```mermaid
+flowchart TB
+    LB["⚖️ Load Balancer"] --> A1["Replica 1"]
+    LB --> A2["Replica 2"]
+    LB --> A3["Replica 3"]
+    A1 --> DBM[("DB primary")]
+    A2 --> DBM
+    A3 --> DBM
+    DBM -->|"replication + failover"| DBR[("DB replica")]
+    DBM -->|"backup (RPO)"| BK["💾 Backup off-site"]
+    BK -.->|"restore (RTO)"| DR["🌍 Site DR"]
+    classDef ha fill:#e3f2fd,stroke:#1976d2;
+    classDef dr fill:#fff3e0,stroke:#f57c00;
+    class LB,A1,A2,A3 ha;
+    class BK,DR dr;
+```
+> Không có SPOF: mất 1 replica/1 node → vẫn phục vụ. RPO = backup bao lâu/lần; RTO = khôi phục mất bao lâu.
 
 ### 🧪 Lab cơ bản
 
@@ -222,6 +253,23 @@
 - **Tính năng mesh:** traffic management (canary, A/B), mTLS, observability, retry/timeout.
 - **API Gateway:** điểm vào duy nhất, xác thực, rate limiting.
 - **Khi nào KHÔNG cần mesh:** hệ thống nhỏ thì mesh là phức tạp thừa.
+
+**Sơ đồ — Sidecar pattern (mọi traffic đi qua proxy):**
+```mermaid
+flowchart LR
+    subgraph PodA["Pod A · 2/2 READY"]
+        AppA["App A"] --- PxA["🔄 sidecar proxy"]
+    end
+    subgraph PodB["Pod B · 2/2 READY"]
+        PxB["🔄 sidecar proxy"] --- AppB["App B"]
+    end
+    PxA -->|"mTLS · retry · timeout · metric"| PxB
+    CP["🎛️ Control Plane mesh · Linkerd/Istio"] -.->|"cấu hình"| PxA
+    CP -.->|"cấu hình"| PxB
+    classDef m fill:#ede7f6,stroke:#5e35b1,color:#311b92;
+    class PxA,PxB,CP m;
+```
+> App không cần sửa code — sidecar lo mã hóa, retry, observability. ⚠️ Chỉ thêm mesh khi nỗi đau microservices thực sự xuất hiện.
 
 ### 🧪 Lab cơ bản
 
@@ -676,21 +724,22 @@ Xây ứng dụng web ghi chú (tạo/sửa/xóa note, đăng nhập) gồm 3 th
 
 ### 2. Kiến trúc tổng thể (vẽ sơ đồ này vào README)
 
-```
-  Lập trình viên ──push──▶ GitHub repo
-                              │ (kích hoạt tự động)
-                              ▼
-  GitHub Actions CI/CD: Test → Build image → Push Registry → Deploy
-                              │
-                              ▼
-  Kubernetes Cluster (trên cloud / k3s):
-      • Frontend (Deployment + Service)
-      • Backend API (Deployment + Service + HPA autoscaling)
-      • PostgreSQL (StatefulSet + PersistentVolume)
-      • Ingress ──▶ Người dùng truy cập qua domain/IP
-                              │
-                              ▼
-  Monitoring: Prometheus (metrics) + Grafana (dashboard) + Loki (logs) + Alert
+```mermaid
+flowchart TD
+    Dev(("👨‍💻 Lập trình viên")) -->|push| GH["📁 GitHub repo"]
+    GH -->|"kích hoạt tự động"| CICD["🚀 GitHub Actions CI/CD<br/>Test → Build image → Push Registry → Deploy"]
+    CICD --> K8S
+    subgraph K8S["☸️ Kubernetes Cluster · cloud / k3s"]
+        ING["🚪 Ingress"] --> FE["🖼️ Frontend<br/>Deployment + Service"]
+        ING --> BE["⚙️ Backend API<br/>Deployment + Service + HPA"]
+        BE --> DB[("🗄️ PostgreSQL<br/>StatefulSet + PV")]
+    end
+    ING -->|"domain / IP"| User(("👤 Người dùng"))
+    K8S -->|"metrics + logs"| MON["📊 Prometheus + Grafana + Loki + Alert"]
+    classDef ci fill:#e3f2fd,stroke:#1976d2,color:#0d47a1;
+    classDef mon fill:#fff3e0,stroke:#f57c00,color:#e65100;
+    class CICD ci;
+    class MON mon;
 ```
 
 ### 3. Các bước thực hiện (5 phần — khoảng 5–7 ngày, khớp Ngày 56–59)

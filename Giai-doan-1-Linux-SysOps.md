@@ -682,6 +682,19 @@ journalctl -u backup.service   # log của lần backup gần nhất
        HostName 10.0.1.50
        ProxyJump web-01            # nhảy qua web-01 (bastion) để vào internal-db
    ```
+
+   **Sơ đồ — SSH bastion & tunnel (laptop → bastion → dịch vụ nội bộ):**
+   ```mermaid
+   flowchart LR
+       Laptop["💻 Laptop của bạn"] -->|"ssh / ProxyJump<br/>(qua cổng 22)"| Bastion["🛡️ Bastion · web-01<br/>máy duy nhất lộ ra ngoài"]
+       Bastion -->|"-L 5432"| DB[("🗄️ internal-db<br/>10.0.1.50:5432")]
+       Bastion -->|"-L 3000"| Dash["📊 Dashboard nội bộ<br/>:3000"]
+       classDef pub fill:#e3f2fd,stroke:#1976d2,color:#0d47a1;
+       classDef priv fill:#fff3e0,stroke:#f57c00,color:#e65100;
+       class Bastion pub;
+       class DB,Dash priv;
+   ```
+   > Chỉ bastion mở cổng ra ngoài; database/dashboard nằm trong mạng riêng, chỉ với tới được qua đường hầm SSH.
 3. **Hardening sshd** (sửa `/etc/ssh/sshd_config`) — sẽ đào sâu Ngày 9:
    ```
    PermitRootLogin no
@@ -1021,18 +1034,22 @@ restic restore latest --target /tmp/restore  # khôi phục
 > Đây là "mini dự án" tổng kết Giai đoạn 1: biến server trắng thành server vận hành chuẩn bằng 1 script idempotent.
 
 **Mô hình hệ thống mục tiêu:**
-```
-┌─────────────────────────────────────────────┐
-│  Server/VM Ubuntu (vật lý, ảo hoá, hay cloud)│
-│                                              │
-│  [UFW] deny-by-default, allow 22(limit),80   │
-│  [User] deploy (sudo có kiểm soát) + SSH key │
-│  [fail2ban] chặn brute-force SSH             │
-│  [nginx] dịch vụ web, enable --now           │
-│  [cron] health-check mỗi giờ + backup mỗi ngày│
-│  [logrotate] xoay log app 14 ngày            │
-│  [backup] tar + checksum, retention 7 ngày   │
-└─────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Net(("🌐 Internet")) -->|"chỉ 22 (limit) + 80"| UFW["🔥 UFW · deny-by-default"]
+    UFW --> F2B["🚫 fail2ban · chặn brute-force SSH"]
+    F2B --> Login["🔑 User deploy + SSH key<br/>(không root · không password)"]
+    subgraph SRV["🖥️ Server/VM Ubuntu — vật lý / ảo hoá / cloud"]
+        direction TB
+        Login --> NGINX["🌍 nginx · enable --now"]
+        NGINX --> CRON["⏰ cron · health-check mỗi giờ"]
+        CRON --> BK["💾 backup mỗi ngày · tar+checksum · giữ 7 ngày"]
+        BK --> LOG["📜 logrotate · xoay log 14 ngày"]
+    end
+    classDef sec fill:#ffebee,stroke:#c62828,color:#b71c1c;
+    classDef svc fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20;
+    class UFW,F2B,Login sec;
+    class NGINX,CRON,BK,LOG svc;
 ```
 
 **Yêu cầu best-practice cho `server-setup.sh`:**
