@@ -1,0 +1,5 @@
+# Copy thành terraform.tfvars rồi điền giá trị thật (file .tfvars đã được .gitignore).
+ami_id     = "ami-xxxxxxxx"     # AMI Ubuntu ở region của bạn
+key_name   = "my-keypair"       # SSH key pair đã tạo trên AWS
+my_ip_cidr = "1.2.3.4/32"       # IP của bạn để mở SSH (chmod tường lửa chặt)
+region     = "ap-southeast-1"

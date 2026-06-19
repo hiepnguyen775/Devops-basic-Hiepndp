@@ -1,0 +1,29 @@
+# Secrets & môi trường — KHÔNG BAO GIỜ commit
+.env
+*.env.local
+k8s/secret.yaml
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+
+# Node / build
+node_modules/
+dist/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

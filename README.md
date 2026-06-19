@@ -27,6 +27,7 @@
 **Bổ sung (nên học kèm):**
 - 🐍 [Module Python cho DevOps (3 ngày)](./Module-Python-cho-DevOps.md) — học sau Bash (Ngày 5–6); lấp khoảng trống so với roadmap chuẩn.
 - 📚 [Tài liệu tham khảo & Cách học hiệu quả](./Tai-lieu-tham-khao.md) — docs chính thức, nền tảng lab tương tác, cộng đồng. **Đọc file này trước khi bắt đầu.**
+- 🏗️ [**Bộ khung dự án tốt nghiệp — CloudNote**](./capstone-cloudnote/) — code thật sẵn sàng (FastAPI + Postgres + Docker + K8s + Terraform + CI/CD + Monitoring) kèm sơ đồ kiến trúc. Chạy local bằng 1 lệnh `docker compose up`, rồi tự hoàn thiện các `# TODO`.
 
 > ⚠️ **Quan trọng — tài liệu này không thay thế thực hành:** lộ trình giúp bạn biết *học gì, thứ tự nào, tại sao*. Nhưng phải **gõ tay làm lab trên môi trường thật** + **đối chiếu docs chính thức** + **hỏi cộng đồng khi kẹt** mới thật sự học được. Xem [Tài liệu tham khảo](./Tai-lieu-tham-khao.md) để biết cách kết hợp.
 

@@ -1,0 +1,66 @@
+name: CD
+
+on:
+  push:
+    branches: [main]      # deploy khi merge vào main
+    tags: ["v*"]          # hoặc khi gắn tag phiên bản
+
+permissions:
+  contents: read
+  packages: write         # để push image lên GHCR
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/cloudnote
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Đăng nhập GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}   # token tự sinh, an toàn, không cần tạo secret
+
+      - name: Build & push backend (tag theo commit SHA — KHÔNG dùng latest để deploy)
+        uses: docker/build-push-action@v6
+        with:
+          context: capstone-cloudnote/backend
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}-backend:${{ github.sha }}
+            ${{ env.IMAGE_PREFIX }}-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: capstone-cloudnote/frontend
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}-frontend:${{ github.sha }}
+            ${{ env.IMAGE_PREFIX }}-frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [build-push]
+    # environment: production   # 🔧 TODO: bật để yêu cầu approval thủ công
+    steps:
+      - uses: actions/checkout@v4
+      # 🔧 TODO: deploy lên cluster của bạn. Ví dụ:
+      #   - lưu kubeconfig vào secret KUBE_CONFIG
+      #   - set image theo SHA rồi apply
+      - name: Deploy lên Kubernetes (mẫu — cần điền kubeconfig)
+        run: |
+          echo "TODO: cấu hình kubectl bằng \${{ secrets.KUBE_CONFIG }}"
+          echo "kubectl -n cloudnote set image deployment/backend  backend=${{ env.IMAGE_PREFIX }}-backend:${{ github.sha }}"
+          echo "kubectl -n cloudnote set image deployment/frontend frontend=${{ env.IMAGE_PREFIX }}-frontend:${{ github.sha }}"
+          echo "kubectl -n cloudnote rollout status deployment/backend"
+      # Gợi ý nâng cao: thay deploy push bằng GitOps (ArgoCD) — chỉ cập nhật tag trong repo config.

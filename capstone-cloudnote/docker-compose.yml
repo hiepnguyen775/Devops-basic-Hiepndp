@@ -1,0 +1,46 @@
+# CloudNote — chạy cả 3 tầng ở local bằng 1 lệnh: docker compose up -d --build
+# Kiến trúc: frontend (nginx, cổng 8080) ──/api──> backend (FastAPI) ──> db (Postgres)
+# 2 network: frontend & backend. DB CHỈ nằm ở network backend => Internet không thấy DB.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - dbdata:/var/lib/postgresql/data        # dữ liệu bền vững (còn sau khi down)
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy            # chờ DB SẴN SÀNG, không chỉ "đã start"
+    networks: [backend, frontend]
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"                             # truy cập: http://localhost:8080
+    depends_on:
+      - backend
+    networks: [frontend]
+    restart: unless-stopped
+
+networks:
+  frontend:
+  backend:
+
+volumes:
+  dbdata:

@@ -1,0 +1,29 @@
+# Namespace + cấu hình. Apply đầu tiên.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloudnote
+---
+# Cấu hình KHÔNG nhạy cảm
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudnote-config
+  namespace: cloudnote
+data:
+  POSTGRES_DB: "cloudnote"
+  POSTGRES_USER: "cloudnote"
+  POSTGRES_HOST: "db"          # tên Service của Postgres trong namespace
+---
+# ⚠️ ĐÂY LÀ FILE MẪU. Production: tạo Secret thật bằng lệnh, KHÔNG commit:
+#   kubectl -n cloudnote create secret generic cloudnote-secret \
+#     --from-literal=POSTGRES_PASSWORD='mat_khau_manh_thuc_te'
+# (Nâng cao: dùng Sealed Secrets / External Secrets để commit an toàn.)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudnote-secret
+  namespace: cloudnote
+type: Opaque
+stringData:                     # stringData: ghi plaintext, K8s tự base64
+  POSTGRES_PASSWORD: "change_me_please_123"
