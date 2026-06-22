@@ -76,6 +76,27 @@
 3. **Tạo repo theo dõi tiến độ** `devops-60-days` trên GitHub, clone về, tạo `README.md` dạng bảng checklist 60 ngày → commit đầu tiên. Đây là **portfolio** của bạn trong 60 ngày tới.
 4. **Liên hệ thực tế:** với bất kỳ hệ thống nào bạn đang/sẽ vận hành (server vật lý, VM, hay cloud), hãy liệt kê ra giấy: phần nào đang làm **thủ công** (tạo máy, cấu hình, deploy, backup)? Đó chính là các "toil" mà DevOps sẽ tự động hóa dần.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+> Đọc khi làm để hiểu *vì sao*, không chỉ chép theo.
+
+**Trình tự nên làm:** cài Git → khai báo định danh (`git config`) → tạo SSH key → gắn key lên GitHub → test kết nối. Mỗi bước xong hãy *thấy kết quả* rồi mới đi tiếp.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `git --version` — kiểm tra Git đã cài chưa. *Kết quả:* `git version 2.x.x`. Nếu "command not found" → chưa cài (Ubuntu/Debian: `sudo apt install -y git`; Fedora/RHEL: `sudo dnf install -y git`).
+- `git config --global user.name/.email` — gắn tên + email vào MỌI commit. **Vì sao `--global`:** áp dụng cho mọi repo trên máy (lưu ở `~/.gitconfig`), khỏi khai lại. *Kết quả:* `git config --global --list` in đúng tên/email.
+- `git config --global pull.rebase true` — khi `git pull` thì rebase thay vì merge. **Vì sao:** lịch sử thẳng, không rác "Merge branch...".
+- `ssh-keygen -t ed25519 -C "email"` — tạo *cặp* khóa: `id_ed25519` (private — GIỮ KÍN) + `id_ed25519.pub` (public — đem chia sẻ). **Vì sao ed25519:** ngắn, nhanh, an toàn tương đương RSA dài. *Kết quả:* 2 file trong `~/.ssh/`.
+- `ssh -T git@github.com` — test danh tính SSH với GitHub (không mở shell). *Kết quả:* `Hi <user>! You've successfully authenticated...`.
+
+**🧪 Thử nghiệm (tự khám phá):**
+- `cat ~/.ssh/id_ed25519.pub` (public — OK để copy) rồi nhìn `cat ~/.ssh/id_ed25519` (private). **Bài học:** chỉ copy file `.pub`; private không bao giờ rời máy.
+- `git config --global --list` — thấy mọi cấu hình vừa đặt nằm gọn một chỗ.
+
+⚠️ **Dễ sai:** dán nhầm **private key** lên GitHub (phải là file `.pub`). Lộ private key = phải tạo lại key.
+
+💡 **Hiểu sâu:** SSH key dùng mã hóa bất đối xứng — server giữ public key, chỉ ai có private key tương ứng mới chứng minh được danh tính. Bạn dùng lại nguyên lý này ở Ngày 8 và mọi lần `git push`.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Câu hỏi:** Khác biệt cốt lõi giữa SysOps và DevOps? (gợi ý: mức độ tự động hóa)
@@ -172,6 +193,28 @@ find . -name "*.sh" -exec chmod +x {} \;
 - **Globbing (ký tự đại diện của shell):** `*` (mọi ký tự), `?` (1 ký tự), `[abc]`, `{jpg,png}`. Ví dụ `ls *.log`, `rm file{1,2,3}.txt`.
 - **Symlink (liên kết mềm):** `ln -s /đường/dẫn/thật link` — dùng nhiều cho cấu hình (`/etc/nginx/sites-enabled` thực ra là symlink tới `sites-available`).
 - **Xem chi tiết file:** `stat file` (thời gian, inode, quyền), `file ảnh.bin` (đoán loại file), `type ls` / `which python3` (lệnh này ở đâu, là alias hay binary).
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+> Đọc khi làm để hiểu *vì sao* gõ từng lệnh — không chỉ chép theo.
+
+**Trình tự nên làm:** vào môi trường Linux → tập điều hướng (`pwd`/`ls`/`cd`) → tạo cây thư mục → tạo/sửa file → sao chép & di chuyển. Làm xong mỗi bước *nhìn kết quả* rồi mới sang bước sau.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `pwd` *(print working directory)* — in thư mục hiện tại. *Kết quả:* `/home/<user>`. **Vì sao cần:** luôn biết "đang đứng ở đâu" trước khi chạy lệnh xóa/sửa.
+- `ls -la` — `-a` gồm file ẩn (bắt đầu bằng `.`), `-l` dạng chi tiết (quyền/chủ/kích thước/ngày). *Kết quả:* mỗi dòng `drwxr-xr-x ... tên`. **Vì sao `-la`:** SysOps cần thấy file ẩn (`.ssh`, `.bashrc`) + cột quyền.
+- `mkdir -p ~/devops-lab/{scripts,configs,logs,backups}` — `-p` tạo cả cha (không lỗi nếu đã có); `{a,b,c}` là *brace expansion*. *Kết quả:* `ls ~/devops-lab` → `backups configs logs scripts`. **Vì sao gọn:** 1 lệnh thay 4.
+- `cp` (giữ gốc) vs `mv` (mất gốc). **Ý nghĩa:** chọn nhầm = mất file gốc.
+- `alias rm='rm -i'` (nâng cao) — `rm` hỏi trước khi xóa. **Vì sao:** Linux *không có Thùng rác*, xóa là mất.
+- `rsync -avh --progress nguồn/ đích/` — `-a` giữ quyền/thời gian, `-v` chi tiết, `-h` đơn vị dễ đọc, `--progress` thanh tiến trình. **Vì sao thay `cp -r`:** chỉ copy phần khác biệt, tiếp tục được khi đứt.
+
+**🧪 Thử nghiệm (tự khám phá):**
+- `rsync -avh nguồn/ d1/` rồi `rsync -avh nguồn d2/` (một có `/`, một không), so sánh `ls d1 d2`. **Bài học:** `/` cuối = copy *nội dung*; không `/` = copy *cả thư mục*.
+- `touch ~/.an` rồi `ls ~` và `ls -a ~`. **Bài học:** file bắt đầu bằng `.` bị `ls` thường giấu.
+
+⚠️ **Dễ sai:** quen tay `rm -rf` — không có hoàn tác. Luôn `ls` đường dẫn trước khi xóa.
+
+💡 **Hiểu sâu:** `{a,b,c}` do **shell (bash)** bung ra *trước khi* `mkdir` chạy — `mkdir` chỉ nhận 4 tên đã bung. Hiểu "ai xử lý cái gì" giúp debug khi lệnh không như ý.
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -293,6 +336,26 @@ journalctl -u myapp -f                # xem log app (systemd tự gom log!)
 - `kill -l` xem danh sách tín hiệu; `SIGTERM` (15, lịch sự) → `SIGKILL` (9, ép buộc, chỉ khi bất đắc dĩ).
 - `nice`/`renice` hạ ưu tiên tiến trình ngốn CPU để không làm nghẽn server.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** cài & mở htop → chạy tiến trình nền và quản lý → đặt biến môi trường → xem tài nguyên → cài & kiểm tra dịch vụ (nginx) bằng systemctl.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `sudo apt install -y htop` (Fedora: `sudo dnf install -y htop`) — `-y` tự đồng ý. *Kết quả:* gõ `htop` mở bảng tiến trình màu, `q` để thoát.
+- `sleep 300 &` — chạy "ngủ 300s" ở **nền** (`&`). `jobs` liệt kê job nền; `ps aux | grep sleep` tìm PID. **Vì sao `&`:** giải phóng terminal để làm việc khác.
+- `kill %1` (theo job) hoặc `kill <PID>` — gửi tín hiệu **TERM** (lịch sự, cho tiến trình tự dọn dẹp). *Kết quả:* `jobs` không còn job đó.
+- `free -h` / `df -h` / `uptime` — `-h` = đơn vị dễ đọc (MB/GB). *Kết quả:* RAM trống / đĩa trống / load average.
+- `systemctl status nginx` — trạng thái dịch vụ. *Kết quả:* `active (running)`. `start` chạy ngay, `enable` bật tự khởi động khi reboot, `enable --now` = cả hai.
+- `journalctl -u nginx` — đọc log dịch vụ. **Vì sao không đoán mò:** log nói chính xác vì sao dịch vụ lỗi.
+
+**🧪 Thử nghiệm:**
+- `systemctl is-enabled nginx` sau khi chỉ `start` (chưa `enable`). **Bài học:** `start` KHÔNG tự lên sau reboot — phải `enable`. Lỗi #1 của người mới.
+- `ps aux --sort=-%mem | head -5` — 5 tiến trình ngốn RAM nhất (kỹ năng điều tra "máy chậm").
+
+⚠️ **Dễ sai:** dùng `kill -9` (SIGKILL) ngay — *ép chết* không cho dọn dẹp, dễ hỏng dữ liệu. Chỉ dùng khi `kill` thường không ăn thua.
+
+💡 **Hiểu sâu:** `|` (pipe) nối output lệnh này thành input lệnh kia: `ps aux | grep sleep` = "liệt kê mọi tiến trình" → "lọc dòng có chữ sleep". Triết lý Unix: ghép công cụ nhỏ làm việc lớn.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** tìm PID của nginx và viết lệnh dừng nó an toàn (không dùng `-9`).
@@ -356,6 +419,27 @@ journalctl -u myapp -f                # xem log app (systemd tự gom log!)
    ```bash
    find / -perm -4000 -type f 2>/dev/null
    ```
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** tạo user → thêm vào nhóm sudo → tập đọc & đổi quyền (`chmod`) → đổi chủ sở hữu (`chown`) → đăng nhập thử user mới.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `sudo adduser devuser` — tạo user (hỏi mật khẩu, tạo home). *Kết quả:* `id devuser` in uid/gid/groups.
+- `sudo usermod -aG sudo devuser` — `-aG` = **append** vào **G**roup (thêm, không ghi đè). **⚠️ Thiếu `-a`** = xóa hết nhóm cũ → lỗi nguy hiểm.
+- `chmod 750 file` — quyền dạng số: r=4 w=2 x=1, mỗi chữ số cho owner/group/other. `750` = `rwx`(7)/`r-x`(5)/`---`(0). *Kết quả:* `ls -l` hiện `-rwxr-x---`.
+- `chmod +x script.sh` — thêm quyền chạy (file mới mặc định không chạy được).
+- `chmod 600 ~/.ssh/id_ed25519` — chỉ owner đọc/ghi. **Vì sao bắt buộc:** SSH *từ chối* private key nếu quyền quá mở.
+- `sudo chown devuser:devuser file` — đổi chủ:nhóm. *Kết quả:* `ls -l` cột owner đổi.
+- `su - devuser` — chuyển user (dấu `-` nạp môi trường login đầy đủ); `whoami`/`id` xác nhận; `exit` quay về.
+
+**🧪 Thử nghiệm:**
+- Tạo file rồi đặt lần lượt `chmod 644`, `755`, `600`, mỗi lần `ls -l`. **Bài học:** đọc `rwxr-xr-x` ↔ `755` mà không cần tính.
+- `find / -perm -4000 -type f 2>/dev/null` — tìm file SUID. **Bài học:** đây là chỗ hacker hay nhắm để leo quyền.
+
+⚠️ **Dễ sai:** `chmod 777` "cho nhanh" = ai cũng đọc/ghi/chạy = lỗ hổng. Luôn cấp quyền tối thiểu.
+
+💡 **Hiểu sâu:** ký tự đầu `ls -l`: `d`=thư mục, `-`=file, `l`=symlink; 9 ký tự sau chia 3 nhóm rwx (owner-group-other). Hiểu cái này là hiểu 80% phân quyền Linux.
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -421,6 +505,26 @@ journalctl -u myapp -f                # xem log app (systemd tự gom log!)
    ```bash
    sudo apt install -y shellcheck && shellcheck hello.sh
    ```
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** viết `hello.sh` → cấp quyền chạy → chạy → thêm biến/đọc input → thêm vòng lặp/điều kiện → bọc header an toàn (nâng cao).
+
+**Giải nghĩa & kết quả mong đợi:**
+- `#!/bin/bash` (shebang) — dòng đầu báo "dùng bash chạy file này". **Vì sao cần:** để `./hello.sh` biết trình thông dịch.
+- `chmod +x hello.sh` rồi `./hello.sh` — phải cấp quyền chạy trước. *Kết quả:* in `Hello DevOps`.
+- `TEN='giá trị'` — **không khoảng trắng** quanh `=`. Dùng lại bằng `$TEN`.
+- `read -p 'Nhập tên: ' name` — đọc input vào biến `name`. *Kết quả:* gõ tên → script chào lại.
+- `for i in 1 2 3; do ...; done` / `if [ -f file ]; then ...; fi` — vòng lặp / kiểm tra; `-f` = "file tồn tại?".
+- `echo $?` — exit code lệnh trước (`0` = thành công). **Vì sao quan trọng:** script tự động dựa vào đây để biết bước trước có ổn không.
+
+**🧪 Thử nghiệm:**
+- `if [ -f /etc/hostname ]; then echo có; else echo không; fi` rồi đổi sang file không tồn tại. **Bài học:** thấy `[ -f ]` hoạt động.
+- (Nâng cao) Thêm `set -euo pipefail` đầu script rồi cố dùng 1 biến chưa khai báo → script dừng ngay. **Bài học:** vì sao dòng này là "đai an toàn" của script production.
+
+⚠️ **Dễ sai:** viết `TEN = 'x'` (có khoảng trắng) → lỗi. Bash hiểu khoảng trắng là phân tách lệnh/tham số.
+
+💡 **Hiểu sâu:** `$((n % 2))` là *arithmetic expansion* — bash tính số học trong `$(( ))`; `%` là chia lấy dư, `n % 2 == 0` → chẵn. Kiểm cú pháp script bằng `shellcheck file.sh` trước khi chạy.
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -531,6 +635,25 @@ journalctl -u backup.service   # log của lần backup gần nhất
 - `bash -x script.sh` — chạy ở chế độ debug, in từng lệnh được thực thi (cứu tinh khi script lỗi khó hiểu).
 - `cmd1 || cmd2` (chạy cmd2 nếu cmd1 lỗi), `cmd1 && cmd2` (chạy cmd2 nếu cmd1 ok) — nền tảng của script tự phục hồi.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** viết script backup (tar) → lọc văn bản (grep/awk) → kiểm tra đĩa → hẹn giờ bằng cron → thêm logging.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `tar -czf backup-$(date +%F).tar.gz ~/devops-lab` — `c`=create, `z`=nén gzip, `f`=tên file; `$(date +%F)` chèn ngày YYYY-MM-DD vào tên. *Kết quả:* file `.tar.gz` xuất hiện.
+- `ps aux | grep nginx | awk '{print $2}'` — `awk '{print $2}'` in **cột 2** (PID). **Vì sao:** trích đúng dữ liệu từ output lộn xộn.
+- `df / | awk 'NR==2{print $5}' | tr -d '%'` — lấy % dùng đĩa, bỏ `%` để so sánh số. *Kết quả:* ra số như `42`.
+- `crontab -e` — sửa bảng hẹn giờ. 5 trường: `phút giờ ngày tháng thứ`. `0 2 * * *` = 2h sáng mỗi ngày; `*/15 * * * *` = mỗi 15 phút.
+- `>> file 2>&1` — ghi cả output (`>>` nối thêm) lẫn lỗi (`2>&1`) vào log. **Vì sao cron cần:** cron chạy âm thầm, không log thì hỏng cũng không biết.
+
+**🧪 Thử nghiệm:**
+- `echo x > f` (2 lần) vs `echo x >> f` (2 lần) rồi `cat f`. **Bài học:** `>` ghi đè (1 dòng), `>>` nối thêm (2 dòng).
+- `grep -c -i error /var/log/syslog` — đếm dòng chứa "error". **Bài học:** `grep` + đếm = công cụ điều tra log.
+
+⚠️ **Dễ sai:** cron không có `$PATH` đầy đủ như terminal → dùng **đường dẫn tuyệt đối** cho lệnh/script trong cron, nếu không "chạy tay được mà cron thì không".
+
+💡 **Hiểu sâu:** `$(lệnh)` là *command substitution* — bash chạy lệnh bên trong rồi thay bằng kết quả: `backup-$(date +%F).tar.gz` → `backup-2026-06-22.tar.gz`. Hiện đại hơn cron là **systemd timer** (xem 💡 Bổ sung).
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** viết cron chạy mỗi 15 phút → **đáp án: `*/15 * * * *`**.
@@ -619,6 +742,25 @@ journalctl -u backup.service   # log của lần backup gần nhất
 - **Định tuyến:** `ip route` (xem bảng route), `ip route get 8.8.8.8` (gói này đi đường nào).
 - **`mtr google.com`** — `ping` + `traceroute` gộp lại, real-time: chỉ ra mạng nghẽn ở chặng nào (vàng cho điều tra "mạng chậm").
 - **Phân biệt cổng đóng:** `Connection refused` = cổng đóng/không có dịch vụ nghe; `timeout` = firewall chặn im lặng. Hai lỗi này hướng debug hoàn toàn khác nhau.
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** xem IP máy → ping kiểm tra kết nối → gọi API bằng curl → xem cổng đang mở → phân giải DNS.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `ip a` (hoặc `ip addr`) — xem IP các card mạng. *Kết quả:* dòng `inet 192.168.x.x` là IP nội bộ của bạn.
+- `ping -c 4 google.com` — gửi 4 gói thử (`-c 4` để không ping vô hạn). *Kết quả:* `64 bytes ... time=..ms`.
+- `curl https://api.github.com` — gửi HTTP GET, in nội dung trả về (JSON). **Vì sao curl:** công cụ test API/website từ dòng lệnh.
+- `ss -tuln` — cổng đang **lắng nghe**: `-t` TCP, `-u` UDP, `-l` listening, `-n` hiện số. *Kết quả:* danh sách LISTEN trên 22, 80...
+- `nslookup github.com` / `dig github.com` — phân giải tên miền → IP. *Kết quả:* ra địa chỉ IP của domain.
+
+**🧪 Thử nghiệm:**
+- `nc -zv github.com 443` (mở) vs `nc -zv github.com 444` (đóng). **Bài học:** phân biệt "cổng mở" với "đóng/timeout" — kỹ năng debug cốt lõi.
+- `curl -o /dev/null -s -w "HTTP %{http_code} | %{time_total}s\n" https://github.com` — chỉ in mã trạng thái + thời gian. **Bài học:** đo nhanh website sống/chậm.
+
+⚠️ **Dễ sai:** nhầm "ping được = mọi thứ OK". Ping (ICMP) chạy nhưng cổng dịch vụ (80/443) vẫn có thể chết. Phải kiểm cả tầng dịch vụ (`curl`/`nc`).
+
+💡 **Hiểu sâu:** port là "cánh cửa" dịch vụ trên 1 IP: SSH 22, HTTP 80, HTTPS 443, MySQL 3306, PostgreSQL 5432. `ss -tlnp` (thêm `p`) cho biết *tiến trình nào* giữ cổng — vàng khi điều tra "ai chiếm cổng 80".
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -732,6 +874,25 @@ ssh -D 1080 admin@web-01
   ```
 - **`known_hosts`** — cảnh báo "host key changed" KHÔNG nên bỏ qua: có thể là man-in-the-middle (hoặc server vừa cài lại). Hiểu trước khi xóa dòng cũ.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** tạo SSH key → xem & copy public key → gắn lên GitHub → tạo `~/.ssh/config` alias → tập scp/rsync.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `ssh-keygen -t ed25519 -C 'devops-lab'` — tạo cặp khóa. *Kết quả:* `~/.ssh/id_ed25519` (private) + `.pub` (public).
+- `ssh user@host` / `ssh -p 2222 user@host` — kết nối; `-p` đổi cổng nếu server không dùng 22. *Kết quả:* vào shell **không hỏi mật khẩu** (nếu đã cài key).
+- `ssh-copy-id user@host` — chép public key lên server (vào `~/.ssh/authorized_keys`). **Vì sao:** từ đó đăng nhập bằng key.
+- `scp file user@host:~/` — copy 1 file qua SSH. `rsync -avz -e ssh ./d/ host:/d/` — đồng bộ thư mục (copy phần khác biệt).
+- File `~/.ssh/config`: đặt `Host web-01 / HostName / User / IdentityFile` → chỉ cần gõ `ssh web-01`.
+
+**🧪 Thử nghiệm:**
+- Tạo alias trong `~/.ssh/config` rồi `ssh web-01` thay vì gõ đầy đủ. **Bài học:** quản nhiều server không cần nhớ IP.
+- `ssh -v user@host` (verbose) khi bị từ chối — đọc nó dừng ở bước nào (offer key? permission?). **Bài học:** cách debug "không SSH được".
+
+⚠️ **Dễ sai:** quyền `~/.ssh`/key sai → SSH từ chối. Chuẩn: `chmod 700 ~/.ssh`, `chmod 600 ~/.ssh/id_ed25519`.
+
+💡 **Hiểu sâu:** SSH có thể "đào hầm": `ssh -L 5432:10.0.1.50:5432 user@bastion` đưa cổng DB nội bộ về `localhost:5432` của bạn — chọc tới dịch vụ trong mạng riêng mà không mở thêm firewall (xem 💡 Bổ sung).
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** viết lệnh SSH kết nối user `admin` tới host `10.0.0.5` qua cổng `2200`. → `ssh -p 2200 admin@10.0.0.5`
@@ -822,6 +983,25 @@ ssh -D 1080 admin@web-01
   > Nguyên tắc: secret **không bao giờ** nằm dạng plaintext trong code, log, hay biến môi trường lộ ra `ps`.
 - **Kiểm tra lịch sử git có lỡ commit secret chưa:** `git log -p | grep -i -E "password|api_key|secret"` (dùng `gitleaks`/`trufflehog` để quét chuyên nghiệp).
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** bật UFW chỉ mở cổng cần → kiểm tra trạng thái → cài fail2ban → tạo `.env` + `.gitignore` → xem log đăng nhập.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `sudo ufw allow 22` / `allow 80` rồi `sudo ufw enable` — mở cổng cần *trước khi* bật, kẻo khóa luôn SSH của mình. *Kết quả:* `sudo ufw status` → `Status: active` + danh sách rule.
+- `sudo ufw default deny incoming` — chặn tất cả vào, chỉ mở cái cho phép (deny-by-default). **Vì sao:** least privilege, an toàn hơn "mở hết rồi chặn dần".
+- `sudo ufw limit 22/tcp` — giới hạn tốc độ kết nối SSH (chống brute-force).
+- `sudo apt install -y fail2ban` — tự chặn IP đoán mật khẩu sai nhiều lần. *Kết quả:* `sudo fail2ban-client status sshd` hiện jail đang chạy.
+- `.env` chứa secret + `.gitignore` loại trừ `.env`. **Vì sao:** secret không bao giờ lên Git.
+
+**🧪 Thử nghiệm:**
+- `sudo tail -n 20 /var/log/auth.log` (hoặc `journalctl -u ssh`) — xem các lần đăng nhập/thất bại gần đây. **Bài học:** server thật bị quét SSH liên tục.
+- Thêm `.env` vào `.gitignore` rồi `git status` — `.env` biến mất khỏi danh sách. **Bài học:** cơ chế chặn lộ secret.
+
+⚠️ **Dễ sai:** `sudo ufw enable` khi CHƯA `allow 22` qua SSH từ xa = tự khóa mình ngoài server. Luôn mở SSH trước, và giữ 1 phiên đang mở khi đổi firewall.
+
+💡 **Hiểu sâu:** bảo mật là *nhiều lớp* (defense in depth): firewall (UFW) → chặn brute-force (fail2ban) → SSH chỉ-key (Ngày 8) → quản secret. Không lớp nào đủ một mình.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** viết lệnh UFW mở cổng 443 và chặn cổng 23. → `sudo ufw allow 443` / `sudo ufw deny 23`
@@ -894,6 +1074,24 @@ ssh -D 1080 admin@web-01
    echo "Disk:  $(df -h / | awk 'NR==2{print $5}')"
    systemctl is-active --quiet nginx && echo "nginx: UP" || echo "nginx: DOWN ⚠️"
    ```
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** theo dõi log real-time → lọc log tìm lỗi → viết script báo cáo sức khỏe → đọc load average → hẹn giờ chạy báo cáo.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `journalctl -u nginx -f` — `-u` lọc theo dịch vụ, `-f` (follow) theo dõi real-time. *Kết quả:* màn hình cuộn khi có log mới (Ctrl+C để dừng).
+- `journalctl --since "1 hour ago"` / `-p err` — lọc theo thời gian / mức độ (chỉ lỗi). **Vì sao:** server tạo hàng nghìn dòng, phải lọc đúng cái cần.
+- `grep -i error /var/log/syslog` — `-i` không phân biệt hoa/thường. *Kết quả:* các dòng chứa "error/Error/ERROR".
+- `free -h` / `df -h` / `uptime` — RAM / đĩa / load. *Kết quả:* `uptime` cho 3 số load (1, 5, 15 phút).
+
+**🧪 Thử nghiệm:**
+- `uptime` rồi `nproc` (số core). **Bài học:** load `4.0` trên 4 core = đầy 100% (bình thường); trên 2 core = quá tải. Phải chia cho số core mới hiểu đúng.
+- `journalctl -p warning..err --since "10 min ago"` — lọc khoảng mức độ. **Bài học:** điều tra có trọng tâm thay vì đọc hết.
+
+⚠️ **Dễ sai:** để log phình mãi → đầy đĩa → server chết. `logrotate` tự xoay/nén log cũ; `journalctl --vacuum-size=200M` dọn journald.
+
+💡 **Hiểu sâu:** phân biệt **metric** (số đo theo thời gian, vd CPU%) và **log** (sự kiện văn bản). Đây là 2 trong "3 trụ cột observability" (metric/log/trace) bạn sẽ tự động hóa ở Giai đoạn 3.
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -994,6 +1192,25 @@ restic restore latest --target /tmp/restore  # khôi phục
 - **RPO (Recovery Point Objective):** chấp nhận mất tối đa bao nhiêu dữ liệu? (backup mỗi 1h → RPO = 1h).
 - **RTO (Recovery Time Objective):** khôi phục xong trong bao lâu? Quyết định bạn chọn snapshot (nhanh) hay restore từ archive (chậm).
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** xem ổ đĩa/phân vùng → tìm thư mục ngốn dung lượng → nén backup → backup gia tăng bằng rsync → **test restore**.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `lsblk` / `df -h` — xem ổ đĩa, phân vùng, dung lượng. *Kết quả:* cây ổ đĩa + % đã dùng.
+- `sudo du -ah /var | sort -rh | head -n 10` — `du` đo dung lượng, `sort -rh` sắp xếp giảm dần theo đơn vị, `head` lấy 10 dòng đầu. *Kết quả:* 10 thư mục/file lớn nhất.
+- `tar -czf backup-$(date +%F).tar.gz ~/devops-lab` — nén thư mục thành 1 file có ngày trong tên.
+- `rsync -avz --delete nguồn/ đích/` — đồng bộ; `--delete` xóa ở đích những gì đã mất ở nguồn. **⚠️ cẩn thận `--delete`:** sai chiều = xóa nhầm.
+- `sha256sum file > file.sha256` rồi `sha256sum -c file.sha256` — tạo & kiểm "chữ ký" để biết bản backup không hỏng.
+
+**🧪 Thử nghiệm:**
+- `tar -czf b.tar.gz ~/devops-lab` → xóa thư mục gốc → `tar -xzf b.tar.gz` ra chỗ khác → `diff` so sánh. **Bài học:** *backup chưa test restore = backup giả*.
+- Sửa 1 file rồi chạy lại `rsync` — thấy nó chỉ đồng bộ phần thay đổi. **Bài học:** vì sao rsync hiệu quả cho backup định kỳ.
+
+⚠️ **Dễ sai:** copy file database đang chạy (vd file `.db`) = backup *không nhất quán*. DB phải dùng `pg_dump`/`mysqldump` (xem 💡 Bổ sung).
+
+💡 **Hiểu sâu:** nguyên tắc **3-2-1**: 3 bản sao · 2 loại lưu trữ khác nhau · 1 bản off-site. Hai con số định hình chiến lược: **RPO** (mất tối đa bao nhiêu dữ liệu → quyết tần suất backup) và **RTO** (khôi phục trong bao lâu → quyết cách phục hồi).
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** giải thích nguyên tắc backup 3-2-1.
@@ -1075,6 +1292,24 @@ flowchart TD
    └── docs/
        └── kien-truc.md      # sơ đồ + checklist hardening
    ```
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** viết `server-setup.sh` (gom Ngày 1–11) → viết `health-check.sh` → hẹn giờ cron → đẩy lên GitHub → tự chấm theo checklist.
+
+**Giải nghĩa & kết quả mong đợi:**
+- Mở đầu mọi script: `#!/usr/bin/env bash` + `set -euo pipefail` — dừng ngay khi lỗi, bắt biến chưa khai báo. *Kết quả:* script "an toàn", không chạy tiếp khi đã hỏng.
+- **Idempotent** (chạy lại không lỗi): `id deploy &>/dev/null || sudo adduser ... deploy` — chỉ tạo nếu chưa có. **Vì sao:** chạy lần 2 không được phá thứ đã đúng.
+- Gom các lệnh đã học: tạo user (Ngày 4) + cấu trúc thư mục (Ngày 2) + cài nginx/htop (Ngày 3) + bật UFW (Ngày 9) + cron backup/health (Ngày 6,10).
+- `curl localhost` — kiểm tra nginx phục vụ. *Kết quả:* trang `Welcome to nginx!`.
+
+**🧪 Thử nghiệm:**
+- Chạy `server-setup.sh` **2 lần**. **Bài học:** lần 2 phải không lỗi (in "đã tồn tại, bỏ qua") — đó là idempotent thực sự.
+- Cho `health-check.sh` in cảnh báo khi đĩa > 85% (tạm hạ ngưỡng xuống thấp để test thấy cảnh báo bật).
+
+⚠️ **Dễ sai:** `rm -rf "$DIR/"` khi `$DIR` rỗng = `rm -rf /`. Trong script luôn `set -u` + `echo` đường dẫn trước khi xóa + quote `"$DIR"`.
+
+💡 **Hiểu sâu:** đây là bước nhảy tư duy: từ "gõ lệnh thủ công" → "mô tả cả server bằng 1 script lặp lại được". Chính là hạt giống của Infrastructure as Code (Terraform/Ansible) ở các giai đoạn sau.
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
