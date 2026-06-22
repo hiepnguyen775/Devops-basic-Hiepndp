@@ -84,6 +84,23 @@ flowchart LR
 - **Vì sao postmortem blameless:** đổ lỗi cá nhân → người ta giấu sự cố → không học được gì → lặp lại. Tập trung vào **hệ thống** ("vì sao 1 lỗi gõ nhầm gây sập production?" → vì thiếu kiểm tra tự động) → sửa gốc rễ. Con người luôn sẽ mắc lỗi; hệ thống tốt phải chịu được lỗi.
 - **SRE vs DevOps:** DevOps là *văn hóa/triết lý* (phá rào Dev-Ops); SRE là *cách triển khai cụ thể* của Google với SLO, error budget, giảm toil. "SRE implements DevOps."
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** định nghĩa SLI/SLO cho app → tính error budget → đo SLI bằng Grafana → viết postmortem mẫu → liệt kê toil.
+
+**Giải nghĩa & cách làm:**
+- **SLI** = chọn 1 chỉ số người dùng cảm nhận (vd tỉ lệ request < 300ms). PromQL mẫu: `sum(rate(http_request_duration_bucket{le="0.3"}[5m])) / sum(rate(http_requests_total[5m]))`.
+- **SLO** = mục tiêu cho SLI đó (vd ≥ 99%). **Error budget** = `100% − SLO` (99.9% → 0.1% ≈ **43 phút down/tháng**).
+- **Postmortem** = tài liệu sự cố: timeline → tác động → nguyên nhân gốc → hành động (có owner + deadline).
+
+**🧪 Thử nghiệm:**
+- Tính error budget cho 99% / 99.9% / 99.99% → ra ~7h / ~43ph / ~4ph mỗi tháng. **Bài học:** mỗi "số 9" thêm vào đắt gấp ~10 lần.
+- Viết postmortem cho 1 sự cố giả định, tập trung "hệ thống vì sao cho phép lỗi này" thay vì "ai gây ra". **Bài học:** blameless.
+
+⚠️ **Dễ sai:** đặt SLO = 100% → vô nghĩa (cực đắt, vẫn không đạt). Error budget thừa nhận "lỗi là bình thường".
+
+💡 **Hiểu sâu:** SLO chặt hơn SLA (đệm an toàn). Error budget = công cụ ra quyết định bằng **dữ liệu**: còn budget → ra feature; cạn → tập trung ổn định. "SRE implements DevOps."
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** phân biệt SLI, SLO, SLA.
@@ -165,6 +182,23 @@ flowchart TB
 - **HA không miễn phí:** mỗi tầng dự phòng = thêm chi phí + phức tạp. Cân bằng với SLO — đừng xây multi-region cho app nội bộ 10 người dùng.
 - **Stateless là chìa khóa scale:** app không lưu trạng thái cục bộ (session ra Redis/DB) → scale ngang thoải mái, pod chết không mất gì. Đây là lý do "cattle not pets" (Ngày 28).
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** deploy đa replica + HPA → mô phỏng pod/node chết → backup DB + test restore (đo RTO) → chaos xóa pod → viết runbook.
+
+**Giải nghĩa & cách làm:**
+- Đa replica + HPA = không SPOF tầng app. `kubectl delete pod <p>` → K8s tạo lại; Service sang pod còn sống → không downtime.
+- Backup DB định kỳ → đo **RTO** (restore mất bao lâu) và **RPO** (mất tối đa bao nhiêu dữ liệu).
+- "Chaos": xóa pod ngẫu nhiên giữa lúc đang `curl` liên tục → quan sát app có gián đoạn không.
+
+**🧪 Thử nghiệm:**
+- Trong khi `while true; do curl app; sleep 1; done`, xóa 1 pod → đếm bao nhiêu request lỗi (lý tưởng: 0). **Bài học:** HA thực sự chịu được mất pod.
+- Backup → xóa DB → restore → bấm giờ. **Bài học:** RTO thực tế của bạn là bao nhiêu.
+
+⚠️ **Dễ sai:** "có backup" nhưng chưa từng test restore → đến lúc cần mới biết hỏng. DR drill định kỳ.
+
+💡 **Hiểu sâu:** *"Everything fails, all the time"* (Amazon) — thiết kế giả định mọi thứ SẼ hỏng. RPO nhìn quá khứ (mất bao nhiêu dữ liệu → tần suất backup); RTO nhìn tương lai (phục hồi bao lâu → kiến trúc).
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** phân biệt RTO và RPO.
@@ -223,6 +257,23 @@ flowchart TB
 - **Right-sizing là "quả ngọt dễ hái":** đa số hệ thống over-provision (mua to vì sợ). Đo thật → hạ size → tiết kiệm ngay mà không ảnh hưởng. Nhưng cần monitoring để biết.
 - **Bẫy chi phí ẩn:** egress traffic (dữ liệu ra internet), NAT Gateway 24/7, volume/snapshot mồ côi, log/metric giữ vô hạn. → tagging + Cost Explorer để soi.
 - **FinOps là văn hóa, không phải công cụ:** kỹ sư cần **thấy** chi phí do mình tạo ra (shift-left cost, như shift-left security). Khi dev biết "feature này tốn $500/tháng" họ tự tối ưu. Chi phí là trách nhiệm chung.
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** phân tích chi phí (Cost Explorer) → tag tài nguyên Terraform → auto-scale xuống khi rảnh → Infracost ước tính → viết checklist tiết kiệm.
+
+**Giải nghĩa & cách làm:**
+- Cost Explorer → lọc theo tag/dịch vụ → tìm tài nguyên tốn nhất.
+- Gắn `tags = { Project, Environment, Owner }` vào tài nguyên Terraform → phân bổ chi phí.
+- `infracost breakdown --path .` — ước tính chi phí/tháng của cấu hình Terraform **trước khi** apply.
+
+**🧪 Thử nghiệm:**
+- Chạy `infracost` trên 1 thay đổi đổi instance type lớn hơn → thấy chênh lệch $/tháng. **Bài học:** thấy giá trước khi merge.
+- So sánh chi phí on-demand vs reserved vs spot cho cùng 1 instance. **Bài học:** chọn mô hình giá đúng tiết kiệm 30–90%.
+
+⚠️ **Dễ sai:** bẫy chi phí ẩn — egress traffic, NAT Gateway 24/7, volume/snapshot mồ côi. Soi bằng tagging + Cost Explorer.
+
+💡 **Hiểu sâu:** 3 mô hình giá — on-demand (linh hoạt, đắt), reserved (tải ổn định, −30~70%), spot (job chịu gián đoạn, −70~90%). Right-sizing (dựa metric thật) là "quả ngọt dễ hái".
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -295,6 +346,23 @@ flowchart LR
 - **⚠️ Cảnh báo quan trọng — khi nào KHÔNG dùng mesh:** mesh thêm **độ phức tạp lớn** (sidecar tốn tài nguyên, khó debug, học mất công). Hệ thống nhỏ (vài service) → **không cần** mesh, dùng thẳng K8s Service + Ingress. Nhiều team thêm Istio quá sớm rồi khổ. Quy tắc: chỉ thêm mesh khi nỗi đau microservices thực sự xuất hiện.
 - **Linkerd vs Istio:** Linkerd nhẹ, đơn giản, dễ vận hành — bắt đầu từ đây. Istio mạnh, nhiều tính năng, nhưng phức tạp — chỉ khi cần.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** cài Linkerd → inject sidecar → xem dashboard mesh → canary 90/10 → bật mTLS → quan sát metric.
+
+**Giải nghĩa & cách làm:**
+- `linkerd install | kubectl apply -f -` rồi `linkerd inject deploy.yaml | kubectl apply -f -` — tiêm sidecar vào pod. *Kết quả:* pod thành `2/2 READY` (app + proxy).
+- Dashboard mesh tự hiện success rate, latency, traffic giữa service.
+- Canary: chia traffic 90% v1 / 10% v2, theo dõi rồi tăng dần.
+
+**🧪 Thử nghiệm:**
+- Trước/sau khi inject sidecar → `kubectl get pod` thấy READY đổi từ `1/1` → `2/2`. **Bài học:** sidecar là container thêm vào pod.
+- Bật mTLS → traffic giữa service được mã hóa mà KHÔNG sửa code app. **Bài học:** mesh đẩy resilience/security xuống hạ tầng.
+
+⚠️ **Dễ sai:** thêm mesh khi hệ thống còn nhỏ (vài service) → phức tạp thừa, tốn tài nguyên, khó debug. Chỉ thêm khi nỗi đau microservices thực sự xuất hiện.
+
+💡 **Hiểu sâu:** sidecar (Envoy/linkerd-proxy) đứng giữa mọi traffic vào/ra pod → lo mTLS, retry, timeout, metric. Linkerd nhẹ (bắt đầu từ đây) vs Istio mạnh nhưng phức tạp.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** service mesh giải quyết vấn đề gì của microservices?
@@ -357,6 +425,22 @@ flowchart LR
 - **"Golden path" không phải "golden cage":** đường chuẩn dễ đi nhất, nhưng không cấm đi đường khác khi cần. Mục tiêu: làm việc đúng trở thành việc dễ nhất.
 - **Hạ tầng là sản phẩm:** platform team coi dev nội bộ là **khách hàng**, lắng nghe phản hồi, đo sự hài lòng. Đây là bước trưởng thành tiếp theo của DevOps.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** tạo template repo (Dockerfile + CI sẵn) → viết tài liệu golden path → tính 4 DORA metrics từ Git → xem Backstage → liệt kê điểm cải thiện DX.
+
+**Giải nghĩa & cách làm:**
+- Template repo (GitHub template / cookiecutter) → dev tạo service mới đã có sẵn Dockerfile chuẩn + CI/CD + monitoring.
+- Tính DORA từ lịch sử Git/deploy: Deployment Frequency, Lead Time (commit→prod), Change Failure Rate, MTTR.
+
+**🧪 Thử nghiệm:**
+- Đếm số deploy/tuần và thời gian trung bình từ commit đến live của 1 repo bạn có. **Bài học:** đo DORA thật → biết team ở mức nào (elite/high/medium/low).
+- Phác thảo "golden path" cho 1 loại service → thấy bạn che giấu được bao nhiêu phức tạp cho dev.
+
+⚠️ **Dễ sai:** "golden path" biến thành "golden cage" (ép buộc). Nó nên là đường **dễ đi nhất**, không cấm đường khác.
+
+💡 **Hiểu sâu:** Platform Engineering giải bài toán "DevOps everywhere" gây quá tải nhận thức — platform team coi **dev là khách hàng**, xây nền tảng tự phục vụ. DORA: 2 chỉ số tốc độ + 2 chỉ số ổn định, team giỏi đạt cả hai.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** 4 DORA metrics là gì?
@@ -410,6 +494,23 @@ flowchart LR
 - **ADR = điểm cộng phỏng vấn:** "vì sao bạn chọn cái này?" là câu hỏi phỏng vấn kinh điển. Có ADR sẵn = bạn đã suy nghĩ thấu đáo, không chọn bừa.
 - **Bắt đầu từ sơ đồ:** vẽ kiến trúc trước khi code. Sơ đồ rõ → biết cần dựng gì → đỡ làm lại.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** vẽ sơ đồ kiến trúc → khởi tạo monorepo → viết Terraform dựng cluster/VM → remote state → README + ADR.
+
+**Giải nghĩa & cách làm:**
+- Vẽ sơ đồ trước (draw.io): luồng code → CI → registry → K8s → monitoring. *Kết quả:* biết cần dựng gì.
+- `terraform init && terraform apply` dựng cluster (hoặc k3s trên VM). *Kết quả:* `kubectl get nodes` → Ready.
+- Cấu hình `backend "s3"` cho remote state ngay từ đầu.
+
+**🧪 Thử nghiệm:**
+- `terraform destroy` rồi `apply` lại → dựng lại toàn bộ hạ tầng trong 1 lệnh. **Bài học:** hạ tầng tái tạo được = IaC thực sự.
+- Viết 1 ADR ("vì sao chọn k3s thay EKS?") → tập giải thích quyết định. **Bài học:** đây là câu hỏi phỏng vấn kinh điển.
+
+⚠️ **Dễ sai:** ôm đồm app phức tạp. App 3 tầng đơn giản (CloudNote) là đủ — người phỏng vấn quan tâm pipeline + hạ tầng + monitoring.
+
+💡 **Hiểu sâu:** dùng bộ khung [`capstone-cloudnote/`](../capstone-cloudnote/) làm điểm khởi đầu. ADR (`/docs/adr/`) ghi mỗi quyết định lớn — thể hiện bạn suy nghĩ thấu đáo, không chọn bừa.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - Hạ tầng có được tạo hoàn toàn bằng code (IaC) không?
@@ -460,6 +561,22 @@ flowchart LR
 - **Mỗi stage kể một năng lực:** lint/test (chất lượng) · scan (bảo mật) · multi-stage build (Docker) · push tag SHA (truy vết) · deploy K8s/GitOps (orchestration). 1 pipeline = trình diễn cả khóa học.
 - **Đừng bỏ qua bảo mật trong pipeline** — Trivy scan + secret qua Secrets cho thấy tư duy DevSecOps, thứ nhiều ứng viên junior thiếu.
 - **Test end-to-end thật** trước khi quay demo — pipeline phải chạy mượt, không lỗi giữa chừng khi trình bày.
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** viết Dockerfile multi-stage từng service → Helm chart/manifest → pipeline CI (lint→test→Trivy→build→push SHA) → pipeline CD (deploy K8s/ArgoCD) → test end-to-end.
+
+**Giải nghĩa & cách làm:**
+- Gom kiến thức GĐ2 (Docker multi-stage) + GĐ3 (CI/CD, Trivy, GitOps).
+- CI: `lint → test → trivy image --exit-code 1 → build (tag=SHA) → push GHCR`. CD: ArgoCD pull hoặc `kubectl set image`.
+
+**🧪 Thử nghiệm:**
+- Sửa 1 dòng code → push → bấm giờ đến lúc app live trên K8s. **Bài học:** đo "lead time" thật của pipeline mình.
+- Cố đẩy image có lỗ hổng nghiêm trọng → Trivy chặn pipeline (`--exit-code 1`). **Bài học:** shift-left security hoạt động.
+
+⚠️ **Dễ sai:** bỏ qua quét bảo mật để "cho nhanh". Trivy + secret qua Secrets là thứ phân biệt ứng viên có tư duy DevSecOps.
+
+💡 **Hiểu sâu:** đây là phần **ăn điểm nhất** khi phỏng vấn — demo "sửa code → tự lên production" thuyết phục hơn mọi lời nói. Mỗi stage kể 1 năng lực.
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -512,6 +629,23 @@ flowchart LR
 - **Runbook thể hiện tư duy vận hành:** không chỉ "xây xong" mà "biết vận hành + xử lý khi hỏng". Người phỏng vấn senior đánh giá rất cao điều này.
 - **Gắn alert với golden signals/SLO** — cho thấy bạn hiểu SRE, không chỉ cắm dashboard cho đẹp.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** cài kube-prometheus-stack + Loki (Helm) → dashboard 4 golden signals → định nghĩa SLO + alert → thêm probe/limits/HPA → viết runbook.
+
+**Giải nghĩa & cách làm:**
+- `helm install monitoring prometheus-community/kube-prometheus-stack` + Loki. Grafana dashboard cho app (latency/traffic/errors/saturation).
+- Thêm liveness/readiness probe + resource limits + HPA (gom Ngày 41). Alert gắn với SLO (Ngày 51).
+- Runbook trong `/docs`: từng bước xử lý sự cố + rollback.
+
+**🧪 Thử nghiệm:**
+- Xóa 1 pod giữa lúc demo → K8s tự tạo lại, app không gián đoạn. Tăng tải → HPA scale. **Bài học:** demo self-healing gây ấn tượng mạnh.
+- Làm app lỗi → alert kích hoạt + dashboard đổi màu. **Bài học:** observability phát hiện sự cố thật.
+
+⚠️ **Dễ sai:** dừng ở "app deploy được". Thiếu monitoring + self-healing + runbook = dự án "chạy được" chứ chưa "production-ready".
+
+💡 **Hiểu sâu:** runbook thể hiện tư duy **vận hành** (không chỉ xây xong mà biết xử lý khi hỏng) — senior đánh giá rất cao. Đây là thứ nâng dự án lên đẳng cấp khác.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - Bạn có thể quan sát sức khỏe hệ thống qua dashboard không?
@@ -563,6 +697,23 @@ flowchart LR
 - **README quyết định ấn tượng đầu:** repo không README/README sơ sài = bị bỏ qua dù code tốt. Đầu tư README như đầu tư bộ mặt sản phẩm.
 - **Video demo vượt qua "nói suông":** ai cũng ghi "biết Kubernetes" trong CV. Video bạn deploy thật + self-healing thật = bằng chứng không thể chối cãi.
 - **Blog xây dựng thương hiệu dài hạn:** bài viết kỹ thuật tốt thu hút nhà tuyển dụng, kết nối cộng đồng, và buộc bạn hiểu sâu hơn (dạy lại là cách học tốt nhất).
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** hoàn thiện README (mô tả/sơ đồ/cách chạy/screenshot) → quay video demo 3–5 phút → viết blog → dọn repo + quét secret → pin lên profile.
+
+**Giải nghĩa & cách làm:**
+- README kể chuyện: bài toán → kiến trúc (sơ đồ) → tech stack → cách chạy (1 lệnh) → demo → ADR.
+- Video demo: sửa code → pipeline chạy → app cập nhật → dashboard. Đây là "vũ khí" phỏng vấn.
+- `gitleaks detect --source .` quét secret lần cuối trước khi public.
+
+**🧪 Thử nghiệm:**
+- Nhờ 1 người (hoặc chính bạn trên máy sạch) clone repo + làm theo README → chạy được không? **Bài học:** README tốt = người lạ chạy được ngay.
+- `gitleaks detect --source .` → đảm bảo không lộ secret nào. **Bài học:** an toàn trước khi public.
+
+⚠️ **Dễ sai:** repo không README / README sơ sài = bị bỏ qua dù code tốt. README là bộ mặt sản phẩm.
+
+💡 **Hiểu sâu:** với DevOps, **GitHub là CV** — nhà tuyển dụng xem code + pipeline + IaC trước cả CV chữ. Video demo vượt qua "nói suông"; blog xây thương hiệu dài hạn.
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -622,6 +773,22 @@ flowchart LR
 - **Chứng chỉ không thay portfolio:** chứng chỉ mở cửa CV, nhưng **dự án thực chiến** mới thuyết phục khi phỏng vấn. Cả hai bổ trợ nhau.
 - **CNCF Landscape là bản đồ ngành:** hàng trăm công cụ cloud-native. Đừng học hết — hiểu **danh mục** (CI/CD, observability, service mesh, security...) và đại diện tiêu biểu mỗi nhóm.
 - **"Consistency beats intensity":** 90 phút mỗi ngày đều đặn thắng học dồn rồi bỏ. Kỹ năng DevOps là tích lũy — duy trì nhịp học sau khi "tốt nghiệp" mới là thứ tạo khác biệt dài hạn.
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** hoàn thiện portfolio 5 repo → cập nhật CV/LinkedIn → vẽ sơ đồ tổng → đăng ký 1 chứng chỉ → tham gia cộng đồng.
+
+**Giải nghĩa & cách làm:**
+- Pin 5 repo lên GitHub profile (sysops-foundation, docker-fullstack, cicd-pipeline, k8s-deploy, capstone).
+- Hoàn thành [bảng kiểm 17 năng lực](#phụ-lục-c--bảng-kiểm-năng-lực-tốt-nghiệp) — tự đánh dấu cái nào **tự làm được không cần tra cứu**.
+
+**🧪 Thử nghiệm:**
+- Tự dựng lại 1 thứ bất kỳ (vd deploy app lên K8s) từ con số 0, **không nhìn tài liệu**. **Bài học:** đây mới là thước đo thật, không phải tick checklist.
+- Đặt 1 câu hỏi hoặc chia sẻ dự án trên 1 cộng đồng (r/devops, DevOps VN). **Bài học:** hiện diện cộng đồng → cơ hội tự tìm đến.
+
+⚠️ **Dễ sai:** coi chứng chỉ là đủ. Chứng chỉ mở cửa CV, nhưng **dự án thực chiến** mới thuyết phục khi phỏng vấn.
+
+💡 **Hiểu sâu:** *"Consistency beats intensity"* — duy trì nhịp học sau "tốt nghiệp" mới tạo khác biệt. CNCF Landscape: hiểu **danh mục** (CI/CD, observability, mesh...) + đại diện tiêu biểu, đừng học hết.
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
