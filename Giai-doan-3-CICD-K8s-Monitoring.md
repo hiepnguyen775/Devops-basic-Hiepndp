@@ -105,6 +105,24 @@ flowchart TB
 - **GitHub Secrets vs biến thường:** secret được **che trong log** (hiện `***`), không lộ ra. Token/key luôn dùng secret, không bao giờ viết thẳng YAML (commit = lộ vĩnh viễn).
 - **Runner:** GitHub cấp runner sẵn (ubuntu/windows/macos) — sạch mỗi lần chạy. Khi cần môi trường riêng/mạnh hơn → self-hosted runner.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** tạo `.github/workflows/ci.yml` → push → xem tab Actions → thêm checkout + setup → thêm bước test → thử Secret.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `.github/workflows/ci.yml` — đặt đúng thư mục này GitHub mới nhận; `on: push` = chạy khi push. *Kết quả:* tab Actions hiện 1 run với dấu ✓ xanh.
+- `uses: actions/checkout@v4` — tải code repo vào runner (hầu như workflow nào cũng cần bước này đầu tiên).
+- `uses: actions/setup-node@v4` — cài runtime; `run: npm ci`/`npm test` — chạy lệnh shell.
+- `${{ secrets.TÊN }}` — đọc GitHub Secret; trong log hiện `***` (che).
+
+**🧪 Thử nghiệm:**
+- Sửa 1 dòng code rồi push → xem 1 run mới tự sinh, đọc log từng step. **Bài học:** CI tự kích hoạt mỗi commit.
+- Tạo 2 job (test, build) không `needs` → chạy **song song**; thêm `needs: test` vào build → tuần tự. **Bài học:** job song song mặc định.
+
+⚠️ **Dễ sai:** viết token thẳng YAML (commit = lộ vĩnh viễn). Luôn dùng `secrets.*`; ghim action `@v4`, đừng `@main`.
+
+💡 **Hiểu sâu:** Workflow (cả file) → Job (chạy trên 1 runner sạch) → Step (lệnh tuần tự). Runner là máy ảo sạch mỗi lần — lý do CI "không phụ thuộc máy ai".
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** phân biệt CI và CD.
@@ -168,6 +186,24 @@ flowchart TB
 - **Fail fast vs chạy hết:** mặc định 1 step lỗi → dừng job (tiết kiệm). Nhưng đôi khi muốn xem **tất cả** lỗi cùng lúc → `continue-on-error` hoặc `fail-fast: false` trong matrix.
 - **Artifact dùng để:** chuyển file giữa job (build job → deploy job), lưu test report/screenshot khi fail để debug, phát hành binary.
 - **Branch protection là "hàng rào chất lượng":** không có nó, CI chỉ là trang trí — người ta vẫn merge code lỗi. Bắt buộc: CI pass + ít nhất 1 review + nhánh up-to-date.
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** thêm lint/test/build → matrix nhiều phiên bản → caching → upload artifact → bật branch protection.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `strategy: matrix: { node: [18, 20] }` — chạy cùng job trên **nhiều phiên bản** song song. *Kết quả:* tab Actions hiện 2 job (Node 18, Node 20).
+- `cache: 'npm'` trong setup-node — cache dependency giữa các run. *Kết quả:* lần 2 cài nhanh hơn hẳn.
+- `actions/upload-artifact` — lưu file build/report để tải về hoặc job sau dùng.
+- Branch protection (Settings → Branches): bắt CI pass mới merge.
+
+**🧪 Thử nghiệm:**
+- Cố tình để test fail rồi mở PR → CI đỏ + nút merge bị chặn. **Bài học:** branch protection là "hàng rào chất lượng".
+- Chạy CI 2 lần, so sánh thời gian bước cài dependency (lần 2 dùng cache nhanh hơn). **Bài học:** cache giảm thời gian pipeline.
+
+⚠️ **Dễ sai:** pipeline > 10 phút → dev ngại push. Tăng tốc: cache + song song hóa job.
+
+💡 **Hiểu sâu:** matrix dùng khi cần đảm bảo code chạy trên **nhiều môi trường** (phiên bản runtime/OS). Artifact = cách chuyển file giữa job (build → deploy).
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -236,6 +272,23 @@ flowchart TB
 - **`GITHUB_TOKEN` vs Personal Access Token:** `GITHUB_TOKEN` tự sinh mỗi run, hết hạn sau run, quyền giới hạn theo repo — an toàn hơn PAT cá nhân nhiều. Ưu tiên dùng nó.
 - **Cache layer trong CI** (`type=gha`) — không có cache, mỗi build cài lại từ đầu, rất chậm. Cache đúng = build vài giây thay vì vài phút.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** tạo workflow build khi push main → login registry bằng Secrets → push 2 tag (SHA + latest) → kiểm tra trên registry.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `docker/login-action` với `${{ secrets.GITHUB_TOKEN }}` — đăng nhập GHCR (token tự sinh, không cần tạo). *Kết quả:* bước login xanh.
+- `docker/metadata-action` tự sinh tag từ branch/SHA; `docker/build-push-action` với `push: true` build + đẩy lên registry.
+- `cache-from/to: type=gha` — cache layer giữa các lần build CI.
+
+**🧪 Thử nghiệm:**
+- Push 2 lần, vào registry xem image có 2 tag SHA khác nhau (mỗi commit 1 tag). **Bài học:** truy vết chính xác phiên bản nào đang chạy.
+- Xóa `cache-from/to` rồi so sánh thời gian build. **Bài học:** cache layer tiết kiệm phút.
+
+⚠️ **Dễ sai:** deploy theo `latest` → không biết chính xác đang chạy gì, rollback sai. Deploy theo **tag SHA bất biến**.
+
+💡 **Hiểu sâu:** `GITHUB_TOKEN` tự sinh mỗi run, hết hạn sau run, quyền theo repo → an toàn hơn Personal Access Token cá nhân.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** vì sao nên tag image theo commit SHA thay vì chỉ `latest`?
@@ -300,6 +353,24 @@ flowchart TB
   | **Canary** | đẩy cho % nhỏ user trước, theo dõi rồi mở rộng |
 - **Rollback phải nhanh hơn fix:** khi production lỗi, **rollback trước, điều tra sau**. Deploy theo tag bất biến giúp rollback = chạy lại deploy với tag cũ.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** thêm job deploy (SSH vào VM, pull image, `compose up`) → lưu key/host vào Secrets → test end-to-end → thêm approval cho production → tập rollback.
+
+**Giải nghĩa & kết quả mong đợi:**
+- Job deploy: SSH vào server → `docker compose pull && docker compose up -d`. *Kết quả:* `curl` server trả về version mới sau khi push.
+- SSH private key + host lưu trong **GitHub Secrets** (không lộ trong log).
+- GitHub Environment `production` + required reviewers → deploy chờ người duyệt.
+- Health check sau deploy: `curl /health`, fail thì rollback.
+
+**🧪 Thử nghiệm:**
+- Sửa 1 dòng → push → đo thời gian từ commit đến app live (vài phút, không thao tác tay). **Bài học:** sức mạnh của CD.
+- Deploy 1 version lỗi rồi rollback về tag SHA cũ. **Bài học:** rollback trước, điều tra sau.
+
+⚠️ **Dễ sai:** deploy production tự động hoàn toàn giữa giờ cao điểm. Production nên có **approval** (Continuous Delivery), staging thì tự động (Continuous Deployment).
+
+💡 **Hiểu sâu:** 3 chiến lược deploy: Rolling (thay dần), Blue-Green (2 môi trường switch tức thì), Canary (đẩy % nhỏ trước). Bạn sẽ gặp lại ở K8s.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** mô tả luồng CD đầy đủ từ git push đến app chạy bản mới.
@@ -357,6 +428,22 @@ flowchart TD
 3. **Secret trong GitHub Secrets/Environments**, production có approval.
 4. **Health check + rollback tự động.**
 5. **Status badge** + README mô tả luồng + sơ đồ.
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** ghép CI (lint→test→scan) + CD (build→push→deploy→health) cho app full-stack → thêm badge → demo end-to-end.
+
+**Giải nghĩa & kết quả mong đợi:**
+- Pipeline đầy đủ: `lint → test → build Docker → push → deploy SSH → health check`. *Kết quả:* push code → vài phút sau app live, không thao tác tay.
+- Status badge trong README hiện trạng thái build (xanh/đỏ).
+
+**🧪 Thử nghiệm:**
+- Thực hiện 1 thay đổi nhỏ, quay màn hình toàn bộ pipeline chạy từ commit đến live. **Bài học:** đây là "demo ăn điểm" khi phỏng vấn.
+- Tách rõ: PR chỉ chạy CI; merge main mới chạy CD. **Bài học:** CI ≠ CD về điều kiện kích hoạt.
+
+⚠️ **Dễ sai:** gộp CI và CD chạy mọi push → deploy cả nhánh feature. CD chỉ nên chạy khi merge main / tag.
+
+💡 **Hiểu sâu:** mỗi stage "kể" một năng lực: test (chất lượng), scan (bảo mật), build SHA (truy vết), deploy (orchestration). 1 pipeline = trình diễn cả Giai đoạn 3.
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -450,6 +537,23 @@ flowchart TB
 - **etcd là "bộ não":** lưu toàn bộ trạng thái cluster. Mất etcd = mất cluster → backup etcd là việc sống còn ở production (managed K8s lo hộ bạn việc này).
 - **Học local trước:** Minikube/kind/k3s đủ để học mọi khái niệm. Đừng vội lên cloud K8s (tốn tiền + phức tạp) khi chưa vững cơ bản.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** cài Minikube + kubectl → `minikube start` → xem nodes → chạy pod đầu tiên → describe/logs → xóa & quan sát.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `minikube start` — dựng cluster K8s local. *Kết quả:* `kubectl get nodes` → STATUS `Ready`.
+- `kubectl cluster-info` — in URL control plane; `kubectl run nginx --image=nginx` — tạo pod nhanh (imperative).
+- `kubectl describe pod <tên>` — chi tiết + **Events** (lý do lỗi ở cuối); `kubectl logs <tên>` — log app.
+
+**🧪 Thử nghiệm:**
+- `kubectl create deployment web --image=nginx --dry-run=client -o yaml` → sinh YAML mẫu mà KHÔNG tạo thật. **Bài học:** cách viết manifest nhanh + hiểu declarative.
+- Xóa 1 pod do Deployment quản → K8s tự tạo lại. **Bài học:** self-healing (vòng điều hòa).
+
+⚠️ **Dễ sai:** quen lệnh imperative (`kubectl run`) → không lưu vết. Chuẩn production: viết YAML + `kubectl apply -f`.
+
+💡 **Hiểu sâu:** linh hồn K8s là **vòng điều hòa** — controller so sánh "thực tế" với "mong muốn" (trong etcd) và tự sửa. Bạn khai báo *cái muốn*, K8s lo *cách đạt*.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** Pod là gì và khác container thế nào?
@@ -522,6 +626,23 @@ flowchart TB
 - **Rolling update tránh downtime:** thay vì tắt hết rồi bật lại (downtime), K8s thay **từng pod một**, luôn giữ đủ pod phục vụ. `maxUnavailable: 0` = không bao giờ thiếu pod.
 - **Vì sao không tạo Pod trực tiếp:** Pod "trần" chết là mất luôn (không tự tạo lại). Luôn dùng Deployment để có self-healing + scaling + rolling update.
 - **Rollback trong giây:** `kubectl rollout undo` quay về ReplicaSet cũ tức thì — đây là lý do K8s rollback nhanh hơn deploy thủ công rất nhiều.
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** viết `deployment.yaml` 3 replica → apply → xem deploy/pods → scale → rolling update đổi image → rollback.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `kubectl apply -f deployment.yaml` — tạo/cập nhật theo file (declarative). *Kết quả:* `kubectl get deploy` → READY 3/3.
+- `kubectl scale deployment web --replicas=5` — đổi số bản sao. *Kết quả:* `get pods` thấy 5 pod.
+- `kubectl set image deployment/web web=img:v2` → rolling update; `kubectl rollout status` theo dõi; `kubectl rollout undo` rollback.
+
+**🧪 Thử nghiệm:**
+- Đang rolling update, chạy `kubectl get pods -w` (watch) → pod cũ giảm, pod mới tăng dần. **Bài học:** rolling update không downtime.
+- Đổi image sang tag SAI → pod mới `ImagePullBackOff` nhưng pod cũ vẫn chạy (nhờ `maxUnavailable: 0`) → `rollout undo`. **Bài học:** rollback an toàn.
+
+⚠️ **Dễ sai:** tạo Pod "trần" thay vì Deployment → pod chết là mất luôn. Luôn dùng Deployment.
+
+💡 **Hiểu sâu:** chuỗi **Deployment → ReplicaSet → Pod**: mỗi lần đổi image, Deployment tạo ReplicaSet mới, dịch dần pod cũ→mới. `rollout undo` = quay về ReplicaSet cũ → nhanh.
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -612,6 +733,23 @@ flowchart TB
 - **DNS nội bộ là phép màu microservice:** backend gọi `http://db-svc:5432` — K8s tự phân giải tên → IP pod hiện tại, kể cả khi pod đổi IP liên tục. Đây là lý do Service tồn tại.
 - **Ingress controller chính là nginx/traefik** — kiến thức nginx (Ngày 23) áp dụng thẳng vào đây.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** tạo Service ClusterIP → test nội bộ → NodePort → bật ingress addon → viết Ingress định tuyến path → test qua host.
+
+**Giải nghĩa & kết quả mong đợi:**
+- Service ClusterIP — IP/DNS ổn định nội bộ cho 1 nhóm pod (qua label selector). *Kết quả:* `kubectl get svc` hiện ClusterIP.
+- `kubectl port-forward svc/web 8080:80` — đẩy service ra localhost để test (bỏ qua Ingress).
+- Ingress — định tuyến `/` → frontend, `/api` → backend qua 1 điểm vào.
+
+**🧪 Thử nghiệm:**
+- `kubectl get svc,endpoints` — nếu Service không có endpoint → **selector sai** (không khớp label pod). **Bài học:** cách debug "service không tới pod".
+- Gửi nhiều request → quan sát phân phối tới các pod khác nhau. **Bài học:** Service tự cân bằng tải.
+
+⚠️ **Dễ sai:** dùng NodePort/LoadBalancer cho mọi service ở production (tốn, khó quản). Chuẩn: ClusterIP + 1 Ingress cho nhiều service.
+
+💡 **Hiểu sâu:** pod đổi IP liên tục → không gọi trực tiếp được. Service cho **tên DNS ổn định** (`db-svc:5432`); K8s tự phân giải tên → IP pod hiện tại. Nền tảng microservice.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** phân biệt ClusterIP, NodePort, LoadBalancer.
@@ -667,6 +805,24 @@ flowchart TB
 - **ConfigMap vs Secret:** dùng giống nhau, khác ở **ý định** — ConfigMap cho config thường (log level, URL), Secret cho nhạy cảm (mật khẩu, token). Secret được xử lý cẩn thận hơn (không hiện trong `describe`, có thể mã hóa).
 - **Stateless vs Stateful:** app web (stateless) → Deployment. Database (stateful, cần lưu dữ liệu + danh tính) → StatefulSet + PVC. Nhầm lẫn = mất dữ liệu.
 - **Namespace để làm gì:** cô lập logic (dev/staging/prod), phân quyền RBAC theo namespace, giới hạn tài nguyên — không phải bảo mật mạng (cần NetworkPolicy cho việc đó, Ngày 49).
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** tạo ConfigMap → inject vào pod qua env → tạo Secret → mount → tạo PVC gắn pod → tạo namespace + deploy vào đó.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `kubectl create configmap app-config --from-literal=KEY=val` — cấu hình không nhạy cảm; inject qua `envFrom`. *Kết quả:* `kubectl exec pod -- env` thấy biến.
+- `kubectl create secret generic db-secret --from-literal=PASS=...` — thông tin nhạy cảm.
+- PVC (PersistentVolumeClaim) — "đơn xin" dung lượng; gắn vào pod để lưu bền vững. *Kết quả:* xóa pod, tạo lại → dữ liệu còn.
+- `kubectl apply -n dev` — deploy vào namespace `dev`.
+
+**🧪 Thử nghiệm:**
+- `kubectl get secret db-secret -o jsonpath='{.data.PASS}' | base64 -d` → ra mật khẩu **plaintext**! **Bài học:** Secret chỉ base64-encode, KHÔNG phải mã hóa.
+- Gắn PVC → ghi dữ liệu → xóa pod → tạo lại → dữ liệu còn (so với `emptyDir` mất khi pod chết). **Bài học:** PV bền vững.
+
+⚠️ **Dễ sai:** tưởng K8s Secret an toàn. Cần thêm RBAC + encryption-at-rest etcd + Vault/Sealed Secrets cho production.
+
+💡 **Hiểu sâu:** stateless (web) → Deployment; stateful (database, cần danh tính + storage) → StatefulSet + PVC. Namespace để cô lập logic (dev/prod) + phân quyền RBAC.
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -725,6 +881,22 @@ flowchart TB
 3. Cấu hình qua **ConfigMap**, mọi thứ trong **namespace** riêng.
 4. Có **liveness/readiness probe** + **resource requests/limits** (chuẩn bị Ngày 41).
 5. Toàn bộ YAML trong `k8s/`, README có sơ đồ + lệnh `kubectl apply -k`.
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** viết manifest frontend/backend (Deploy+Service) + database (StatefulSet+PVC) + ConfigMap/Secret + Ingress → apply → scale + rolling update.
+
+**Giải nghĩa & kết quả mong đợi:**
+- Gom kiến thức Ngày 36–39: mỗi tầng 1 bộ manifest. `kubectl apply -f k8s/` (cả thư mục). *Kết quả:* `kubectl get all -n <ns>` thấy frontend/backend/db đều Running.
+- Ingress định tuyến `/` và `/api`. *Kết quả:* mở host thấy giao diện app.
+
+**🧪 Thử nghiệm:**
+- `kubectl scale deployment backend --replicas=3` rồi `get pods` → 3 pod backend. **Bài học:** scale ngang dễ dàng.
+- Xóa 1 pod backend giữa lúc đang truy cập → app không gián đoạn (Service sang pod còn sống + K8s tạo lại). **Bài học:** self-healing + load balancing.
+
+⚠️ **Dễ sai:** dùng Deployment cho database → mất dữ liệu/danh tính. Database = StatefulSet + PVC.
+
+💡 **Hiểu sâu:** đặt tên file có số thứ tự (`00-namespace`, `10-db`, `20-backend`...) để `apply` đúng thứ tự phụ thuộc. Đây là cách tổ chức manifest thực tế.
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -795,6 +967,23 @@ flowchart TB
 - **requests vs limits:** **requests** = K8s dùng để **đặt chỗ** (scheduling). **limits** = trần cứng. Vượt limit RAM → pod bị **OOMKilled**; vượt limit CPU → bị **throttle** (chậm, không chết).
 - **HPA cần Metrics Server** — không cài thì HPA hiện `<unknown>` và không scale. Đây là lỗi đầu tiên ai cũng gặp khi thử HPA.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** thêm liveness/readiness probe → đặt requests/limits → cài metrics-server → tạo HPA → tạo tải để xem scale.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `livenessProbe` (còn sống?) + `readinessProbe` (sẵn sàng nhận traffic?). *Kết quả:* `kubectl describe pod` hiện probe; pod chỉ nhận traffic khi Ready.
+- `resources.requests/limits` — đặt chỗ + trần CPU/RAM. *Kết quả:* `describe` hiện limits.
+- `minikube addons enable metrics-server` rồi `kubectl autoscale deployment app --cpu-percent=50 --min=1 --max=5`. *Kết quả:* `kubectl get hpa`.
+
+**🧪 Thử nghiệm:**
+- Tạo tải (vòng lặp `curl`) → `kubectl get hpa -w` thấy số replica tự tăng khi CPU vượt ngưỡng, rồi giảm khi hết tải. **Bài học:** autoscale thực sự.
+- Đặt liveness probe quá gắt (timeout 1s) cho app khởi động chậm → pod restart liên tục (CrashLoopBackOff). **Bài học:** dùng startupProbe cho app chậm.
+
+⚠️ **Dễ sai:** quên cài Metrics Server → HPA hiện `<unknown>`, không scale. Lỗi đầu tiên ai cũng gặp.
+
+💡 **Hiểu sâu:** readiness fail = gỡ khỏi Service (ngừng nhận traffic, KHÔNG restart); liveness fail = **restart pod**. Vượt limit RAM = OOMKilled; vượt limit CPU = throttle (chậm, không chết).
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** phân biệt liveness và readiness probe.
@@ -856,6 +1045,24 @@ flowchart TB
   | **Kustomize** | overlay/patch YAML thuần | đơn giản hơn, tích hợp sẵn `kubectl -k` |
 - **Bẫy `helm upgrade`:** nó áp dụng thay đổi ngay — luôn `helm diff upgrade` hoặc `--dry-run` trước. Và `helm rollback <release> <revision>` cứu bạn khi upgrade hỏng.
 - **Cài app phổ biến trong 1 lệnh:** Prometheus, Grafana, PostgreSQL, ingress-nginx... đều có chart sẵn. Đây là cách bạn sẽ cài monitoring stack ở Ngày 44.
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** cài Helm + thêm repo → cài 1 app có sẵn → `helm create` chart riêng → tham số hóa values → upgrade & rollback.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `helm repo add bitnami ...` + `helm install pg bitnami/postgresql` — cài app phổ biến trong 1 lệnh. *Kết quả:* `helm list` → STATUS deployed.
+- `helm create my-chart` — sinh khung chart (Chart.yaml, values.yaml, templates/).
+- `helm install web ./chart -f values-prod.yaml` — deploy với values môi trường.
+- `helm upgrade` / `helm rollback web 1` — nâng cấp / quay về revision cũ.
+
+**🧪 Thử nghiệm:**
+- `helm install web ./chart -f values-dev.yaml` và `-f values-prod.yaml` → cùng chart, 2 cấu hình khác. **Bài học:** 1 chart deploy nhiều môi trường.
+- `helm upgrade` đổi replica rồi `helm rollback`; `helm history web` xem revision. **Bài học:** rollback dễ dàng.
+
+⚠️ **Dễ sai:** `helm upgrade` áp dụng ngay — luôn `helm diff upgrade` (plugin) hoặc `--dry-run` trước.
+
+💡 **Hiểu sâu:** Helm = template (biến) cho YAML K8s, giải bài toán YAML lặp lại + nhiều môi trường. Đối thủ nhẹ hơn: Kustomize (overlay/patch, có sẵn `kubectl -k`).
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -933,6 +1140,22 @@ flowchart LR
 - **Git là nguồn chân lý:** trạng thái cluster = đúng những gì trong Git. Ai đó sửa tay trên cluster (`kubectl edit`) → ArgoCD phát hiện **drift** và kéo về đúng Git. → không còn "cấu hình bí ẩn không ai biết từ đâu".
 - **Audit miễn phí:** mọi thay đổi production = 1 commit Git, có tác giả, thời gian, lý do (PR). Khi sự cố: `git log` trên repo config cho biết chính xác ai đổi gì lúc nào.
 - **Rollback = git revert:** quay về trạng thái cũ chỉ là revert commit → ArgoCD tự sync. Đơn giản và an toàn nhất trong các phương pháp.
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** cài ArgoCD → tạo repo manifest → tạo ArgoCD Application trỏ repo → sửa manifest trên Git xem tự sync → thử drift.
+
+**Giải nghĩa & kết quả mong đợi:**
+- Cài ArgoCD vào cluster, mở UI; tạo `Application` trỏ tới repo + path. *Kết quả:* UI hiện app `Synced` + `Healthy`.
+- Sửa replica trong Git → commit → ArgoCD tự kéo và áp dụng. *Kết quả:* số pod đổi theo Git.
+
+**🧪 Thử nghiệm:**
+- `kubectl edit deployment` sửa tay trên cluster (đổi replica) → ArgoCD báo **OutOfSync** (drift) và (nếu bật self-heal) kéo về đúng Git. **Bài học:** Git là nguồn chân lý.
+- `git revert` 1 commit → ArgoCD tự rollback về trạng thái trước. **Bài học:** rollback = thao tác Git.
+
+⚠️ **Dễ sai:** vừa dùng GitOps vừa sửa tay cluster → ArgoCD kéo về, "mất" thay đổi tay. Mọi thay đổi PHẢI qua Git.
+
+💡 **Hiểu sâu:** GitOps = **pull** (agent trong cluster tự kéo) vs CI/CD truyền thống = **push** (CI có credential đẩy vào). Pull an toàn hơn (không lộ credential cluster) + tự sửa drift.
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -1018,6 +1241,23 @@ flowchart LR
 - **Counter dùng với `rate()`:** counter luôn tăng nên giá trị thô vô nghĩa; `rate(counter[5m])` = tốc độ tăng/giây = thứ bạn thực sự quan tâm.
 - **Đừng alert mọi thứ:** alert quá nhiều = "alert fatigue", người ta tắt thông báo. Alert dựa trên **4 golden signals** (Ngày 45) và triệu chứng người dùng cảm nhận được.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** chạy Prometheus + node-exporter → mở UI → query PromQL → xem CPU/RAM → tạo alert rule → (K8s) cài kube-prometheus-stack.
+
+**Giải nghĩa & kết quả mong đợi:**
+- Prometheus **kéo (scrape)** metric từ target qua HTTP `/metrics`. *Kết quả:* UI → Status > Targets tất cả `UP`; query `up` trả về `1`.
+- PromQL: `rate(http_requests_total[5m])` (request/s), `histogram_quantile(0.95, ...)` (p95 latency).
+- `helm install monitoring prometheus-community/kube-prometheus-stack` — cài cả stack 1 lệnh.
+
+**🧪 Thử nghiệm:**
+- Tắt 1 target (dừng node-exporter) → UI thấy target chuyển `DOWN`. **Bài học:** pull model tự biết target chết.
+- Query `node_memory_...` (gauge) vs `rate(...total[5m])` (counter). **Bài học:** counter phải dùng `rate()` mới có nghĩa.
+
+⚠️ **Dễ sai:** alert mọi dao động nhỏ → "alert fatigue", người ta tắt cả alert thật. Alert theo golden signals/SLO.
+
+💡 **Hiểu sâu:** 4 loại metric: Counter (chỉ tăng — tổng request), Gauge (lên xuống — RAM), Histogram (phân phối — tính p95), Summary. 3 trụ cột observability: metric + log + trace.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** 3 trụ cột observability là gì?
@@ -1079,6 +1319,23 @@ flowchart LR
 - **Dashboard tốt kể một câu chuyện:** nhìn vào là biết "hệ thống có khỏe không" trong 5 giây. Dashboard 50 panel lộn xộn = không ai nhìn. Bắt đầu từ golden signals, đào sâu khi cần.
 - **Alert nên gắn với SLO** (Ngày 51): alert khi sắp vi phạm cam kết với người dùng, không phải khi CPU nhích lên 60%.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** chạy Grafana → kết nối data source Prometheus → import dashboard có sẵn → tự tạo dashboard 3 panel → thêm alert → thêm variable.
+
+**Giải nghĩa & kết quả mong đợi:**
+- Grafana → Add data source → Prometheus (URL). *Kết quả:* "Save & test" → working.
+- Import dashboard bằng ID (vd `1860` Node Exporter Full) — có sẵn hàng trăm panel. *Kết quả:* biểu đồ hiện ngay.
+- Tự tạo panel với query PromQL (CPU/RAM/disk).
+
+**🧪 Thử nghiệm:**
+- Tạo dashboard theo **4 golden signals** (latency/traffic/errors/saturation) thay vì nhồi mọi metric. **Bài học:** dashboard kể 1 câu chuyện sức khỏe trong 5 giây.
+- Thêm variable `$instance` → 1 dashboard xem được mọi server qua dropdown. **Bài học:** dashboard động.
+
+⚠️ **Dễ sai:** tưởng Grafana lưu metric. KHÔNG — Grafana chỉ **vẽ + cảnh báo**, dữ liệu nằm ở Prometheus.
+
+💡 **Hiểu sâu:** 4 Golden Signals (Google SRE): Latency (mất bao lâu), Traffic (tải bao nhiêu), Errors (tỉ lệ lỗi), Saturation (tài nguyên đầy đến đâu). Alert nên gắn với SLO (Ngày 51).
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** Grafana và Prometheus phối hợp thế nào?
@@ -1139,6 +1396,22 @@ flowchart LR
 - **Vì sao log JSON có cấu trúc:** log text thô (`"Error: something at line 5"`) khó query. Log JSON cho phép lọc theo field chính xác (`level=error AND user_id=123`). → app production nên log JSON.
 - **3 trụ cột phối hợp:** **Metric** cho biết *"có gì đó sai"* (alert), **Log** cho biết *"sai cái gì"* (chi tiết lỗi), **Trace** cho biết *"sai ở đâu trong chuỗi service"*. Gom cả 3 vào Grafana = debug nhanh.
 - **Đừng log secret/PII:** log thường lưu lâu, ai cũng đọc được — không bao giờ log mật khẩu, token, thông tin cá nhân.
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** chạy Loki + Promtail + Grafana → Promtail thu log container → thêm data source Loki → query LogQL → dashboard kết hợp metric + log.
+
+**Giải nghĩa & kết quả mong đợi:**
+- Promtail thu log → đẩy về Loki; Loki index theo **label** (như Prometheus cho log). *Kết quả:* Grafana → Explore → chọn Loki thấy log chạy về.
+- LogQL: `{app="api"}` lọc theo label; `|= "error"` lọc dòng chứa "error"; `| json` parse JSON.
+
+**🧪 Thử nghiệm:**
+- App log dạng text thô vs JSON → query `| json | duration_ms > 1000`. **Bài học:** log JSON query chính xác hơn nhiều.
+- Đặt cùng `request_id` vào log nhiều service → lần theo 1 request qua các service. **Bài học:** correlation để debug microservice.
+
+⚠️ **Dễ sai:** log secret/PII (mật khẩu, token, thông tin cá nhân) — log lưu lâu, ai cũng đọc được. Không bao giờ log những thứ này.
+
+💡 **Hiểu sâu:** Loki **chỉ index label** (nhẹ, rẻ) vs Elasticsearch index **toàn văn** (mạnh, nặng). 3 trụ cột: Metric "có gì đó sai" → Log "sai cái gì" → Trace "sai ở đâu".
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -1212,6 +1485,23 @@ flowchart LR
 - **Idempotent là cốt lõi:** chạy playbook 10 lần phải ra cùng kết quả, lần 2+ báo `changed=0`. Đây là lý do dùng module (`apt`, `service`) thay vì `shell` — module biết kiểm tra trạng thái trước khi hành động.
 - **Khi nào dùng Ansible thời K8s:** cấu hình node OS, cài đặt bootstrap cluster, quản lý server không-container, chạy các tác vụ vận hành hàng loạt (patch 50 server).
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** cài Ansible → tạo inventory → viết playbook cài nginx → chạy 2 lần (xem idempotent) → dùng template → tổ chức thành role.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `inventory` (file INI/YAML) — danh sách host; `ansible all -m ping` → `SUCCESS`/`pong` (kiểm tra SSH tới host).
+- `ansible-playbook site.yml` — chạy các task. *Kết quả:* `PLAY RECAP → ok=N changed=N failed=0`.
+- Module `apt`/`service`/`template` — đơn vị tác vụ (khai báo trạng thái mong muốn).
+
+**🧪 Thử nghiệm:**
+- Chạy playbook lần 1 (`changed=N`) rồi lần 2 (`changed=0`). **Bài học:** idempotent — chạy lại không đổi gì nếu đã đúng.
+- Thay module `apt` bằng `shell: apt install nginx` rồi chạy 2 lần → vẫn "changed". **Bài học:** vì sao dùng module thay `shell`.
+
+⚠️ **Dễ sai:** lạm dụng `shell`/`command` → mất tính idempotent. Ưu tiên module chuyên dụng (tự kiểm tra trạng thái).
+
+💡 **Hiểu sâu:** Terraform **tạo** hạ tầng (VM, network); Ansible **cấu hình bên trong** (cài/sửa config) — bổ trợ nhau. Ansible **agentless** (chỉ cần SSH + Python), khác Puppet/Chef cần agent.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** Terraform và Ansible khác vai trò thế nào?
@@ -1274,6 +1564,23 @@ flowchart LR
   - **Workspace:** nhẹ, cùng code khác state — dễ nhầm apply nhầm môi trường.
   - **Thư mục riêng** (`environments/dev`, `environments/prod`): rõ ràng hơn, khó nhầm, nhiều team production chọn cách này.
 - **`plan` trong CI là "code review cho hạ tầng":** reviewer thấy chính xác PR sẽ tạo/xóa gì trên cloud trước khi merge — chặn được những `destroy` thảm họa.
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** tách module → cấu hình remote state (S3 + lock) → dùng workspace/tfvars cho dev/prod → thêm `plan` vào CI.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `module "x" { source = "./modules/compute" ... }` — gọi lại cấu hình như hàm. *Kết quả:* `plan` sạch, module dùng lại được.
+- `backend "s3" {...}` + DynamoDB lock — state ở remote, khóa khi apply. *Kết quả:* state không nằm local; 2 người không apply đè nhau.
+- `terraform workspace new dev/prod` — nhiều môi trường từ cùng code.
+
+**🧪 Thử nghiệm:**
+- `terraform workspace list` → chuyển dev/prod, `apply` với tfvars khác → tài nguyên khác nhau. **Bài học:** tham số hóa môi trường.
+- Mở 2 terminal cùng `apply` trên state remote có lock → cái thứ 2 bị chặn. **Bài học:** state locking chống hỏng.
+
+⚠️ **Dễ sai:** workspace dễ nhầm apply nhầm môi trường. Nhiều team production dùng **thư mục riêng** (`environments/dev`, `/prod`) cho rõ ràng.
+
+💡 **Hiểu sâu:** module = DRY cho hạ tầng (đừng copy-paste 10 lần). Remote state + lock = bắt buộc khi làm team. `plan` trong CI = "code review cho hạ tầng".
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -1341,6 +1648,24 @@ flowchart LR
 - **Defense in depth (phòng thủ nhiều lớp):** firewall (SG/UFW) → NetworkPolicy → RBAC → least privilege → image scan → secret management. Không lớp nào đủ một mình; nhiều lớp cộng lại mới an toàn.
 - **Supply chain là mặt trận mới:** tấn công qua dependency/image bị nhiễm độc ngày càng nhiều. Ghim version, quét, ký image, dùng SBOM để biết chính xác bạn đang chạy gì.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** tích hợp Trivy quét image vào CI → quét dependency → tạo NetworkPolicy → cấu hình RBAC → chạy tfsec.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `trivy image myapp` — quét lỗ hổng image; `--exit-code 1` để **chặn** CI nếu có lỗ hổng nghiêm trọng. *Kết quả:* bảng CVE theo mức độ.
+- NetworkPolicy — giới hạn pod nào nói chuyện với pod nào (vd backend chỉ nhận từ frontend).
+- RBAC — Role + RoleBinding cấp quyền tối thiểu cho service account.
+- `tfsec ./infra` — quét cấu hình Terraform sai bảo mật (vd S3 public).
+
+**🧪 Thử nghiệm:**
+- Chạy `trivy image` trên image cũ (nhiều CVE) vs image alpine mới. **Bài học:** image nhỏ/mới = ít lỗ hổng.
+- Tạo NetworkPolicy deny-all rồi cho phép frontend→backend; thử curl từ pod khác → bị chặn. **Bài học:** cô lập mạng trong cluster.
+
+⚠️ **Dễ sai:** quét bảo mật ở cuối (trước release) thay vì sớm. "Shift-left": quét ngay trong CI mỗi PR — sửa sớm rẻ hơn nghìn lần.
+
+💡 **Hiểu sâu:** 5 loại quét: SCA (dependency), SAST (code), Image scan, IaC scan (tfsec), Secret scan (gitleaks). Defense in depth: firewall → NetworkPolicy → RBAC → least privilege → scan → secret mgmt.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** "shift-left security" nghĩa là gì?
@@ -1400,6 +1725,22 @@ flowchart TD
 3. **K8s có probe + resource limits + HPA.**
 4. **Monitoring đủ 3 trụ cột** (metric/log + alert đến kênh thật).
 5. **Hạ tầng bằng Terraform** (module + remote state), README có sơ đồ.
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** ghép CI (test+scan→build→push) → ArgoCD deploy K8s → Prometheus/Grafana/Loki giám sát → 1 alert hoạt động → monorepo + README.
+
+**Giải nghĩa & kết quả mong đợi:**
+- Liên hoàn: `push → CI (scan) → image → config repo → ArgoCD sync → K8s (probe/HPA) → metrics/log lên Grafana`. *Kết quả:* deploy mới phản ánh trên dashboard real-time.
+- Helm chart cho app, Terraform tạo cluster, alert gửi tới kênh thật.
+
+**🧪 Thử nghiệm:**
+- Sửa code → push → theo dõi đi qua từng chặng (CI xanh → ArgoCD Synced → pod mới → dashboard cập nhật). **Bài học:** thấy cả vòng đời DevOps chạy.
+- Làm backend lỗi → xem alert kích hoạt + dashboard đổi màu. **Bài học:** observability phát hiện sự cố.
+
+⚠️ **Dễ sai:** CI có credential trực tiếp vào cluster (push-based). Chuẩn hiện đại: GitOps (ArgoCD pull) — không lộ credential cluster.
+
+💡 **Hiểu sâu:** điểm mấu chốt không phải biết từng công cụ, mà hiểu **chúng ghép vào nhau** thành vòng khép kín: code → test → build → deploy → giám sát → cải tiến. Đây là năng lực của 1 DevOps Engineer hiện đại.
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
