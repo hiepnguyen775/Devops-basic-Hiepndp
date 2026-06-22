@@ -110,6 +110,25 @@ git reset --hard <hash-từ-reflog>  # quay về đúng điểm đó
 - **revert** = tạo commit mới đảo ngược (dùng cho nhánh **đã chia sẻ**).
 - **reflog** = sổ ghi toàn bộ — nơi tìm lại mọi thứ "tưởng đã mất".
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** cấu hình Git → tạo repo → add/commit nhiều lần → `.gitignore` → xem lịch sử → tập cứu vãn (restore/reset/revert).
+
+**Giải nghĩa & kết quả mong đợi:**
+- `git init` — biến thư mục thành repo (tạo thư mục ẩn `.git`). *Kết quả:* `git status` báo "No commits yet".
+- `git add file` / `git add -p` — đưa vào staging; `-p` chọn **từng đoạn** thay đổi. **Vì sao `-p`:** commit có chủ đích, không gộp 10 việc vào 1.
+- `git commit -m "msg"` — lưu ảnh chụp vào lịch sử. *Kết quả:* `git log --oneline` hiện commit.
+- `.gitignore` — liệt kê file không theo dõi (`.env`, `*.log`, `node_modules/`). *Kết quả:* `git status` không còn thấy chúng.
+- `git log --oneline --graph` — xem lịch sử gọn, có nhánh.
+
+**🧪 Thử nghiệm:**
+- Sửa 1 file → `git restore <file>` (thay đổi biến mất). Rồi commit → `git revert <hash>` (tạo commit đảo ngược). **Bài học:** `restore` bỏ thay đổi chưa lưu; `revert` hoàn tác an toàn commit đã có.
+- Lỡ `git reset --hard` nhầm? `git reflog` tìm hash cũ → `git reset --hard <hash>`. **Bài học:** Git gần như không mất gì đã commit.
+
+⚠️ **Dễ sai:** `git reset --hard` xóa thay đổi *chưa commit* (không cứu được). Chỉ dùng khi chắc chắn.
+
+💡 **Hiểu sâu:** 3 vùng — Working Directory (sửa) → Staging (`add`) → Repository (`commit`). Biết file đang ở vùng nào quyết định dùng lệnh cứu nào.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** mô tả vòng đời 1 file qua 3 trạng thái của Git.
@@ -182,6 +201,24 @@ git reset --hard <hash-từ-reflog>  # quay về đúng điểm đó
   | **Trunk-based** | commit thẳng main + feature flag — team CI/CD trưởng thành |
 - **Quy tắc vàng giảm đau:** nhánh sống **càng ngắn càng tốt**. Nhánh tồn tại 2 tuần = hội conflict khủng khiếp khi merge.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** tạo nhánh feature → commit → merge về main → tạo & giải quyết conflict → tập `git stash`.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `git switch -c feature-login` — tạo + chuyển nhánh mới (`-c` = create). *Kết quả:* `git branch` hiện `* feature-login`.
+- `git switch main && git merge feature-login` — gộp nhánh vào main. *Kết quả:* `git log --graph` thấy nhánh đã hợp nhất.
+- Conflict — khi 2 nhánh sửa **cùng dòng**, Git đánh dấu `<<<<<<` (của bạn) `======` `>>>>>>` (của họ). Sửa tay → `git add` → `git commit`.
+- `git stash` / `git stash pop` — tạm cất thay đổi chưa commit để chuyển nhánh, rồi lấy lại.
+
+**🧪 Thử nghiệm:**
+- Cố tình sửa cùng 1 dòng ở 2 nhánh rồi merge → gặp conflict thật → sửa → `git status` báo "all conflicts fixed". **Bài học:** conflict không đáng sợ, chỉ là chọn giữ phần nào.
+- `git switch <commit-hash>` (vào detached HEAD) rồi `git switch main`. **Bài học:** hiểu HEAD đang trỏ đâu; commit ở detached sẽ mất nếu không tạo nhánh.
+
+⚠️ **Dễ sai:** nhánh sống quá lâu (vài tuần) = conflict khổng lồ khi merge. Nhánh **càng ngắn càng tốt**.
+
+💡 **Hiểu sâu:** nhánh chỉ là 1 con trỏ tới commit — tạo/xóa rất rẻ. Đây là lý do Git khuyến khích mỗi tính năng 1 nhánh.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** viết chuỗi lệnh tạo nhánh `hotfix`, sửa, merge vào main.
@@ -244,6 +281,24 @@ git reset --hard <hash-từ-reflog>  # quay về đúng điểm đó
 - **Fork workflow** (đóng góp open-source): fork → clone bản fork → thêm remote `upstream` trỏ repo gốc → `git fetch upstream` để đồng bộ → PR từ fork về gốc.
 - **README tối thiểu nên có:** mô tả 1 dòng · ảnh/demo · cách cài đặt · cách chạy · cấu trúc thư mục · giấy phép. README tốt = người khác (và bạn 6 tháng sau) chạy được ngay.
 - **Quy tắc bảo mật:** nếu lỡ push secret lên GitHub → **coi như đã lộ vĩnh viễn**, phải **xoay (rotate) ngay** secret đó, không chỉ xóa commit (lịch sử vẫn còn ở fork/cache).
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** tạo repo trên GitHub → kết nối remote → push → viết README → mở Pull Request → tập clone.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `git remote add origin <url>` — gắn repo local với GitHub (`origin` = tên mặc định). `git push -u origin main` — đẩy lần đầu + nhớ liên kết. *Kết quả:* repo online cập nhật.
+- `git pull` = `git fetch` (tải về) + `git merge` (gộp). **Vì sao phân biệt:** `fetch` chỉ tải, không động code đang làm; `pull` gộp luôn.
+- Pull Request (PR) — đề xuất gộp nhánh, để review trước khi vào main. *Kết quả:* tab Pull requests hiện PR.
+- `git clone <url>` — sao chép repo về máy.
+
+**🧪 Thử nghiệm:**
+- Đổi remote sang SSH: `git remote set-url origin git@github.com:user/repo.git` rồi `git push` (không hỏi mật khẩu nhờ key Ngày 1). **Bài học:** SSH tiện hơn HTTPS.
+- Bật Branch protection cho `main` (Settings → Branches), thử push thẳng → bị chặn. **Bài học:** không ai (kể cả bạn) phá nhánh chính.
+
+⚠️ **Dễ sai:** lỡ push secret lên GitHub = **lộ vĩnh viễn** (còn trong lịch sử/cache). Phải **xoay (rotate)** secret ngay, không chỉ xóa commit.
+
+💡 **Hiểu sâu:** GitHub flow: branch → commit → push → PR → review → merge. Đây là quy trình team thật — và là cái bạn sẽ tự động hóa bằng CI/CD ở Giai đoạn 3.
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -338,6 +393,24 @@ flowchart TB
   | Container `Exited (0/1)` ngay lập tức | Tiến trình chính kết thúc → xem `docker logs <name>` |
 - **Container sống nhờ tiến trình foreground:** container dừng khi tiến trình PID 1 thoát. Đây là lý do `docker run ubuntu` thoát ngay (không có gì chạy), còn `nginx` thì sống (nginx chạy foreground).
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** cài Docker → chạy hello-world → chạy nginx có map cổng → vào trong container → xem log & dọn dẹp.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `docker run hello-world` — kéo image test + chạy. *Kết quả:* `Hello from Docker!` (xác nhận Docker hoạt động).
+- `docker run -d -p 8080:80 --name web nginx` — `-d` chạy nền, `-p 8080:80` map cổng host:container, `--name` đặt tên. *Kết quả:* mở `localhost:8080` thấy trang nginx.
+- `docker ps` (`-a` cả đã dừng) — liệt kê container; `docker logs web` — xem log; `docker exec -it web bash` — vào shell trong container.
+- `docker stop web && docker rm web` — dừng rồi xóa container.
+
+**🧪 Thử nghiệm:**
+- `docker run ubuntu` (thoát ngay) vs `docker run nginx` (chạy mãi). **Bài học:** container sống nhờ tiến trình **foreground** (PID 1); ubuntu không có gì chạy nên thoát.
+- Chạy `docker run -p 8080:80 nginx` 2 lần → lần 2 lỗi `port is already allocated`. **Bài học:** mỗi cổng host chỉ 1 container giữ.
+
+⚠️ **Dễ sai:** quên dọn → `docker system df` thấy image/volume rác ngốn đĩa; dọn bằng `docker system prune -a` (cẩn thận volume).
+
+💡 **Hiểu sâu:** Image = khuôn (chỉ đọc), Container = instance đang chạy (khuôn bánh vs cái bánh). Container nhẹ vì **chia sẻ kernel host**, không cần Guest OS đầy đủ như VM.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** phân biệt image và container bằng ví dụ đời thực (gợi ý: khuôn bánh vs cái bánh).
@@ -408,6 +481,23 @@ flowchart TB
   ```bash
   DOCKER_BUILDKIT=1 docker build --secret id=npmrc,src=$HOME/.npmrc .
   ```
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** viết app nhỏ → viết Dockerfile → build image → chạy & test → thêm `.dockerignore` → push.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `FROM node:20` (image gốc) · `WORKDIR /app` (thư mục làm việc) · `COPY` (chép file) · `RUN` (chạy lệnh **lúc build**, vd cài dependency) · `CMD` (lệnh chạy **lúc container start**).
+- `docker build -t my-app:1.0 .` — `-t` đặt tên:tag, `.` = build context. *Kết quả:* `Successfully tagged my-app:1.0`.
+- `.dockerignore` — loại `.git`, `node_modules`, `.env` khỏi build context.
+
+**🧪 Thử nghiệm:**
+- Đặt `COPY . .` TRƯỚC `RUN npm ci`, build; sửa 1 dòng code rồi build lại → cài lại toàn bộ dependency (chậm). Rồi đảo: `COPY package*.json` + `RUN npm ci` TRƯỚC `COPY . .` → build lại nhanh. **Bài học:** thứ tự layer quyết định cache.
+- `docker history my-app:1.0` — xem từng layer nặng bao nhiêu.
+
+⚠️ **Dễ sai:** truyền secret qua `ARG`/`ENV` — nằm trong layer image, ai cũng đọc bằng `docker history`. Dùng BuildKit `--secret`.
+
+💡 **Hiểu sâu:** `RUN` chạy *khi build* (tạo layer); `CMD`/`ENTRYPOINT` chạy *khi start*. `ENTRYPOINT` cố định lệnh chính, `CMD` là tham số mặc định dễ ghi đè — kết hợp cho lệnh linh hoạt.
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -487,6 +577,23 @@ flowchart TB
 - **Đo và truy vết "image phình":** `docker history --no-trunc myapp` cho thấy layer nào nặng → thường là `RUN` quên dọn cache, hoặc copy nhầm `node_modules`/`.git`.
 - **`.dockerignore` là tuyến phòng thủ đầu** — thiếu nó, `docker build` gửi cả `.git` 500MB vào build context.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** viết multi-stage Dockerfile → so sánh kích thước → thêm `USER` + `HEALTHCHECK` → quét Trivy → xem layer.
+
+**Giải nghĩa & kết quả mong đợi:**
+- Multi-stage: `FROM node:20 AS build` (cài + build) rồi `FROM node:20-alpine` (chỉ `COPY --from=build` artifact). *Kết quả:* `docker images` thấy image cuối nhỏ hơn nhiều (vd 1.2GB → ~150MB).
+- `USER node` — chạy bằng user thường, không root. `HEALTHCHECK` — Docker tự kiểm tra container khỏe.
+- `trivy image my-app:1.0` — quét lỗ hổng (CVE). *Kết quả:* bảng CVE theo mức độ.
+
+**🧪 Thử nghiệm:**
+- Build 1 lần KHÔNG multi-stage, 1 lần CÓ, rồi `docker images` so sánh cột SIZE. **Bài học:** stage build (compiler, dev deps) bị bỏ lại → image chạy nhẹ hẳn.
+- `docker history --no-trunc my-app` — tìm layer phình to (thường do quên dọn cache hoặc copy nhầm `.git`).
+
+⚠️ **Dễ sai:** dùng `latest` ở production → "máy nào pull lúc nào ra bản đó", không rollback chính xác. Pin tag rõ ràng (SHA/semver).
+
+💡 **Hiểu sâu:** image nhỏ = pull nhanh (scale nhanh) + bề mặt tấn công nhỏ (ít gói = ít CVE). Mức cao nhất: **distroless** (không có cả shell để khai thác).
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** multi-stage build giúp giảm kích thước image bằng cách nào?
@@ -555,6 +662,23 @@ flowchart TB
 - **Bẫy kinh điển:** "dữ liệu DB biến mất sau khi `docker compose down`". Lý do: quên khai báo volume, dữ liệu nằm trong lớp ghi của container → xóa container là mất. **Database BẮT BUỘC có volume.**
 - **DNS nội bộ là chìa khóa microservice:** app kết nối DB bằng `postgres://db:5432` (tên service `db`), không phải IP. Docker tự phân giải tên trong cùng network.
 - **`docker compose down -v` xóa cả volume** — lệnh nguy hiểm, đọc kỹ trước khi gõ trên môi trường có dữ liệu thật.
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** tạo volume & ghi dữ liệu → xóa container rồi tạo lại (dữ liệu còn) → bind mount cho dev → network riêng cho 2 container nói chuyện qua tên.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `docker volume create data` + `-v data:/var/lib/...` — volume do Docker quản (khuyến nghị cho dữ liệu). *Kết quả:* xóa container, tạo lại → dữ liệu vẫn còn.
+- `-v $(pwd):/app` (bind mount) — gắn thẳng thư mục host vào container (tốt cho **dev**: sửa code nóng).
+- `docker network create mynet` + `--network mynet` — 2 container cùng network gọi nhau bằng **tên** (DNS nội bộ), không cần IP.
+
+**🧪 Thử nghiệm:**
+- Chạy postgres KHÔNG volume → ghi dữ liệu → `docker rm` → tạo lại → dữ liệu MẤT. Làm lại CÓ `-v` → dữ liệu CÒN. **Bài học:** vì sao DB bắt buộc có volume.
+- 2 container cùng network: từ A `ping <tên-B>` → thông. **Bài học:** DNS nội bộ là nền tảng microservice.
+
+⚠️ **Dễ sai:** `docker compose down -v` xóa cả volume → mất dữ liệu thật. Đọc kỹ cờ `-v`.
+
+💡 **Hiểu sâu:** dữ liệu trong "lớp ghi" container mất khi xóa container; volume nằm NGOÀI vòng đời container nên bền vững. Tách network theo tầng để DB không lộ ra ngoài.
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -635,6 +759,24 @@ flowchart TB
 - **Compose cho dev, không phải production scale:** Compose tuyệt cho local/staging và app nhỏ. Khi cần HA, auto-scaling, self-healing → Kubernetes (Giai đoạn 3). Đừng cố ép Compose làm việc của K8s.
 - **`.env` ≠ bảo mật:** `.env` chỉ tiện, không phải kho secret. Thêm `.env` vào `.gitignore`; production dùng secret manager.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** viết `docker-compose.yml` (web+db+adminer) → `up -d` → dùng `.env` cho mật khẩu → xem log gộp → thêm volume + healthcheck.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `docker compose up -d` — đọc file YAML, tạo & chạy mọi service ở nền. *Kết quả:* `docker compose ps` thấy các service State `Up`.
+- `.env` — Compose tự đọc, truyền biến (vd `POSTGRES_PASSWORD`). **Vì sao:** không hard-code mật khẩu trong YAML.
+- `depends_on: condition: service_healthy` — chờ DB **sẵn sàng** (qua healthcheck), không chỉ "đã start".
+- `docker compose logs -f` — log gộp mọi service; `docker compose down` — tắt (thêm `-v` xóa cả volume).
+
+**🧪 Thử nghiệm:**
+- `docker compose config` — in cấu hình đã merge (bắt lỗi YAML + thấy biến `.env` đã thay). **Bài học:** validate trước khi chạy.
+- Bỏ `condition: service_healthy` → app connect DB ngay → lỗi vì DB chưa sẵn sàng. **Bài học:** `depends_on` trơn KHÔNG đảm bảo DB sẵn sàng.
+
+⚠️ **Dễ sai:** tưởng `depends_on` đảm bảo DB sẵn sàng — nó chỉ đảm bảo **thứ tự start container**. Cần healthcheck hoặc app tự retry.
+
+💡 **Hiểu sâu:** Compose tuyệt cho dev/local & app nhỏ; cần HA + auto-scale + self-healing thì lên Kubernetes (GĐ3). Đừng ép Compose làm việc của K8s.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** Compose giúp gì so với chạy nhiều lệnh `docker run`?
@@ -707,6 +849,23 @@ flowchart TD
        └── nginx.conf
    ```
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** viết Dockerfile multi-stage cho backend → soạn compose (nginx + backend + db) → 2 network tách biệt → volume cho db → README chạy 1 lệnh → push GitHub.
+
+**Giải nghĩa & kết quả mong đợi:**
+- Stack 3 tầng: nginx (reverse proxy, lộ 80/443) → backend API → Postgres. *Kết quả:* `docker compose up` → cả 3 cùng lên, mở web tạo/đọc dữ liệu.
+- **2 network** (`frontend`/`backend`): nginx+backend ở frontend; backend+db ở backend → DB **không** ở network frontend = Internet không thấy DB.
+- Mọi service: `healthcheck` + `restart: unless-stopped`.
+
+**🧪 Thử nghiệm:**
+- `docker compose down` rồi `up` lại → dữ liệu DB vẫn còn (named volume). **Bài học:** dữ liệu bền vững qua restart.
+- Cho 1 máy khác clone repo + `docker compose up` → chạy được ngay. **Bài học:** *"works on my machine"* đã được giải quyết.
+
+⚠️ **Dễ sai:** đặt DB ở network frontend → lộ DB ra ngoài. Giữ DB chỉ ở network backend.
+
+💡 **Hiểu sâu:** đây là kiến trúc 3 tầng kinh điển. Cùng app này bạn sẽ deploy lên cloud (Ngày 28) rồi lên Kubernetes (GĐ3) — hiểu kỹ ở đây là nền cho mọi thứ sau.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Tự chấm:** app chạy được trên máy người khác chỉ bằng `docker compose up` không?
@@ -774,6 +933,23 @@ flowchart TD
 - **Bẫy "Norway problem":** `country: NO` bị YAML hiểu thành `false` (boolean)! Tương tự `yes/no/on/off`. → Luôn **quote chuỗi** dễ nhầm: `country: "NO"`, `version: "3.9"` (số cũng nên quote khi cần giữ nguyên).
 - **JSON là tập con của YAML** — mọi JSON hợp lệ đều là YAML hợp lệ. Tiện khi cần dán nhanh.
 - **Quy tắc khi debug cấu hình lạ:** chạy `yamllint` + `docker compose config`/`kubectl --dry-run` để máy validate, đừng soi mắt thường.
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** viết file YAML đúng cú pháp → dùng jq lọc JSON → validate bằng yamllint → chuyển JSON↔YAML bằng yq → cố tạo lỗi để thấy báo.
+
+**Giải nghĩa & kết quả mong đợi:**
+- YAML: thụt lề bằng **space** (không tab), `key: value`, danh sách bằng `-`. *Kết quả:* `yamllint file.yml` không báo lỗi.
+- `curl -s api | jq '.field'` — `jq` lọc/trích JSON. *Kết quả:* in đúng giá trị field.
+- `yq '.services.web.image = "nginx:1.27"' -i file.yml` — sửa YAML bằng lệnh (tự động hóa).
+
+**🧪 Thử nghiệm:**
+- Cố thụt lề bằng **tab** rồi `yamllint` → báo lỗi. **Bài học:** YAML cấm tab.
+- Viết `country: NO` rồi để công cụ đọc → ra `false` (boolean)! Sửa thành `"NO"`. **Bài học:** "Norway problem" — quote chuỗi dễ nhầm.
+
+⚠️ **Dễ sai:** thiếu khoảng trắng sau `:` (`key:value` ❌ → `key: value` ✅); trộn tab/space.
+
+💡 **Hiểu sâu:** mọi công cụ DevOps (docker, kubectl, aws...) xuất **JSON**, cấu hình dùng **YAML**. Thạo `jq`/`yq` = tự động hóa nhiều việc mà mắt thường làm vất vả.
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -850,6 +1026,24 @@ flowchart TD
 - **SSL termination:** nginx giải mã HTTPS rồi nói HTTP với backend nội bộ → backend nhẹ gánh, chứng chỉ quản lý 1 chỗ.
 - **Nginx là "dao đa năng":** reverse proxy, load balancer, static server, API gateway, cache — hiểu sâu nó là khoản đầu tư xứng đáng (các ingress controller K8s ở GĐ3 thường chính là nginx).
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** cấu hình reverse proxy (`proxy_pass`) → upstream load balancing → test `nginx -t` rồi reload → serve static → (tùy chọn) HTTPS certbot.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `proxy_pass http://backend;` trong `location /` — nginx nhận request rồi chuyển tới backend. *Kết quả:* mở domain → thấy app backend qua nginx.
+- `proxy_set_header X-Forwarded-For ...` — chuyển IP thật của client cho backend (thiếu thì backend log sai IP).
+- `nginx -t` — test cú pháp config. *Kết quả:* `syntax is ok, test is successful`. Rồi `nginx -s reload`.
+- `certbot --nginx -d example.com` — cấp HTTPS Let's Encrypt + tự sửa config.
+
+**🧪 Thử nghiệm:**
+- Cố tình viết sai config (thiếu `;`) rồi `nginx -t` → báo lỗi đúng dòng. **Bài học:** `nginx -t` trước reload là bắt buộc.
+- Tạo `upstream` 2 backend, refresh nhiều lần → request luân phiên. **Bài học:** load balancing round-robin.
+
+⚠️ **Dễ sai:** `systemctl restart nginx` khi config lỗi → nginx KHÔNG lên lại = web chết. Dùng `nginx -t` + `reload` (giữ kết nối liên tục).
+
+💡 **Hiểu sâu:** reverse proxy đứng trước *server* (giấu backend, LB, SSL, cache); forward proxy đứng trước *client*. Ingress controller của Kubernetes (GĐ3) thường chính là nginx — kiến thức này dùng lại nguyên.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** reverse proxy khác forward proxy thế nào?
@@ -915,6 +1109,24 @@ flowchart TD
 - **DB stateful trong container — cẩn trọng:** chạy DB trong Docker tốt cho dev/test. Production thì cân nhắc **managed DB** (RDS/Cloud SQL/Azure DB) để khỏi tự lo backup, HA, patching — hoặc nếu tự host thì phải rất chắc về volume + backup + replication.
 - **3 việc DevOps PHẢI làm với mọi DB:** (1) backup tự động + **test restore**, (2) giám sát (kết nối, dung lượng, query chậm), (3) không để mật khẩu mặc định / không expose port.
 - **Migration là một chiều an toàn:** luôn viết migration **forward**, có kế hoạch rollback, test trên staging trước. Sửa schema tay trên production là công thức gây sự cố.
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** chạy Postgres (có volume) → kết nối psql → tạo bảng + chèn dữ liệu → backup `pg_dump` → xóa & restore → thử Redis.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `docker run -d -v pgdata:/var/lib/postgresql/data -e POSTGRES_PASSWORD=... postgres` — DB có volume bền vững.
+- `psql` / adminer — kết nối, chạy SQL. *Kết quả:* `\l` liệt kê database, `SELECT *` trả bản ghi.
+- `docker exec db pg_dump -U postgres --single-transaction mydb | gzip > b.sql.gz` — backup nhất quán + nén. **Vì sao `--single-transaction`:** ảnh chụp nhất quán mà không khóa bảng.
+- `redis-cli set k v` / `get k` — test Redis (cache/session, trong RAM).
+
+**🧪 Thử nghiệm:**
+- Backup → xóa 1 bảng → restore từ file → dữ liệu trở lại. **Bài học:** backup chỉ có giá trị khi test được restore.
+- Thử kết nối DB từ ngoài network nội bộ → không được (nếu cấu hình đúng). **Bài học:** DB không expose ra Internet.
+
+⚠️ **Dễ sai:** copy thẳng file dữ liệu Postgres đang chạy = backup **không nhất quán**. Luôn dùng `pg_dump`/`mysqldump`.
+
+💡 **Hiểu sâu:** 3 việc DevOps PHẢI làm với mọi DB: (1) backup tự động + test restore, (2) giám sát, (3) mật khẩu mạnh + không expose. Sửa schema dùng **migration tool** (Flyway/Alembic), không sửa tay trên production.
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -985,6 +1197,24 @@ flowchart TD
 - **Semantic Versioning quyết định gì:** người dùng nhìn version là biết có **breaking change** (MAJOR) không. `2.3.1 → 2.4.0` = an toàn nâng cấp; `2.4.0 → 3.0.0` = đọc kỹ migration guide.
 - **Squash khi merge PR:** nhiều team bật "Squash and merge" → 1 PR = 1 commit gọn trên main, lịch sử main rất sạch để đọc.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** squash commit bằng `rebase -i` → tạo annotated tag + push → viết Conventional Commits → cherry-pick → tạo GitHub Release.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `git rebase -i HEAD~3` — mở editor để **squash** 3 commit nhỏ thành 1 (đổi `pick` → `squash`). *Kết quả:* `git log` gọn lại.
+- `git tag -a v1.0.0 -m 'Release 1.0'` rồi `git push --tags` — annotated tag (có tác giả/ngày/message) cho release.
+- Conventional Commits: `feat:`/`fix:`/`docs:` → công cụ tự sinh CHANGELOG + bump version.
+- `git cherry-pick <hash>` — lấy 1 commit cụ thể sang nhánh hiện tại.
+
+**🧪 Thử nghiệm:**
+- Tạo bug ở 1 commit rồi `git bisect start` / `bad` / `good <tag>` → Git nhị phân tìm đúng commit lỗi. **Bài học:** debug "bug từ đâu" cực nhanh.
+- So sánh `git merge` (có merge commit) vs `git rebase` (lịch sử thẳng) trên `git log --graph`. **Bài học:** thấy khác biệt lịch sử.
+
+⚠️ **Dễ sai:** rebase nhánh **đã push/chia sẻ** → phá lịch sử người khác. Quy tắc vàng: chỉ rebase nhánh riêng chưa public.
+
+💡 **Hiểu sâu:** Semantic Versioning `MAJOR.MINOR.PATCH` — MAJOR = breaking change. Người dùng nhìn `2.x → 3.0` là biết phải đọc migration guide. Đây là "hợp đồng" giữa bạn và người dùng.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** khi nào KHÔNG được rebase?
@@ -1041,6 +1271,23 @@ flowchart TD
 - **Region quan trọng cho 2 thứ:** **độ trễ** (chọn gần người dùng) và **chi phí** (giá khác nhau giữa region) và **tuân thủ** (dữ liệu phải ở quốc gia nào).
 - **Bẫy chi phí phổ biến:** quên tắt instance, NAT Gateway chạy 24/7, traffic egress (đẩy dữ liệu RA internet tốn tiền, vào thì free), snapshot/volume mồ côi. → **Billing alert là việc đầu tiên** sau khi tạo tài khoản.
 - **Shared responsibility:** nhà cung cấp lo bảo mật "của" cloud (phần cứng, hạ tầng); **bạn** lo bảo mật "trong" cloud (cấu hình, IAM, dữ liệu, patch OS). Đừng tưởng "lên cloud là tự an toàn".
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** tạo tài khoản cloud → bật MFA cho root → tạo IAM user quyền hạn chế → đặt Billing Alert → khám phá Console.
+
+**Giải nghĩa & kết quả mong đợi:**
+- Bật **MFA** cho root account — xác thực 2 lớp. **Vì sao:** root bị chiếm = mất sạch tài khoản + hóa đơn khổng lồ.
+- Tạo **IAM user** riêng cho công việc hàng ngày (không dùng root). *Kết quả:* đăng nhập bằng IAM user.
+- **Billing Alert / Budget** ($1, $5, $10) — cảnh báo khi chi phí vượt. *Kết quả:* nhận email khi vượt ngưỡng.
+
+**🧪 Thử nghiệm:**
+- Gán IAM user quyền chỉ-đọc (ReadOnly) rồi thử tạo tài nguyên → bị từ chối. **Bài học:** least privilege hoạt động thế nào.
+- Xem bảng giá 1 instance type ở 2 region khác nhau. **Bài học:** region ảnh hưởng chi phí + độ trễ.
+
+⚠️ **Dễ sai:** commit access key lên GitHub = nguyên nhân #1 của hóa đơn cloud khổng lồ (bot quét GitHub liên tục). Không bao giờ commit key; dùng `aws configure` lưu cục bộ.
+
+💡 **Hiểu sâu:** **Shared responsibility** — nhà cung cấp lo bảo mật *của* cloud (phần cứng); BẠN lo bảo mật *trong* cloud (IAM, cấu hình, dữ liệu). "Lên cloud" không tự an toàn.
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -1110,6 +1357,24 @@ flowchart TD
 - **`chmod 400 key.pem` bắt buộc:** SSH **từ chối** key có quyền quá mở (người khác đọc được). Đây là lỗi người mới gặp ngay phút đầu dùng EC2.
 - **t2.micro là free tier nhưng có giới hạn CPU credit** — chạy tải nặng liên tục sẽ bị bóp. Hiểu "burstable instance" để khỏi ngạc nhiên khi app chậm bất thường.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** tạo VM (t2.micro) + key pair → mở Security Group 22/80 → `chmod 400` key → SSH vào → cài nginx → thử User Data.
+
+**Giải nghĩa & kết quả mong đợi:**
+- Tạo VM, tải file key `.pem` (chỉ tải được 1 lần — giữ kỹ). *Kết quả:* instance State `Running`, có Public IP.
+- `chmod 400 key.pem` — chỉ owner đọc. **Vì sao bắt buộc:** SSH *từ chối* key quyền quá mở.
+- `ssh -i key.pem ubuntu@<public-ip>` — đăng nhập. *Kết quả:* vào shell của VM.
+- **Security Group** = firewall tầng cloud; chỉ mở 22 (SSH) + 80 (HTTP). **User Data** = script chạy tự động khi tạo máy.
+
+**🧪 Thử nghiệm:**
+- Mở SSH cho `0.0.0.0/0`, sau vài giờ xem `/var/log/auth.log` → đầy lượt quét. Đổi thành chỉ IP của bạn. **Bài học:** đừng mở SSH cho cả thế giới.
+- `stop` instance rồi `start` lại → Public IP đổi (trừ khi dùng Elastic IP). **Bài học:** IP động.
+
+⚠️ **Dễ sai:** `terminate` thay vì `stop` → **xóa hẳn** máy + disk → mất dữ liệu. `stop` chỉ tắt, giữ disk.
+
+💡 **Hiểu sâu:** Security Group (tầng cloud) + UFW (tầng OS) = 2 lớp phòng thủ (defense in depth). Áp checklist hardening Ngày 9 cho MỌI instance mới.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** Security Group khác gì với UFW trong instance?
@@ -1167,6 +1432,23 @@ flowchart TD
   5. **Không rollback nhanh** — hỏng thì cuống cuồng sửa tay.
 - **Đây là lúc IaC + CI/CD bước vào:** Ngày 29 (Terraform — tạo hạ tầng bằng code) và Giai đoạn 3 (CI/CD — deploy tự động) giải quyết đúng 5 điểm trên.
 - **"Cattle, not pets":** đừng nâng niu 1 server như thú cưng (đặt tên, sửa tay, sợ mất). Coi server như đàn gia súc — hỏng thì thay máy mới bằng code, dữ liệu nằm ở chỗ bền vững (volume/DB/S3).
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** SSH vào VM → cài Docker → kéo/clone app → `docker compose up -d` → cấu hình nginx/HTTPS → ghi runbook.
+
+**Giải nghĩa & kết quả mong đợi:**
+- Cài Docker trên VM (theo docs hoặc User Data). `docker compose up -d` chạy stack. *Kết quả:* `docker ps` thấy container; mở Public IP thấy app **thật trên Internet**.
+- `restart: unless-stopped` — app tự lên lại khi VM reboot/container chết.
+- `certbot --nginx -d domain` — HTTPS thật (nếu có domain).
+
+**🧪 Thử nghiệm:**
+- Đếm số bước phải gõ tay để deploy (SSH, pull, env, up, proxy...). **Bài học:** cảm nhận "nỗi đau" → hiểu vì sao cần CI/CD (GĐ3).
+- Reboot VM → kiểm tra app có tự lên lại không (nhờ restart policy).
+
+⚠️ **Dễ sai:** để config dev (debug=true, DB test) lọt lên production. Tách biến môi trường dev/prod rõ ràng.
+
+💡 **Hiểu sâu:** 5 điểm yếu của deploy tay: dễ sai · không lặp lại · phụ thuộc 1 người · không dấu vết · rollback chậm. CI/CD (GĐ3) + IaC (Ngày 29) sinh ra để giải đúng 5 cái này. Tư duy "cattle not pets": server hỏng thì thay bằng code.
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
@@ -1241,6 +1523,24 @@ flowchart TD
 - **`plan` trước `apply` luôn luôn:** `plan` cho bạn xem **chính xác** sẽ tạo/sửa/xóa gì. Đọc kỹ dòng `destroy` — nhiều sự cố production là do `apply` mà không đọc plan, vô tình xóa tài nguyên.
 - **IaC giải quyết "5 điểm yếu" của Ngày 28:** lặp lại được, version trong Git, review qua PR, dấu vết đầy đủ, rollback bằng cách revert code. Đây là bước nhảy tư duy lớn nhất của DevOps.
 
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** cài Terraform → viết `.tf` (VM + Security Group) → `init` → `plan` (đọc kỹ) → `apply` → SSH kiểm tra → `destroy`.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `terraform init` — tải provider (AWS...). *Kết quả:* `Terraform has been successfully initialized`.
+- `terraform plan` — xem TRƯỚC sẽ tạo/sửa/xóa gì. *Kết quả:* `X to add, 0 to change, 0 to destroy`. **Đọc kỹ dòng destroy.**
+- `terraform apply` — thực thi. *Kết quả:* `Apply complete!`, tài nguyên xuất hiện trên cloud.
+- `terraform destroy` — xóa sạch (tránh tốn phí sau khi học).
+
+**🧪 Thử nghiệm:**
+- `apply` xong, vào Console **sửa tay** 1 tài nguyên, rồi `terraform plan` → Terraform báo "drift" (lệch). **Bài học:** vì sao không sửa tay khi đã dùng IaC.
+- Chạy `apply` 2 lần liên tiếp → lần 2 báo `0 to add/change` (idempotent). **Bài học:** mô tả trạng thái mong muốn, không phải lệnh tuần tự.
+
+⚠️ **Dễ sai:** commit `.tfstate`/`.tfvars` (chứa secret) lên Git, hoặc sửa tay `.tfstate`. Luôn `.gitignore` + remote state có khóa.
+
+💡 **Hiểu sâu:** `.tfstate` là "bản đồ" giữa code ↔ tài nguyên thật. Terraform so sánh `code ↔ state ↔ thực tế` để quyết định hành động. Đây là lý do `plan` trước `apply` là bắt buộc.
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
 - **Bài ôn:** IaC giải quyết vấn đề gì so với click thủ công trên console?
@@ -1300,6 +1600,23 @@ flowchart LR
 3. **Repo cấu trúc tách `infra/` và `app/`**, README có sơ đồ + lệnh chạy từng bước.
 4. **`terraform destroy`** sau khi demo để tránh hóa đơn.
 5. Bonus: state file để remote (S3) cho đúng chuẩn team.
+
+### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+
+**Trình tự nên làm:** Terraform dựng VM+SG → user-data cài Docker → deploy compose → README + sơ đồ → `destroy` khi xong.
+
+**Giải nghĩa & kết quả mong đợi:**
+- `terraform apply` (có `variables` cho region/instance type) dựng hạ tầng; user-data tự cài Docker + chạy app. *Kết quả:* mở Public IP/domain thấy app full-stack.
+- Repo tách `infra/` (Terraform) và `app/` (compose) — rõ ràng, dễ đọc.
+- `terraform destroy` sau demo → tránh hóa đơn.
+
+**🧪 Thử nghiệm:**
+- `terraform destroy` rồi `apply` lại từ đầu → dựng lại toàn bộ trong 1 lệnh. **Bài học:** hạ tầng "dùng 1 lần rồi vứt", tái tạo bằng code (cattle not pets).
+- Đổi `variable region` → `plan` thấy sẽ tạo ở region khác. **Bài học:** tham số hóa = tái dùng cho dev/prod.
+
+⚠️ **Dễ sai:** quên `terraform destroy` sau khi học → instance/NAT chạy 24/7 → hóa đơn bất ngờ. Đặt billing alert.
+
+💡 **Hiểu sâu:** bạn vừa đi trọn "code → hạ tầng → app, tất cả bằng code". Đây là **nửa chặng đường**. GĐ3 tự động hóa nốt phần deploy (CI/CD) và điều phối container quy mô lớn (Kubernetes).
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
