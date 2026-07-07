@@ -3358,16 +3358,43 @@ Là "người gác cổng" ở tầng cloud (trước cả khi gói tin tới m�
 ## Ngày 28 — Triển khai App lên Cloud (Docker trên VM)
 
 > ⏱️ ~90 phút · Loại: Cloud
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 27 (tạo VM) → **Ngày 28 (đưa app lên VM cloud — app "ra đời thật")** → Ngày 29 (Terraform). Cột mốc lớn: app của bạn online trên Internet. Đồng thời bạn sẽ *cảm nhận nỗi đau* của deploy tay để hiểu vì sao cần CI/CD.
+>
+> ✅ **Chuẩn bị:** một VM cloud SSH được (Ngày 27) + app full-stack đóng gói bằng Compose (Ngày 21).
 
 ### 📘 Lý thuyết
 
-- **Quy trình deploy thủ công:** build/pull image → chạy container trên VM → cấu hình proxy.
-- **Cài Docker trên VM:** theo docs hoặc dùng user data script.
-- **Pull image** từ Docker Hub về VM và chạy với Compose.
-- **Cấu hình domain (tùy chọn):** trỏ DNS A record về Elastic IP.
-- **HTTPS production:** Let's Encrypt + Certbot cho chứng chỉ miễn phí thật.
-- **Quản lý môi trường:** tách biến môi trường dev/prod; secret an toàn.
-- **Giới hạn deploy thủ công:** dễ sai, không lặp lại được → lý do cần CI/CD (giai đoạn sau).
+#### 1. Quy trình deploy thủ công
+
+SSH vào VM → cài Docker → pull/clone app → `docker compose up -d` → cấu hình nginx reverse proxy → (tuỳ chọn) HTTPS.
+
+#### 2. Đưa app lên VM
+
+- Cài Docker trên VM (theo docs hoặc User Data script từ Ngày 27).
+- **Pull image** từ Docker Hub, hoặc clone repo rồi build tại chỗ.
+- Chạy bằng `docker compose up -d`.
+
+#### 3. Domain & HTTPS thật
+
+- Trỏ **DNS A record** của domain về **Elastic IP** của VM.
+- Cấp chứng chỉ HTTPS miễn phí thật: `certbot --nginx -d yourdomain.com` (Let's Encrypt, tự gia hạn).
+
+#### 4. Quản lý môi trường
+
+Tách biến môi trường **dev/prod** rõ ràng — đừng để config dev (debug=true, DB test) lọt lên production. Dùng `restart: unless-stopped` + healthcheck để app tự lên lại khi VM reboot.
+
+#### 5. 5 điểm yếu của deploy thủ công (nhớ để hiểu giá trị CI/CD)
+
+| # | Điểm yếu |
+|---|---|
+| 1 | **Dễ sai** — gõ nhầm 1 lệnh giữa 20 bước |
+| 2 | **Không lặp lại** — "máy A chạy, máy B thì không" |
+| 3 | **Phụ thuộc 1 người** — chỉ bạn biết quy trình |
+| 4 | **Không dấu vết** — ai deploy gì, lúc nào? |
+| 5 | **Rollback chậm** — hỏng thì cuống cuồng sửa tay |
+
+> 🔑 Tư duy **"cattle, not pets"** — đừng nâng niu 1 server. Server hỏng thì thay máy mới bằng code; dữ liệu để ở chỗ bền vững (volume/DB/S3). 5 điểm yếu trên chính là lý do tồn tại của IaC (Ngày 29) + CI/CD (Giai đoạn 3).
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -3431,35 +3458,115 @@ Mỗi lần cập nhật, bạn phải làm lại một chuỗi thao tác. 5 đi
 
 💡 **Hiểu sâu:** 5 điểm yếu của deploy tay: dễ sai · không lặp lại · phụ thuộc 1 người · không dấu vết · rollback chậm. CI/CD (GĐ3) + IaC (Ngày 29) sinh ra để giải đúng 5 cái này. Tư duy "cattle not pets": server hỏng thì thay bằng code.
 
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Mở Public IP không ra app | Security Group chưa mở 80/443 | Thêm rule 80/443; kiểm `docker ps` app có chạy |
+| `docker compose up` lỗi permission | User chưa trong nhóm docker | `sudo usermod -aG docker $USER` rồi đăng nhập lại |
+| App chết sau khi VM reboot | Thiếu restart policy | Thêm `restart: unless-stopped` |
+| Certbot lỗi cấp chứng chỉ | DNS chưa trỏ về IP / cổng 80 chưa mở | Trỏ A record đúng; mở 80; chờ DNS lan |
+| Config dev lọt lên prod | Không tách biến môi trường | Dùng `.env` riêng cho prod; kiểm trước khi up |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** liệt kê các bước deploy thủ công 1 app Docker lên VM.
-- Những điểm yếu của deploy thủ công là gì?
-- Vì sao cần tách biến môi trường giữa dev và prod?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Liệt kê các bước deploy thủ công 1 app Docker lên VM.</summary>
+
+> SSH vào VM → cài Docker → pull/clone app → tạo `.env` prod → `docker compose up -d` → cấu hình nginx reverse proxy → (tuỳ chọn) HTTPS bằng certbot.
+</details>
+
+<details>
+<summary>2. 5 điểm yếu của deploy thủ công là gì?</summary>
+
+> Dễ sai · không lặp lại được · phụ thuộc 1 người · không có dấu vết · rollback chậm. Đây là lý do cần IaC + CI/CD.
+</details>
+
+<details>
+<summary>3. Vì sao tách biến môi trường dev/prod?</summary>
+
+> Tránh cấu hình dev (debug=true, DB test, secret test) lọt lên production gây lỗi/mất an toàn.
+</details>
+
+<details>
+<summary>4. "Cattle, not pets" nghĩa là gì?</summary>
+
+> Đừng nâng niu 1 server (sửa tay, sợ mất). Coi server như đàn gia súc — hỏng thì thay máy mới bằng code; dữ liệu để ở chỗ bền vững.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Cài Docker trên VM & chạy app | `docker ps` trên server hiện container đang chạy |
+| Cài Docker trên VM & chạy app | `docker ps` hiện container đang chạy |
 | Truy cập app qua Public IP | `http://<ip>` mở được ứng dụng |
 | App tự khởi động lại | restart policy: container Up sau khi reboot |
 
-✅ **Kết quả đạt được:** Triển khai ứng dụng thật lên cloud, truy cập được từ Internet — cột mốc lớn!
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Deploy** | Triển khai app lên môi trường chạy |
+| **Runbook** | Tài liệu ghi từng bước vận hành |
+| **A record** | Bản ghi DNS trỏ tên miền → IP |
+| **Let's Encrypt / Certbot** | Cấp chứng chỉ HTTPS miễn phí, tự gia hạn |
+| **restart policy** | Chính sách tự khởi động lại container |
+| **Cattle not pets** | Coi server thay được, không nâng niu |
+| **Egress traffic** | Lưu lượng ra Internet (tốn phí trên cloud) |
+
+✅ **Kết quả đạt được:** Triển khai ứng dụng thật lên cloud, truy cập từ Internet, và hiểu vì sao deploy thủ công cần được tự động hoá — cột mốc lớn!
 
 ---
 
 ## Ngày 29 — Infrastructure as Code — Giới thiệu Terraform
 
 > ⏱️ ~90 phút · Loại: IaC
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 28 (deploy tay — thấy nỗi đau) → **Ngày 29 (tạo hạ tầng bằng CODE — Terraform)** → Ngày 30 (Milestone GĐ2). Đây là bước nhảy tư duy lớn nhất của DevOps: mô tả cả hạ tầng bằng file, chạy lại được.
+>
+> ✅ **Chuẩn bị:** tài khoản cloud + access key cấu hình cục bộ (`aws configure`, KHÔNG commit key). Cài Terraform (`terraform version`).
 
 ### 📘 Lý thuyết
 
-- **Infrastructure as Code (IaC):** mô tả hạ tầng bằng code thay vì click thủ công → lặp lại, version, review được.
-- **Terraform:** công cụ IaC phổ biến nhất, dùng ngôn ngữ HCL, đa cloud.
-- **Khái niệm:** provider (AWS...), resource (EC2, S3...), variable, output, state file.
-- **Vòng làm việc:** `terraform init` → `plan` (xem trước thay đổi) → `apply` (thực thi) → `destroy` (xóa).
-- **State file (`terraform.tfstate`):** lưu trạng thái hạ tầng hiện tại — rất quan trọng, **không sửa tay**.
-- **Biến & output:** tham số hóa cấu hình, xuất giá trị (IP, URL).
-- **Tính idempotent:** chạy nhiều lần ra cùng kết quả mong muốn.
+#### 1. Infrastructure as Code (IaC) là gì
+
+Thay vì vào console *click chuột* tạo server (mệt, dễ quên, không lặp lại), bạn **mô tả hạ tầng bằng code**. Chạy file → máy tự tạo đúng y. Cần 10 server giống nhau? Đổi 1 con số. Muốn xoá sạch? 1 lệnh. IaC giải đúng "5 điểm yếu" của Ngày 28: lặp lại được, version trong Git, review qua PR, có dấu vết, rollback bằng revert code.
+
+#### 2. Terraform & các khái niệm
+
+Viết file `.tf` bằng ngôn ngữ HCL, đa cloud. Khái niệm cốt lõi:
+
+| Khái niệm | Nghĩa |
+|---|---|
+| **provider** | Nhà cung cấp (AWS, GCP, Azure...) |
+| **resource** | Tài nguyên cần tạo (EC2, S3...) |
+| **variable** | Tham số hoá cấu hình |
+| **output** | Giá trị xuất ra (IP, URL) |
+| **state file** | Ghi nhớ trạng thái hạ tầng hiện tại |
+
+#### 3. Vòng làm việc
+
+| Lệnh | Làm gì |
+|---|---|
+| `terraform init` | Chuẩn bị (tải provider) |
+| `terraform plan` | **Xem trước** sẽ tạo/sửa/xoá gì (chưa làm gì) |
+| `terraform apply` | Thực thi thật |
+| `terraform destroy` | Xoá sạch (tránh tốn tiền sau khi học) |
+
+#### 4. State file — "trái tim" của Terraform
+
+Terraform lưu `terraform.tfstate` ghi "nó đang quản những gì". Nó so sánh **code ↔ state ↔ thực tế trên cloud** để quyết định hành động. **3 điều cấm kỵ:**
+1. **Sửa tay** `.tfstate` — sai 1 ký tự là mất dấu tài nguyên.
+2. **Commit lên Git** — chứa secret plaintext.
+3. **Không khoá khi làm team** — 2 người `apply` cùng lúc = state hỏng → dùng remote backend (S3 + DynamoDB lock).
+
+#### 5. Idempotent
+
+Chạy `apply` nhiều lần ra **cùng** kết quả mong muốn (lần 2 báo `0 to add/change`). Bạn mô tả *trạng thái muốn*, Terraform lo *cách đạt*.
+
+> 🔑 **Luôn đọc `terraform plan` TRƯỚC khi `apply`** — đặc biệt để ý dòng `destroy`. Nhiều sự cố production do apply mà không đọc plan, vô tình xoá nhầm tài nguyên.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -3480,11 +3587,51 @@ Terraform lưu 1 file `.tfstate` ghi nhớ "nó đang quản những gì". Nó s
 
 ### 🧪 Lab cơ bản
 
-1. Cài Terraform, kiểm tra `terraform version`.
-2. Viết file `.tf` tạo 1 EC2 instance + Security Group trên AWS.
-3. Chạy `terraform init` → `plan` (đọc kỹ thay đổi) → `apply`.
-4. SSH vào instance do Terraform tạo để xác nhận hoạt động.
-5. Chạy `terraform destroy` xóa sạch hạ tầng (tránh tốn phí), xác nhận đã xóa.
+> Mục tiêu: tạo 1 VM bằng code, đi trọn vòng init → plan → apply → destroy.
+
+**Bước 1 — Viết `main.tf`** (file đầy đủ, ví dụ AWS):
+```hcl
+terraform {
+  required_providers {
+    aws = { source = "hashicorp/aws", version = "~> 5.0" }
+  }
+}
+provider "aws" {
+  region = "ap-southeast-1"
+}
+resource "aws_instance" "web" {
+  ami           = "ami-xxxxxxxx"   # thay bằng AMI Ubuntu của region bạn
+  instance_type = "t2.micro"
+  tags = { Name = "tf-lab-web" }
+}
+output "public_ip" {
+  value = aws_instance.web.public_ip
+}
+```
+
+**Bước 2 — Khởi tạo.**
+```bash
+terraform init
+```
+Bạn sẽ thấy: `Terraform has been successfully initialized!`.
+
+**Bước 3 — Xem trước (đọc KỸ).**
+```bash
+terraform plan
+```
+Bạn sẽ thấy: `Plan: 1 to add, 0 to change, 0 to destroy.`
+
+**Bước 4 — Tạo thật.**
+```bash
+terraform apply      # gõ yes để xác nhận
+```
+Kết thúc in `Apply complete!` và `public_ip = ...`.
+
+**Bước 5 — Xoá sạch (tránh tốn phí).**
+```bash
+terraform destroy    # gõ yes
+```
+✅ Xác nhận `Destroy complete!` và tài nguyên biến mất khỏi Console.
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -3523,41 +3670,109 @@ Terraform lưu 1 file `.tfstate` ghi nhớ "nó đang quản những gì". Nó s
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** cài Terraform → viết `.tf` (VM + Security Group) → `init` → `plan` (đọc kỹ) → `apply` → SSH kiểm tra → `destroy`.
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**. Quy tắc số 1: **đọc plan trước khi apply**.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `terraform init` — tải provider (AWS...). *Kết quả:* `Terraform has been successfully initialized`.
-- `terraform plan` — xem TRƯỚC sẽ tạo/sửa/xóa gì. *Kết quả:* `X to add, 0 to change, 0 to destroy`. **Đọc kỹ dòng destroy.**
-- `terraform apply` — thực thi. *Kết quả:* `Apply complete!`, tài nguyên xuất hiện trên cloud.
-- `terraform destroy` — xóa sạch (tránh tốn phí sau khi học).
+**Bước 1 — init.**
+```bash
+terraform init
+```
+✅ **Checkpoint:** `Terraform has been successfully initialized!`.
 
-**🧪 Thử nghiệm:**
-- `apply` xong, vào Console **sửa tay** 1 tài nguyên, rồi `terraform plan` → Terraform báo "drift" (lệch). **Bài học:** vì sao không sửa tay khi đã dùng IaC.
-- Chạy `apply` 2 lần liên tiếp → lần 2 báo `0 to add/change` (idempotent). **Bài học:** mô tả trạng thái mong muốn, không phải lệnh tuần tự.
+**Bước 2 — plan và đọc kỹ.**
+```bash
+terraform plan
+```
+✅ **Checkpoint:** `1 to add, 0 to change, 0 to destroy`. Luôn để ý số **destroy** — nếu bất ngờ > 0 thì DỪNG, xem lại.
 
-⚠️ **Dễ sai:** commit `.tfstate`/`.tfvars` (chứa secret) lên Git, hoặc sửa tay `.tfstate`. Luôn `.gitignore` + remote state có khóa.
+**Bước 3 — apply và lấy output.**
+```bash
+terraform apply
+terraform output public_ip
+```
+✅ **Checkpoint:** `Apply complete!`, có IP; tài nguyên xuất hiện trong Console.
 
-💡 **Hiểu sâu:** `.tfstate` là "bản đồ" giữa code ↔ tài nguyên thật. Terraform so sánh `code ↔ state ↔ thực tế` để quyết định hành động. Đây là lý do `plan` trước `apply` là bắt buộc.
+**Bước 4 — Chứng minh tính idempotent.**
+```bash
+terraform apply       # lần 2
+```
+✅ **Checkpoint:** báo `0 to add, 0 to change, 0 to destroy` — không tạo lại.
+💡 Bạn mô tả *trạng thái mong muốn*, Terraform chỉ hành động khi có chênh lệch.
+
+**Bước 5 — destroy.**
+```bash
+terraform destroy
+```
+✅ **Checkpoint:** `Destroy complete!` — không còn tốn phí.
+
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| `No valid credential sources` | Chưa cấu hình access key | `aws configure` (không commit key) |
+| `plan` báo destroy bất ngờ | Đổi thuộc tính "force new" | Đọc kỹ plan; cân nhắc trước khi apply |
+| `Error acquiring the state lock` | Người khác/tiến trình cũ đang giữ lock | Chờ, hoặc `force-unlock` (cẩn thận) |
+| State "drift" | Ai đó sửa tay tài nguyên trên Console | Đừng sửa tay; `apply` để đưa về đúng code |
+| Lỡ commit `.tfstate` | Chứa secret | Gỡ khỏi Git, thêm `.gitignore`, chuyển remote state |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** IaC giải quyết vấn đề gì so với click thủ công trên console?
-- Giải thích vai trò của `terraform plan` trước `apply`.
-- Vì sao không được sửa tay file `tfstate`?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. IaC giải quyết vấn đề gì so với click thủ công?</summary>
+
+> Lặp lại được, version trong Git, review qua PR, có dấu vết, rollback bằng revert code, tạo/xoá hàng loạt bằng 1 thay đổi. Giải đúng 5 điểm yếu của deploy tay.
+</details>
+
+<details>
+<summary>2. Vai trò của `terraform plan` trước `apply`?</summary>
+
+> Cho xem **chính xác** sẽ tạo/sửa/xoá gì trước khi thực thi — để không vô tình xoá nhầm tài nguyên. Luôn đọc kỹ dòng `destroy`.
+</details>
+
+<details>
+<summary>3. Vì sao không sửa tay `tfstate`?</summary>
+
+> `.tfstate` là bản đồ giữa code ↔ tài nguyên thật. Sửa sai là Terraform mất dấu, gây tạo trùng/xoá nhầm. Nó cũng chứa secret nên không commit lên Git.
+</details>
+
+<details>
+<summary>4. "Idempotent" trong Terraform nghĩa là gì?</summary>
+
+> Chạy `apply` nhiều lần ra cùng kết quả; lần sau không tạo lại nếu thực tế đã khớp với code (`0 to add/change`).
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| `terraform init` | `Terraform has been successfully initialized` |
-| `terraform plan` | `X to add, 0 to change, 0 to destroy` |
-| `terraform apply` | `Apply complete!`, tài nguyên xuất hiện trên cloud |
+| `terraform init` | `successfully initialized` |
+| `terraform plan` | `1 to add, 0 to change, 0 to destroy` |
+| `terraform apply` | `Apply complete!`, tài nguyên xuất hiện |
 
-✅ **Kết quả đạt được:** Tạo hạ tầng cloud bằng code với Terraform — kỹ năng DevOps hiện đại cốt lõi.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **IaC** | Hạ tầng dưới dạng code |
+| **Terraform / HCL** | Công cụ IaC / ngôn ngữ của nó |
+| **provider / resource** | Nhà cung cấp / tài nguyên cần tạo |
+| **state file** | Bản đồ trạng thái hạ tầng |
+| **plan / apply / destroy** | Xem trước / thực thi / xoá |
+| **Idempotent** | Chạy lại ra cùng kết quả |
+| **Drift** | Thực tế lệch khỏi code (do sửa tay) |
+
+✅ **Kết quả đạt được:** Tạo hạ tầng cloud bằng code với Terraform (init→plan→apply→destroy), hiểu state & idempotent — kỹ năng DevOps hiện đại cốt lõi.
 
 ---
 
 ## Ngày 30 — MILESTONE: LAB tổng hợp Giai đoạn 2
 
 > ⏱️ ~120 phút · Loại: Milestone (Git + Docker + Cloud + IaC)
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 13–29 (Git, Docker, Cloud, Terraform) → **Ngày 30 (ghép tất cả: code → hạ tầng → app, tất cả bằng code)** → Giai đoạn 3 (CI/CD + Kubernetes). Đây là **nửa chặng đường** — chứng minh bạn làm được end-to-end.
+>
+> ✅ **Chuẩn bị:** app full-stack (Ngày 21), tài khoản cloud + Terraform (Ngày 29), billing alert đang bật. ⚠️ Nhớ `terraform destroy` sau khi demo.
 
 ### 📘 Lý thuyết — Tổng kết
 
@@ -3630,9 +3845,33 @@ flowchart LR
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Tự chấm:** bạn deploy được app lên cloud từ 0 bằng code chưa?
-- **Mở rộng:** tham số hóa Terraform bằng variables cho tên instance và region.
-- Chuẩn bị Giai đoạn 3: CI/CD tự động hóa — phần "cốt lõi" của DevOps.
+**✍️ Tự kiểm tra (tổng hợp Giai đoạn 2):**
+
+<details>
+<summary>1. Mô tả mạch "code → hạ tầng → app, tất cả bằng code".</summary>
+
+> Code + Dockerfile + compose + Terraform nằm trong 1 repo GitHub → `terraform apply` dựng hạ tầng (VM, SG) → user-data cài Docker + chạy app Compose → app online. Xoá sạch bằng `terraform destroy`, dựng lại bất cứ lúc nào.
+</details>
+
+<details>
+<summary>2. Vì sao nên tách repo thành `infra/` và `app/`?</summary>
+
+> Rõ ràng, dễ đọc, dễ bảo trì: hạ tầng (Terraform) và ứng dụng (Docker) có vòng đời khác nhau. Người lạ (và bạn 6 tháng sau) hiểu ngay.
+</details>
+
+<details>
+<summary>3. Vì sao milestone nhắc `terraform destroy` sau demo?</summary>
+
+> Để máy chạy 24/7 trên cloud = hoá đơn bất ngờ. `destroy` xoá sạch; cần lại thì `apply` dựng trong 1 lệnh (cattle not pets).
+</details>
+
+<details>
+<summary>4. Giai đoạn 3 sẽ tự động hoá thêm phần nào?</summary>
+
+> CI/CD (tự build-test-deploy khi push) và Kubernetes (điều phối container ở quy mô lớn) — giải nốt phần deploy thủ công còn lại.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
@@ -3640,7 +3879,19 @@ flowchart LR
 | App online | Mở Public IP/domain thấy app full-stack hoạt động |
 | `terraform destroy` | `Destroy complete!` — không tốn phí |
 
-✅ **Kết quả đạt được — MỐC 3 (NỬA CHẶNG ĐƯỜNG):** Làm chủ Git + Docker + Cloud + IaC cơ bản.
+### 📚 Thuật ngữ Anh–Việt (tổng hợp Giai đoạn 2)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Version control** | Quản lý phiên bản (Git) |
+| **Container / Image** | Hộp chạy app / khuôn tạo container |
+| **Compose** | Mô tả nhiều container bằng 1 file |
+| **IaaS / VM** | Hạ tầng thuê / máy ảo |
+| **IaC (Terraform)** | Hạ tầng dưới dạng code |
+| **End-to-end** | Trọn quy trình từ đầu đến cuối |
+| **Single source of truth** | 1 nguồn sự thật (repo Git) |
+
+✅ **Kết quả đạt được — MỐC 3 (NỬA CHẶNG ĐƯỜNG):** Làm chủ Git + Docker + Cloud + IaC cơ bản, dựng được app lên cloud từ 0 bằng code.
 
 ---
 
