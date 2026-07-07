@@ -3109,16 +3109,45 @@ Log text thô (`"Error tại dòng 5"`) khó lọc. Log JSON (`{"level":"error",
 ## Ngày 47 — Configuration Management: Ansible
 
 > ⏱️ ~90 phút · Loại: IaC
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 46 (Loki) → **Ngày 47 (Ansible — cấu hình hàng loạt server tự động)** → Ngày 48 (Terraform nâng cao). Terraform *tạo* máy; Ansible *cấu hình bên trong* máy — bổ trợ nhau.
+>
+> ✅ **Chuẩn bị:** cài Ansible (`ansible --version`). Một VM (hoặc localhost) SSH được để làm target.
 
 ### 📘 Lý thuyết
 
-- **Ansible:** tự động cấu hình server (cài phần mềm, sửa config) — **agentless**, dùng SSH.
-- **Khác Terraform:** Terraform **tạo** hạ tầng, Ansible **cấu hình bên trong** server (bổ trợ nhau).
-- **Inventory:** danh sách server cần quản lý (file INI/YAML).
-- **Playbook:** file YAML mô tả các task cần thực hiện.
-- **Module:** đơn vị tác vụ (`apt`, `copy`, `service`, `template`...).
-- **Idempotent:** chạy lại không gây thay đổi nếu đã ở trạng thái mong muốn.
-- **Role:** tổ chức playbook tái sử dụng; Ansible Galaxy chia sẻ role.
+#### 1. Ansible là gì
+
+Tự động cấu hình server (cài phần mềm, sửa config, chạy service) **hàng loạt**. Bạn viết 1 file mô tả "muốn server thế nào", Ansible SSH vào tất cả và làm cho khớp.
+
+#### 2. Terraform vs Ansible — bổ trợ, không cạnh tranh
+
+| | Vai trò | Câu hỏi |
+|---|---|---|
+| **Terraform** | Provisioning **hạ tầng** | "Tạo 3 VM, 1 network" |
+| **Ansible** | Configuration **bên trong** | "Cài nginx + config + chạy service trên 3 VM đó" |
+
+Luồng thật: Terraform dựng máy → Ansible cấu hình.
+
+#### 3. Các khái niệm
+
+| Khái niệm | Nghĩa |
+|---|---|
+| **Inventory** | Danh sách server (INI/YAML) |
+| **Playbook** | File YAML mô tả các task |
+| **Module** | Đơn vị tác vụ (`apt`, `service`, `copy`, `template`) |
+| **Role** | Tổ chức playbook tái dùng (Ansible Galaxy chia sẻ) |
+| **Handler** | Chạy khi có thay đổi (vd reload nginx) |
+
+#### 4. Idempotent — đặc tính cốt lõi
+
+Chạy playbook 10 lần vẫn ra cùng kết quả; lần 2+ báo `changed=0`. Đây là lý do dùng **module chuyên dụng** (tự kiểm tra "đã đúng chưa") thay vì `shell`/`command` bừa.
+
+#### 5. Agentless — lợi thế lớn
+
+Ansible chỉ cần **SSH + Python** trên máy đích, **không cài agent** (khác Puppet/Chef cần agent + master) → dễ áp dụng cho server có sẵn.
+
+> 🔑 Thời container/K8s, Ansible vẫn mạnh cho: cấu hình node OS, bootstrap cluster, quản server không-container, patch hàng loạt (50 server 1 lệnh). Bảo mật secret trong playbook bằng **Ansible Vault**.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -3196,17 +3225,63 @@ Chạy playbook 10 lần vẫn ra cùng kết quả; lần 2+ báo `changed=0` (
 
 💡 **Hiểu sâu:** Terraform **tạo** hạ tầng (VM, network); Ansible **cấu hình bên trong** (cài/sửa config) — bổ trợ nhau. Ansible **agentless** (chỉ cần SSH + Python), khác Puppet/Chef cần agent.
 
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| `ansible all -m ping` fail | SSH không tới host / sai user | Kiểm SSH tay; đúng `ansible_user`, key |
+| Task luôn `changed` | Dùng `shell`/`command` | Đổi sang module chuyên dụng (`apt`, `service`) |
+| `Permission denied` khi cài gói | Thiếu quyền sudo | Thêm `become: true` |
+| Template không thay biến | Sai cú pháp Jinja2 / thiếu var | Kiểm `{{ var }}`; định nghĩa trong `vars`/`defaults` |
+| Secret lộ trong playbook | Ghi thẳng vào YAML | `ansible-vault encrypt`; không commit plaintext |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** Terraform và Ansible khác vai trò thế nào?
-- Idempotent quan trọng vì sao trong cấu hình server?
-- Inventory và Playbook là gì?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Terraform và Ansible khác vai trò thế nào?</summary>
+
+> Terraform tạo **hạ tầng** (VM, network). Ansible cấu hình **bên trong** máy (cài phần mềm, sửa config). Bổ trợ nhau: Terraform dựng → Ansible cấu hình.
+</details>
+
+<details>
+<summary>2. Vì sao idempotent quan trọng?</summary>
+
+> Chạy playbook nhiều lần không phá thứ đã đúng, chỉ sửa cái lệch (`changed=0` nếu đã khớp). An toàn để chạy lại/tự động hoá.
+</details>
+
+<details>
+<summary>3. Inventory và Playbook là gì?</summary>
+
+> Inventory = danh sách server cần quản. Playbook = file YAML mô tả các task áp dụng lên các host đó.
+</details>
+
+<details>
+<summary>4. "Agentless" nghĩa là gì?</summary>
+
+> Không cần cài agent trên máy đích — chỉ cần SSH + Python. Dễ áp dụng hơn Puppet/Chef (cần agent).
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Ansible ping được host | `ansible all -m ping` → SUCCESS / pong |
-| Chạy playbook | PLAY RECAP → ok=N changed=N failed=0 |
-| Idempotent (chạy lại) | Lần 2: changed=0 |
+| `ansible all -m ping` | `SUCCESS` / `pong` |
+| Chạy playbook | `PLAY RECAP → ok=N changed=N failed=0` |
+| Chạy lại | Lần 2: `changed=0` (idempotent) |
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Ansible** | Công cụ cấu hình server (agentless) |
+| **Inventory** | Danh sách host quản lý |
+| **Playbook** | File YAML mô tả task |
+| **Module** | Đơn vị tác vụ (apt/service/template) |
+| **Role** | Gói playbook tái dùng |
+| **Idempotent** | Chạy lại ra cùng kết quả |
+| **Ansible Vault** | Mã hoá secret trong playbook |
 
 ✅ **Kết quả đạt được:** Tự động cấu hình server hàng loạt bằng Ansible — bổ trợ hoàn hảo cho Terraform.
 
@@ -3215,16 +3290,46 @@ Chạy playbook 10 lần vẫn ra cùng kết quả; lần 2+ báo `changed=0` (
 ## Ngày 48 — Terraform nâng cao: Module, Remote State & Workspace
 
 > ⏱️ ~90 phút · Loại: IaC
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 29 (Terraform cơ bản) → **Ngày 48 (Terraform "level team": module, remote state, nhiều môi trường)** → Ngày 49 (DevSecOps). Khi dự án lớn lên, đây là cách tổ chức để không loạn.
+>
+> ✅ **Chuẩn bị:** đã nắm Terraform cơ bản (Ngày 29). Tài khoản cloud + 1 S3 bucket cho remote state (nếu thực hành).
 
 ### 📘 Lý thuyết
 
-- **Module:** đóng gói tài nguyên tái sử dụng (như hàm); module riêng và từ registry.
-- **Remote state:** lưu tfstate trên S3 (hoặc tương đương) + khóa bằng DynamoDB → làm việc nhóm an toàn.
-- **State locking:** tránh 2 người apply cùng lúc gây hỏng state.
-- **Workspace:** quản lý nhiều môi trường (dev/staging/prod) từ cùng code.
-- **Variables nâng cao:** tfvars, biến nhạy cảm, validation.
-- **Data source:** tham chiếu tài nguyên đã tồn tại.
-- **`terraform fmt` & `validate`; tích hợp Terraform vào CI/CD.**
+#### 1. Module — "hàm" cho hạ tầng (DRY)
+
+Thay vì copy-paste cấu hình 1 VM 10 lần, viết 1 **module** (vd `compute`) rồi gọi lại với tham số khác nhau. Sửa 1 chỗ, áp dụng mọi nơi — như viết hàm. Có module riêng của bạn + module từ **Terraform Registry**.
+
+#### 2. Remote state — bắt buộc khi làm nhóm
+
+Thay vì `.tfstate` ở máy cá nhân, lưu trên **S3** (hoặc tương đương) + **khoá bằng DynamoDB**:
+```hcl
+terraform {
+  backend "s3" {
+    bucket = "my-tfstate"
+    key    = "prod/terraform.tfstate"
+    # + DynamoDB table để lock
+  }
+}
+```
+- **State locking**: tránh 2 người `apply` cùng lúc làm hỏng state.
+
+#### 3. Quản nhiều môi trường
+
+- **Workspace**: nhiều môi trường (dev/staging/prod) từ cùng code (`terraform workspace`).
+- Hoặc **thư mục riêng + tfvars riêng** cho mỗi môi trường (nhiều team ưa cách này — rõ ràng hơn).
+
+#### 4. Variables nâng cao & Data source
+
+- **tfvars**, biến nhạy cảm (`sensitive = true`), `validation` cho biến.
+- **Data source**: tham chiếu tài nguyên đã tồn tại (không tạo, chỉ đọc).
+
+#### 5. Chất lượng & CI/CD
+
+`terraform fmt` (format), `terraform validate` (kiểm cú pháp), tích hợp vào CI (plan tự động khi PR, apply khi merge — có approval).
+
+> 🔑 Remote state là "sự thật" về hạ tầng của cả team — phải có **locking** + backup + **không commit** lên Git. Module giúp tái dùng; đừng lặp lại code hạ tầng.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -3292,17 +3397,63 @@ Nhớ file `.tfstate` (Ngày 29)? Để trên máy cá nhân thì cả team khô
 
 💡 **Hiểu sâu:** module = DRY cho hạ tầng (đừng copy-paste 10 lần). Remote state + lock = bắt buộc khi làm team. `plan` trong CI = "code review cho hạ tầng".
 
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| `Error acquiring the state lock` | Người khác đang apply / lock cũ | Chờ; hoặc `force-unlock <id>` (cẩn thận) |
+| Apply nhầm môi trường | Sai workspace / thư mục | Kiểm `terraform workspace show`; dùng thư mục riêng |
+| Module không tìm thấy | Sai `source` | Đúng đường dẫn/registry; `terraform init` lại |
+| State không đồng bộ team | Vẫn dùng state local | Chuyển sang backend S3 + lock |
+| Biến nhạy cảm in ra plan | Thiếu `sensitive = true` | Đánh dấu `sensitive`; không log giá trị |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** vì sao cần remote state khi làm việc nhóm?
-- Module giúp ích gì cho việc tái sử dụng?
-- Workspace giải quyết bài toán nhiều môi trường thế nào?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Vì sao cần remote state khi làm nhóm?</summary>
+
+> Để cả team dùng chung 1 state (nguồn sự thật), có lock tránh 2 người apply cùng lúc làm hỏng, không mất khi máy cá nhân hỏng.
+</details>
+
+<details>
+<summary>2. Module giúp gì cho tái sử dụng?</summary>
+
+> Đóng gói cấu hình hạ tầng như "hàm" — gọi lại nhiều lần với tham số khác, sửa 1 chỗ áp dụng mọi nơi (DRY).
+</details>
+
+<details>
+<summary>3. Quản nhiều môi trường bằng cách nào?</summary>
+
+> Workspace (cùng code, khác state) hoặc thư mục riêng + tfvars riêng (`environments/dev`, `/prod` — rõ ràng, ít nhầm hơn).
+</details>
+
+<details>
+<summary>4. Đưa `terraform plan` vào CI có lợi gì?</summary>
+
+> "Code review cho hạ tầng" — reviewer thấy chính xác PR sẽ tạo/xoá gì trước khi merge, chặn xoá nhầm.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Tách module Terraform | Module dùng lại được, `plan` sạch |
-| Lưu state remote | State nằm trên backend, không phải local |
-| Dùng workspace | `terraform workspace list` hiện dev/prod |
+| Tách module | Module dùng lại được, `plan` sạch |
+| Remote state | State nằm trên backend (S3), không local |
+| Workspace | `terraform workspace list` hiện dev/prod |
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Module** | Gói tài nguyên tái dùng (như hàm) |
+| **Remote state** | State lưu trên backend chung (S3) |
+| **State locking** | Khoá tránh apply đồng thời |
+| **Workspace** | Nhiều môi trường từ cùng code |
+| **tfvars** | File giá trị biến |
+| **Data source** | Đọc tài nguyên đã tồn tại |
+| **DRY** | Don't Repeat Yourself |
 
 ✅ **Kết quả đạt được:** Quản lý hạ tầng quy mô lớn với Terraform module, remote state, đa môi trường.
 
