@@ -2091,15 +2091,55 @@ flowchart TD
 ## Ngày 22 — YAML, JSON & định dạng cấu hình
 
 > ⏱️ ~60 phút · Loại: DevOps
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 21 (Milestone Docker) → **Ngày 22 (ngôn ngữ cấu hình của cả ngành: YAML/JSON)** → Ngày 23 (Nginx). Mọi công cụ sau này (Compose, K8s, CI/CD, Ansible) đều viết bằng YAML — nắm chắc hôm nay để đỡ khổ về sau.
+>
+> ✅ **Chuẩn bị:** cài `jq` và `yq` (`sudo apt install -y jq`; yq tải từ GitHub), và `yamllint` (`pip install yamllint`).
 
 ### 📘 Lý thuyết
 
-- **YAML:** định dạng cấu hình phổ biến nhất trong DevOps (Compose, K8s, CI/CD, Ansible).
-- **Cú pháp YAML:** thụt lề bằng **SPACE (không tab!)**, `key: value`, danh sách bằng `-`, comment bằng `#`.
-- **JSON:** dùng cho API, cấu hình (dấu ngoặc nhọn, mảng `[]`, chuỗi trong nháy kép).
-- **Validate & xử lý:** `yamllint`, `jq` (xử lý JSON), `yq` (xử lý YAML).
-- **Anchor & alias trong YAML** (`&`, `*`) để tái sử dụng.
-- **Lỗi thường gặp:** thụt lề sai, dùng tab, thiếu khoảng trắng sau dấu hai chấm.
+#### 1. YAML & JSON — hai cách viết cấu hình
+
+| | YAML | JSON |
+|---|---|---|
+| Dùng ở đâu | Cấu hình (Compose, K8s, CI/CD, Ansible) | Đầu ra API & CLI (`docker inspect`, `kubectl -o json`) |
+| Cú pháp | Thụt lề (space), dễ đọc cho người | Ngoặc nhọn `{}`, mảng `[]` |
+| Quan hệ | JSON hợp lệ **cũng là** YAML hợp lệ | Tập con của YAML |
+
+#### 2. Cú pháp YAML cốt lõi
+
+```yaml
+# comment bắt đầu bằng #
+key: value              # cặp khoá-giá trị (nhớ khoảng trắng sau :)
+danh_sach:              # danh sách dùng dấu -
+  - phan_tu_1
+  - phan_tu_2
+long_nhau:
+  con:                  # cấp bậc thể hiện bằng THỤT LỀ (space, KHÔNG tab)
+    chau: 123
+```
+
+#### 3. `jq` và `yq` — "dao mổ" JSON/YAML
+
+- `jq` lọc/trích JSON: `curl ... | jq '.field'`.
+- `yq` xử lý/sửa YAML: `yq '.services.web.image = "nginx:1.27"' -i file.yml`.
+
+#### 4. Anchor & alias — chống lặp trong YAML
+
+```yaml
+x-common: &common          # định nghĩa 1 lần
+  restart: unless-stopped
+services:
+  web: { image: nginx, <<: *common }   # tái dùng bằng *
+```
+
+#### 5. Cạm bẫy YAML (ai cũng dính 1 lần)
+
+- **TAB bị cấm** — phải thụt lề bằng **space**. Lỗi #1.
+- **"Norway problem":** `country: NO` bị hiểu thành `false`! (cùng `yes/no/on/off`) → quote chuỗi dễ nhầm: `"NO"`.
+- Thiếu khoảng trắng sau `:` (`key:value` ❌ → `key: value` ✅).
+
+> 🔑 YAML báo lỗi khó hiểu? Đừng soi mắt thường — dùng `yamllint` hoặc `docker compose config` để máy chỉ ra lỗi.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -2119,11 +2159,42 @@ Output của các lệnh thường rất dài và lộn xộn. `jq` giúp *lọc
 
 ### 🧪 Lab cơ bản
 
-1. Viết 1 file YAML mô tả cấu hình ứng dụng (server, database, ports) đúng cú pháp.
-2. Dùng `jq` lọc dữ liệu từ JSON: `curl https://api.github.com | jq '.current_user_url'`.
-3. Validate `docker-compose.yml` bằng yamllint (`pip install yamllint`).
-4. Chuyển 1 file JSON sang YAML và ngược lại (dùng `yq`).
-5. Cố ý tạo lỗi thụt lề trong YAML và quan sát thông báo lỗi.
+> Mục tiêu: viết YAML đúng cú pháp, lọc JSON bằng jq, và thấy tận mắt lỗi thụt lề.
+
+**Bước 1 — Viết file YAML `app.yml`.**
+```yaml
+app:
+  name: my-app
+  port: 3000
+servers:
+  - host: web-01
+    ip: 10.0.0.11
+  - host: web-02
+    ip: 10.0.0.12
+```
+
+**Bước 2 — Validate.**
+```bash
+yamllint app.yml        # không báo lỗi = OK
+```
+
+**Bước 3 — Lọc JSON bằng jq.**
+```bash
+curl -s https://api.github.com | jq '.current_user_url'
+echo '{"users":[{"name":"An","active":true},{"name":"Bo","active":false}]}' \
+  | jq '.users[] | select(.active) | .name'      # in: "An"
+```
+
+**Bước 4 — Chuyển JSON ↔ YAML bằng yq.**
+```bash
+yq -o=json app.yml          # in ra dạng JSON tương đương
+```
+
+**Bước 5 — Cố tạo lỗi để thấy báo.**
+```bash
+printf "a:\n\tb: 1\n" > loi.yml     # dùng TAB
+yamllint loi.yml                    # báo lỗi tab/thụt lề
+```
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -2158,50 +2229,155 @@ Output của các lệnh thường rất dài và lộn xộn. `jq` giúp *lọc
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** viết file YAML đúng cú pháp → dùng jq lọc JSON → validate bằng yamllint → chuyển JSON↔YAML bằng yq → cố tạo lỗi để thấy báo.
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**.
 
-**Giải nghĩa & kết quả mong đợi:**
-- YAML: thụt lề bằng **space** (không tab), `key: value`, danh sách bằng `-`. *Kết quả:* `yamllint file.yml` không báo lỗi.
-- `curl -s api | jq '.field'` — `jq` lọc/trích JSON. *Kết quả:* in đúng giá trị field.
-- `yq '.services.web.image = "nginx:1.27"' -i file.yml` — sửa YAML bằng lệnh (tự động hóa).
+**Bước 1 — Viết & validate YAML.**
+```bash
+yamllint app.yml
+```
+✅ **Checkpoint:** không có dòng lỗi nào in ra.
+💡 Thụt lề bằng **space** (2 space/cấp), danh sách bằng `-`, nhớ khoảng trắng sau `:`.
 
-**🧪 Thử nghiệm:**
-- Cố thụt lề bằng **tab** rồi `yamllint` → báo lỗi. **Bài học:** YAML cấm tab.
-- Viết `country: NO` rồi để công cụ đọc → ra `false` (boolean)! Sửa thành `"NO"`. **Bài học:** "Norway problem" — quote chuỗi dễ nhầm.
+**Bước 2 — Lọc JSON có điều kiện.**
+```bash
+echo '{"users":[{"name":"An","active":true},{"name":"Bo","active":false}]}' \
+  | jq '.users[] | select(.active) | .name'
+```
+✅ **Checkpoint:** in `"An"` (lọc đúng user active).
+💡 `jq` xử lý output JSON của mọi CLI DevOps (docker/kubectl/aws đều xuất JSON).
 
-⚠️ **Dễ sai:** thiếu khoảng trắng sau `:` (`key:value` ❌ → `key: value` ✅); trộn tab/space.
+**Bước 3 — Trải nghiệm lỗi TAB.**
+```bash
+printf "a:\n\tb: 1\n" > loi.yml && yamllint loi.yml
+```
+✅ **Checkpoint:** yamllint báo lỗi liên quan tab/thụt lề.
 
-💡 **Hiểu sâu:** mọi công cụ DevOps (docker, kubectl, aws...) xuất **JSON**, cấu hình dùng **YAML**. Thạo `jq`/`yq` = tự động hóa nhiều việc mà mắt thường làm vất vả.
+**Bước 4 — Bẫy "Norway problem".**
+```bash
+echo 'country: NO' | yq '.country'      # ra false (boolean)!
+echo 'country: "NO"' | yq '.country'    # ra "NO" (đúng)
+```
+✅ **Checkpoint:** thấy `NO` không quote biến thành `false` — nhớ quote chuỗi dễ nhầm.
+
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| `found character '\t'` | Dùng tab thụt lề | Đổi hết tab → space; cấu hình editor hiện whitespace |
+| `mapping values are not allowed` | Thiếu space sau `:` hoặc thụt lề sai | `key: value` (có space); dùng `yamllint` |
+| Giá trị `NO`/`yes`/`on` bị đổi thành boolean | Norway problem | Quote chuỗi: `"NO"` |
+| `jq: error: Cannot index...` | Truy cập sai đường dẫn JSON | Xem cấu trúc trước: `jq '.'`; rồi đi từng cấp |
+| Số phiên bản `3.10` thành `3.1` | YAML hiểu là số | Quote: `version: "3.10"` |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** vì sao YAML cấm dùng tab để thụt lề?
-- Viết YAML mô tả 1 danh sách 3 server với tên và IP.
-- `jq` dùng để làm gì?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Vì sao YAML cấm dùng tab để thụt lề?</summary>
+
+> YAML dùng thụt lề để thể hiện cấp bậc; tab hiển thị khác nhau trên mỗi editor → gây nhập nhằng. Chuẩn YAML bắt buộc space.
+</details>
+
+<details>
+<summary>2. Viết YAML mô tả danh sách 3 server (tên + IP).</summary>
+
+> ```yaml
+> servers:
+>   - {host: web-01, ip: 10.0.0.11}
+>   - {host: web-02, ip: 10.0.0.12}
+>   - {host: web-03, ip: 10.0.0.13}
+> ```
+</details>
+
+<details>
+<summary>3. `jq` dùng để làm gì?</summary>
+
+> Lọc, trích, biến đổi dữ liệu JSON từ dòng lệnh — rất hữu ích để xử lý output của docker/kubectl/aws.
+</details>
+
+<details>
+<summary>4. "Norway problem" là gì?</summary>
+
+> `NO` (và `yes/no/on/off`) không quote bị YAML hiểu thành boolean `false/true`. Luôn quote chuỗi dễ nhầm: `"NO"`.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| `yamllint file.yml` | Không báo lỗi cú pháp |
-| Chuyển đổi JSON ↔ YAML | Nội dung tương đương, đúng cấu trúc lồng nhau |
-| Giải thích thụt lề | Hiểu vì sao tab gây lỗi, phải dùng space |
+| `yamllint app.yml` | Không báo lỗi |
+| `jq` lọc JSON | In đúng giá trị cần |
+| `yq -o=json app.yml` | JSON tương đương, đúng cấu trúc |
 
-✅ **Kết quả đạt được:** Đọc/viết YAML và JSON thành thạo — ngôn ngữ cấu hình của toàn bộ DevOps.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **YAML** | Định dạng cấu hình dựa trên thụt lề |
+| **JSON** | Định dạng dữ liệu ngoặc nhọn (API/CLI output) |
+| **jq / yq** | Công cụ lọc/xử lý JSON / YAML |
+| **Indentation** | Thụt lề (thể hiện cấp bậc trong YAML) |
+| **Anchor & alias** (`&`, `*`) | Định nghĩa 1 lần, tái dùng nhiều nơi |
+| **Lint** | Kiểm tra cú pháp tự động (`yamllint`) |
+| **Norway problem** | Bẫy `NO` → `false` khi không quote |
+
+✅ **Kết quả đạt được:** Đọc/viết YAML và JSON thành thạo, dùng jq/yq — ngôn ngữ cấu hình của toàn bộ DevOps.
 
 ---
 
 ## Ngày 23 — Reverse Proxy & Web Server (Nginx chuyên sâu)
 
 > ⏱️ ~90 phút · Loại: SysOps
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 22 (YAML/JSON) → **Ngày 23 (nginx: reverse proxy, load balancing, HTTPS)** → Ngày 24 (Database). Kiến thức này dùng lại nguyên ở Kubernetes — Ingress Controller thường chính là nginx.
+>
+> ✅ **Chuẩn bị:** một app backend để proxy tới (vd app Node Ngày 17 chạy cổng 3000). nginx cài trực tiếp hoặc chạy container.
 
 ### 📘 Lý thuyết
 
-- **Reverse proxy:** nhận request từ client, chuyển tiếp tới backend; che giấu, cân bằng tải, SSL termination.
-- **Nginx config:** `server` block, `location`, `proxy_pass`, `listen`, `server_name`.
-- **Load balancing:** `upstream` với nhiều backend; thuật toán round-robin, least_conn.
-- **SSL/TLS:** HTTPS, chứng chỉ; Let's Encrypt + Certbot cho chứng chỉ miễn phí.
-- **Serve static + proxy động:** phục vụ file tĩnh và chuyển API tới backend.
-- **Cache & gzip** để tăng tốc.
-- **Kiểm tra & reload:** `nginx -t` (test config), `systemctl reload nginx`.
+#### 1. Reverse proxy là gì (hay gây bối rối)
+
+"Proxy" = người trung gian. Hai loại:
+- **Forward proxy** đứng trước *client* (giấu người dùng — như VPN).
+- **Reverse proxy** đứng trước *server* (giấu máy chủ). nginx ở đây là reverse proxy — "lễ tân" nhận mọi request từ Internet rồi chuyển vào backend phía trong.
+
+#### 2. Reverse proxy làm được gì
+
+| Việc | Lợi ích |
+|---|---|
+| **Che giấu** backend | Internet chỉ thấy nginx |
+| **Load balancing** | Nhiều backend → chia request luân phiên |
+| **SSL/HTTPS termination** | nginx lo mã hoá, backend nhẹ gánh, chứng chỉ quản 1 chỗ |
+| **Serve static + cache + gzip** | Nhanh hơn |
+
+#### 3. Cấu trúc config nginx
+
+```nginx
+server {
+    listen 80;
+    server_name example.com;
+    location / {
+        proxy_pass http://localhost:3000;   # chuyển request tới backend
+    }
+}
+```
+Các khối chính: `server` (1 site), `location` (đường dẫn), `proxy_pass` (chuyển tiếp), `listen`, `server_name`.
+
+#### 4. Load balancing với `upstream`
+
+```nginx
+upstream backend {
+    server 127.0.0.1:3001;
+    server 127.0.0.1:3002;      # round-robin mặc định; least_conn nếu muốn
+}
+```
+
+#### 5. Kiểm tra & reload — kỷ luật bắt buộc
+
+`nginx -t` (test cú pháp) → `systemctl reload nginx` (nạp config mới, giữ kết nối liên tục).
+
+> 🔑 Sửa config sai mà `restart` = nginx **không lên lại** = **website chết**. Luôn `nginx -t` TRƯỚC, rồi `reload` (không `restart`). HTTPS miễn phí: Let's Encrypt + `certbot --nginx`.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -2223,11 +2399,46 @@ Sửa config sai mà `restart` = nginx không lên lại = **website chết**. `
 
 ### 🧪 Lab cơ bản
 
-1. Cấu hình Nginx làm reverse proxy tới app container (`proxy_pass` tới `localhost:3000`).
-2. Tạo `upstream` với 2 backend và bật load balancing round-robin.
-3. Test cấu hình: `nginx -t` rồi reload.
-4. Cấu hình phục vụ file tĩnh từ 1 thư mục.
-5. (Tùy chọn) Dùng Certbot tạo chứng chỉ HTTPS để thực hành SSL.
+> Mục tiêu: cấu hình nginx làm reverse proxy + load balancing, test config đúng cách.
+
+**Bước 1 — Chạy 2 backend giả để proxy tới.**
+```bash
+docker run -d --name b1 -p 3001:80 nginxdemos/hello
+docker run -d --name b2 -p 3002:80 nginxdemos/hello
+```
+
+**Bước 2 — Viết config `/etc/nginx/conf.d/lab.conf`** (hoặc file riêng nếu dùng container):
+```nginx
+upstream backend {
+    server 127.0.0.1:3001;
+    server 127.0.0.1:3002;
+}
+server {
+    listen 8080;
+    location / {
+        proxy_pass http://backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+**Bước 3 — Test config TRƯỚC khi reload.**
+```bash
+sudo nginx -t
+```
+Bạn sẽ thấy: `syntax is ok` và `test is successful`.
+
+**Bước 4 — Reload và kiểm tra load balancing.**
+```bash
+sudo nginx -s reload      # hoặc: systemctl reload nginx
+curl localhost:8080       # refresh nhiều lần → server ID luân phiên b1/b2
+```
+
+**Bước 5 — (Tuỳ chọn) HTTPS thật.**
+```bash
+sudo certbot --nginx -d example.com     # cần domain thật trỏ về máy
+```
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -2268,51 +2479,143 @@ Sửa config sai mà `restart` = nginx không lên lại = **website chết**. `
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** cấu hình reverse proxy (`proxy_pass`) → upstream load balancing → test `nginx -t` rồi reload → serve static → (tùy chọn) HTTPS certbot.
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `proxy_pass http://backend;` trong `location /` — nginx nhận request rồi chuyển tới backend. *Kết quả:* mở domain → thấy app backend qua nginx.
-- `proxy_set_header X-Forwarded-For ...` — chuyển IP thật của client cho backend (thiếu thì backend log sai IP).
-- `nginx -t` — test cú pháp config. *Kết quả:* `syntax is ok, test is successful`. Rồi `nginx -s reload`.
-- `certbot --nginx -d example.com` — cấp HTTPS Let's Encrypt + tự sửa config.
+**Bước 1 — Luôn `nginx -t` trước khi reload.**
+```bash
+sudo nginx -t
+```
+✅ **Checkpoint:** `syntax is ok` + `test is successful`.
+💡 Cố tình bỏ 1 dấu `;` rồi chạy lại `nginx -t` → nó báo **đúng dòng** lỗi. Đây là lý do luôn test trước.
 
-**🧪 Thử nghiệm:**
-- Cố tình viết sai config (thiếu `;`) rồi `nginx -t` → báo lỗi đúng dòng. **Bài học:** `nginx -t` trước reload là bắt buộc.
-- Tạo `upstream` 2 backend, refresh nhiều lần → request luân phiên. **Bài học:** load balancing round-robin.
+**Bước 2 — Reload (không restart).**
+```bash
+sudo nginx -s reload
+```
+✅ **Checkpoint:** web vẫn phục vụ liên tục (không đứt kết nối).
+⚠️ `restart` khi config lỗi = nginx không lên lại = **web chết**. Luôn `-t` rồi `reload`.
 
-⚠️ **Dễ sai:** `systemctl restart nginx` khi config lỗi → nginx KHÔNG lên lại = web chết. Dùng `nginx -t` + `reload` (giữ kết nối liên tục).
+**Bước 3 — Xem load balancing hoạt động.**
+```bash
+for i in 1 2 3 4; do curl -s localhost:8080 | grep -i "server address"; done
+```
+✅ **Checkpoint:** địa chỉ server luân phiên giữa 2 backend (round-robin).
 
-💡 **Hiểu sâu:** reverse proxy đứng trước *server* (giấu backend, LB, SSL, cache); forward proxy đứng trước *client*. Ingress controller của Kubernetes (GĐ3) thường chính là nginx — kiến thức này dùng lại nguyên.
+**Bước 4 — Hiểu vai trò header.**
+✅ **Checkpoint:** hiểu vì sao cần `proxy_set_header X-Real-IP` — thiếu nó backend log sai IP client (nhìn ai cũng thành IP của nginx).
+
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Web chết sau khi sửa config | `restart` với config lỗi | Luôn `nginx -t` trước; sửa lỗi rồi `reload` |
+| `502 Bad Gateway` | Backend không tới được | Kiểm backend chạy chưa (`curl` trực tiếp); đúng địa chỉ `proxy_pass` |
+| `504 Gateway Timeout` | Backend phản hồi chậm/treo | Kiểm backend; tăng `proxy_read_timeout` |
+| Backend log toàn 1 IP (của nginx) | Thiếu header X-Real-IP/X-Forwarded-For | Thêm `proxy_set_header` |
+| `address already in use` | Cổng `listen` bị chiếm | Đổi cổng hoặc dừng dịch vụ đang giữ |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** reverse proxy khác forward proxy thế nào?
-- Giải thích `proxy_pass` làm gì.
-- Vì sao luôn chạy `nginx -t` trước khi reload?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Reverse proxy khác forward proxy thế nào?</summary>
+
+> Reverse proxy đứng trước **server** (giấu backend, load balance, SSL, cache). Forward proxy đứng trước **client** (giấu người dùng — như VPN/lọc nội dung).
+</details>
+
+<details>
+<summary>2. `proxy_pass` làm gì?</summary>
+
+> Chuyển tiếp request nginx nhận được tới một backend (địa chỉ/upstream) — trái tim của reverse proxy.
+</details>
+
+<details>
+<summary>3. Vì sao luôn `nginx -t` trước khi reload?</summary>
+
+> Config lỗi mà reload/restart có thể làm nginx không phục vụ được = web chết. `nginx -t` kiểm cú pháp trước, an toàn.
+</details>
+
+<details>
+<summary>4. `502` và `504` khác nhau thế nào?</summary>
+
+> 502 Bad Gateway = không kết nối được backend (backend chết/sai địa chỉ). 504 Gateway Timeout = kết nối được nhưng backend phản hồi quá chậm.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Cấu hình reverse proxy | Truy cập domain/port → chuyển tới app backend |
 | `nginx -t` | `syntax is ok, test is successful` |
-| `nginx -s reload` | Web vẫn phục vụ liên tục |
+| Truy cập `localhost:8080` | Chuyển tới backend qua nginx |
+| Refresh nhiều lần | Server luân phiên (load balancing) |
 
-✅ **Kết quả đạt được:** Cấu hình reverse proxy, load balancing, SSL — kỹ năng vận hành web quan trọng.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Reverse proxy** | Proxy đứng trước server |
+| **`proxy_pass`** | Chuyển tiếp request tới backend |
+| **upstream** | Nhóm backend để load balance |
+| **Load balancing** | Chia tải giữa nhiều backend |
+| **SSL/TLS termination** | nginx giải mã HTTPS thay backend |
+| **`nginx -t`** | Test cú pháp config |
+| **Ingress Controller** | "nginx của Kubernetes" (GĐ3) |
+
+✅ **Kết quả đạt được:** Cấu hình reverse proxy, load balancing, hiểu SSL termination — kỹ năng vận hành web quan trọng.
 
 ---
 
 ## Ngày 24 — Cơ sở dữ liệu cho DevOps
 
 > ⏱️ ~90 phút · Loại: SysOps
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 23 (Nginx) → **Ngày 24 (vận hành database: chạy, backup, restore, bảo mật)** → Ngày 25 (Git nâng cao). DevOps không cần là DBA, nhưng phải giữ database *chạy an toàn và cứu được khi hỏng*.
+>
+> ✅ **Chuẩn bị:** Docker chạy được (để chạy Postgres/Redis). Ôn lại volume (Ngày 19) và backup (Ngày 11).
 
 ### 📘 Lý thuyết
 
-- **SQL vs NoSQL:** quan hệ (PostgreSQL, MySQL) vs phi quan hệ (MongoDB, Redis).
-- **Vai trò DevOps với DB:** triển khai, backup, restore, giám sát, scaling — không cần là DBA chuyên sâu.
-- **Chạy DB bằng container với volume bền vững** (đã học Ngày 19).
-- **Backup/restore DB:** `pg_dump` / `mysqldump` để xuất, restore lại từ file.
-- **Kết nối & kiểm tra:** `psql`, `mysql` client; biến môi trường chứa thông tin kết nối.
-- **Migration:** quản lý thay đổi schema theo phiên bản.
-- **Bảo mật:** không expose port DB ra ngoài, mật khẩu mạnh, network nội bộ.
+#### 1. Vai trò DevOps với database
+
+Bạn **không** cần là chuyên gia tối ưu query. Việc của DevOps: **triển khai, backup, khôi phục, giám sát, bảo mật** database. Hiểu đủ để vận hành an toàn.
+
+#### 2. SQL vs NoSQL — chọn cái nào
+
+| Loại | Ví dụ | Dùng khi |
+|---|---|---|
+| **SQL** (quan hệ) | PostgreSQL, MySQL | Dữ liệu có quan hệ, cần giao dịch (ACID) — **mặc định chọn cái này** |
+| **Redis** | (key-value, trong RAM) | Cache, session, hàng đợi, rate-limit — rất nhanh |
+| **MongoDB** | (document) | Schema linh hoạt, hay thay đổi |
+
+#### 3. Chạy DB bằng container (ôn Ngày 19)
+
+Luôn kèm **volume** để dữ liệu bền vững:
+```bash
+docker run -d --name db -v pgdata:/var/lib/postgresql/data \
+  -e POSTGRES_PASSWORD=secret postgres:16-alpine
+```
+
+#### 4. Backup/restore — KHÁC backup file thường
+
+Không copy thẳng file dữ liệu DB đang chạy (ra bản **không nhất quán**). Dùng công cụ chuyên dụng:
+```bash
+docker exec db pg_dump -U postgres --single-transaction mydb | gzip > mydb.sql.gz   # backup
+gunzip -c mydb.sql.gz | docker exec -i db psql -U postgres mydb                       # restore
+```
+`--single-transaction` = ảnh chụp nhất quán mà không khoá bảng.
+
+#### 5. Migration — sửa schema an toàn
+
+Đừng sửa cấu trúc bảng bằng tay trên production. Dùng **migration tool** (Flyway, Liquibase, Alembic, Prisma) — schema được version hoá, rollback được, áp dụng theo thứ tự.
+
+#### 6. Bảo mật DB — 3 việc PHẢI làm
+
+1. Backup tự động + **test restore** định kỳ.
+2. **Không** expose cổng DB ra Internet (chỉ network nội bộ; truy cập xa qua SSH tunnel — Ngày 8).
+3. Mật khẩu mạnh, không dùng mặc định.
+
+> 🔑 Production nên cân nhắc **managed DB** (RDS/Cloud SQL/Azure DB) để khỏi tự lo backup, HA, patching. Tự host thì phải rất chắc về volume + backup + replication.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -2331,11 +2634,40 @@ Không được copy thẳng file dữ liệu của DB đang chạy (sẽ ra b�
 
 ### 🧪 Lab cơ bản
 
-1. Chạy PostgreSQL bằng Docker với volume, kết nối bằng `psql` hoặc adminer.
-2. Tạo bảng, chèn dữ liệu mẫu bằng vài câu SQL cơ bản.
-3. Backup DB: `docker exec ... pg_dump > backup.sql`.
-4. Xóa dữ liệu rồi restore từ file backup, kiểm tra dữ liệu trở lại.
-5. Chạy Redis container và test set/get 1 key qua `redis-cli`.
+> Mục tiêu: chạy Postgres có volume, tạo dữ liệu, backup rồi **test restore** — vòng đời DB thật.
+
+**Bước 1 — Chạy Postgres có volume.**
+```bash
+docker run -d --name db -v pgdata:/var/lib/postgresql/data \
+  -e POSTGRES_PASSWORD=secret postgres:16-alpine
+```
+
+**Bước 2 — Tạo bảng & chèn dữ liệu.**
+```bash
+docker exec -it db psql -U postgres -c \
+  "CREATE TABLE users(id serial, name text); INSERT INTO users(name) VALUES('An'),('Bo');"
+docker exec -it db psql -U postgres -c "SELECT * FROM users;"     # thấy An, Bo
+```
+
+**Bước 3 — Backup.**
+```bash
+docker exec db pg_dump -U postgres --single-transaction postgres > backup.sql
+ls -lh backup.sql
+```
+
+**Bước 4 — Xoá dữ liệu rồi RESTORE.**
+```bash
+docker exec -it db psql -U postgres -c "DROP TABLE users;"
+cat backup.sql | docker exec -i db psql -U postgres
+docker exec -it db psql -U postgres -c "SELECT * FROM users;"     # An, Bo trở lại
+```
+
+**Bước 5 — Thử Redis.**
+```bash
+docker run -d --name cache redis:alpine
+docker exec -it cache redis-cli set ten "DevOps"
+docker exec -it cache redis-cli get ten        # in: "DevOps"
+```
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -2367,35 +2699,92 @@ Không được copy thẳng file dữ liệu của DB đang chạy (sẽ ra b�
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** chạy Postgres (có volume) → kết nối psql → tạo bảng + chèn dữ liệu → backup `pg_dump` → xóa & restore → thử Redis.
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**. Trọng tâm: vòng backup → restore.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `docker run -d -v pgdata:/var/lib/postgresql/data -e POSTGRES_PASSWORD=... postgres` — DB có volume bền vững.
-- `psql` / adminer — kết nối, chạy SQL. *Kết quả:* `\l` liệt kê database, `SELECT *` trả bản ghi.
-- `docker exec db pg_dump -U postgres --single-transaction mydb | gzip > b.sql.gz` — backup nhất quán + nén. **Vì sao `--single-transaction`:** ảnh chụp nhất quán mà không khóa bảng.
-- `redis-cli set k v` / `get k` — test Redis (cache/session, trong RAM).
+**Bước 1 — Chạy DB & tạo dữ liệu.**
+```bash
+docker exec -it db psql -U postgres -c "\dt"    # liệt kê bảng
+```
+✅ **Checkpoint:** kết nối được, thấy bảng `users` với dữ liệu An/Bo.
 
-**🧪 Thử nghiệm:**
-- Backup → xóa 1 bảng → restore từ file → dữ liệu trở lại. **Bài học:** backup chỉ có giá trị khi test được restore.
-- Thử kết nối DB từ ngoài network nội bộ → không được (nếu cấu hình đúng). **Bài học:** DB không expose ra Internet.
+**Bước 2 — Backup nhất quán.**
+```bash
+docker exec db pg_dump -U postgres --single-transaction postgres | gzip > b.sql.gz
+```
+✅ **Checkpoint:** file `b.sql.gz` được tạo.
+💡 `--single-transaction` chụp ảnh nhất quán mà không khoá bảng — an toàn cả khi DB đang chạy.
 
-⚠️ **Dễ sai:** copy thẳng file dữ liệu Postgres đang chạy = backup **không nhất quán**. Luôn dùng `pg_dump`/`mysqldump`.
+**Bước 3 — Test restore (bước quan trọng nhất).**
+```bash
+docker exec -it db psql -U postgres -c "DROP TABLE users;"
+gunzip -c b.sql.gz | docker exec -i db psql -U postgres
+docker exec -it db psql -U postgres -c "SELECT * FROM users;"
+```
+✅ **Checkpoint:** An/Bo trở lại → backup thực sự dùng được.
+💡 Backup chưa test restore = backup giả (Ngày 11).
 
-💡 **Hiểu sâu:** 3 việc DevOps PHẢI làm với mọi DB: (1) backup tự động + test restore, (2) giám sát, (3) mật khẩu mạnh + không expose. Sửa schema dùng **migration tool** (Flyway/Alembic), không sửa tay trên production.
+**Bước 4 — Kiểm chứng bảo mật.**
+✅ **Checkpoint:** DB chỉ nghe trong network nội bộ / không map cổng ra ngoài → máy khác không kết nối thẳng được.
+
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Restore ra dữ liệu hỏng/nửa vời | Đã copy file DB thay vì dump | Dùng `pg_dump`/`mysqldump` |
+| `password authentication failed` | Sai user/mật khẩu | Kiểm biến `POSTGRES_PASSWORD`, user đúng chưa |
+| App connect DB `Connection refused` | DB chưa sẵn sàng / sai host | Chờ healthcheck; dùng tên service trong cùng network |
+| DB bị dò từ Internet | Lỡ map cổng `-p 5432:5432` ra ngoài | Bỏ map cổng; chỉ để network nội bộ; truy cập xa qua SSH tunnel |
+| Đổi schema làm vỡ app | Sửa tay trên production | Dùng migration tool, test staging trước |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** khi nào chọn SQL, khi nào chọn NoSQL?
-- Viết lệnh `pg_dump` backup 1 database.
-- Vì sao không nên expose cổng database ra Internet?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Khi nào chọn SQL, khi nào NoSQL?</summary>
+
+> SQL (Postgres/MySQL) khi dữ liệu có quan hệ + cần giao dịch (ACID) — mặc định nên chọn. Redis cho cache/session (nhanh, trong RAM). MongoDB cho document schema linh hoạt.
+</details>
+
+<details>
+<summary>2. Viết lệnh pg_dump backup database `mydb`.</summary>
+
+> `pg_dump -U postgres --single-transaction mydb | gzip > mydb-$(date +%F).sql.gz`
+</details>
+
+<details>
+<summary>3. Vì sao không expose cổng database ra Internet?</summary>
+
+> DB lộ ra ngoài là mục tiêu tấn công/dò mật khẩu. Chỉ để network nội bộ; truy cập từ xa qua SSH tunnel hoặc VPN.
+</details>
+
+<details>
+<summary>4. Vì sao không backup DB bằng copy file thẳng?</summary>
+
+> DB đang ghi → file copy ở trạng thái nửa vời, không nhất quán, restore lỗi. Dùng `pg_dump`/`mysqldump` để có ảnh chụp nhất quán.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Kết nối vào database | `psql`/`mysql` đăng nhập được, `\l` / `SHOW DATABASES` chạy |
-| Tạo bảng & chèn dữ liệu | `SELECT *` trả về bản ghi vừa thêm |
-| Backup & restore | Dump ra file rồi restore lại, dữ liệu khớp |
+| Kết nối DB | `psql` đăng nhập, `\dt` liệt kê bảng |
+| Tạo bảng & chèn | `SELECT *` trả bản ghi vừa thêm |
+| Backup & restore | Dump → drop → restore → dữ liệu khớp |
 
-✅ **Kết quả đạt được:** Triển khai, backup/restore database trong môi trường container.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **SQL / NoSQL** | CSDL quan hệ / phi quan hệ |
+| **ACID** | Đảm bảo giao dịch chính xác |
+| **`pg_dump` / `mysqldump`** | Công cụ backup DB nhất quán |
+| **Migration** | Thay đổi schema có version, rollback được |
+| **Connection pooling** | Tái dùng kết nối DB (PgBouncer) |
+| **Managed DB** | DB do cloud vận hành (RDS/Cloud SQL) |
+| **Replication** | Nhân bản DB để HA/đọc mở rộng |
+
+✅ **Kết quả đạt được:** Triển khai, backup/restore database trong container, hiểu bảo mật & migration — vận hành DB an toàn.
 
 ---
 
