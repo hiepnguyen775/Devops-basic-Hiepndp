@@ -36,16 +36,47 @@
 ## Ngày 13 — Git cơ bản & Quản lý phiên bản
 
 > ⏱️ ~90 phút · Loại: Git
+>
+> 🧭 **Bạn đang ở đâu:** Giai đoạn 1 (Linux/SysOps) → **Ngày 13 (Git — cỗ máy thời gian cho code)** → Ngày 14 (branch & merge). Đây là ngày mở màn Giai đoạn 2 — Git là công cụ bạn dùng *mỗi ngày* suốt sự nghiệp, nền của mọi CI/CD sau này.
+>
+> ✅ **Chuẩn bị:** đã cài Git (Ngày 1) và khai báo `user.name`/`user.email`. Một thư mục trống để tập.
 
 ### 📘 Lý thuyết
 
-- **Git là gì:** hệ thống quản lý phiên bản phân tán (DVCS), theo dõi mọi thay đổi của code.
-- **3 trạng thái:** Working Directory → Staging Area (`git add`) → Repository (`git commit`).
-- **Cấu hình ban đầu:** `git config --global user.name / user.email`.
-- **Lệnh cốt lõi:** `git init`, `git status`, `git add <file>` (hoặc `.`), `git commit -m 'msg'`, `git log`.
-- **Bỏ qua file:** `.gitignore` liệt kê file/thư mục không theo dõi (`node_modules/`, `.env`, `*.log`).
-- **Xem lịch sử & khác biệt:** `git log --oneline`, `git diff`, `git show <commit>`.
-- **Quay lui:** `git restore <file>` (bỏ thay đổi working dir), `git restore --staged <file>` (bỏ staging), `git reset`.
+#### 1. Git là gì
+
+**Git** là hệ thống quản lý phiên bản **phân tán** (DVCS) — theo dõi mọi thay đổi của code như một "cỗ máy thời gian". Mỗi lần commit, Git chụp lại toàn bộ trạng thái dự án → quay về bất kỳ điểm nào, xem ai sửa gì, khi nào. Thay cho kiểu đặt tên `baocao_final_v2_that_su_cuoi.docx`.
+
+#### 2. Ba trạng thái — xương sống của Git
+
+| Vùng | Là gì | Đưa vào bằng |
+|---|---|---|
+| **Working Directory** | Bàn làm việc — nơi bạn sửa file | (bạn sửa file) |
+| **Staging Area** | Khay "chuẩn bị đóng gói" — chọn file sẽ lưu | `git add` |
+| **Repository** | Kho lịch sử — đóng dấu lưu vĩnh viễn | `git commit` |
+
+Vòng đời: sửa file → `git add` (vào Staging) → `git commit` (vào Repo) → `git push` (lên GitHub).
+
+#### 3. Lệnh cốt lõi
+
+| Lệnh | Làm gì |
+|---|---|
+| `git init` | Biến thư mục thành repo (tạo `.git`) |
+| `git status` | Xem file nào đang ở vùng nào |
+| `git add <file>` / `git add .` | Đưa vào staging |
+| `git commit -m 'msg'` | Lưu ảnh chụp vào lịch sử |
+| `git log --oneline` | Xem lịch sử commit |
+| `git diff` / `git show <commit>` | Xem khác biệt / chi tiết 1 commit |
+
+#### 4. `.gitignore` — "đừng theo dõi cái này"
+
+Có file không nên đưa vào Git: secret (`.env`), file rác (`*.log`), thư mục nặng (`node_modules/`). Liệt kê chúng trong `.gitignore` để Git bỏ qua.
+
+#### 5. Quay lui (cứu vãn)
+
+- `git restore <file>` — bỏ thay đổi chưa commit của file.
+- `git restore --staged <file>` — gỡ file khỏi staging (chưa mất thay đổi).
+- `git reset` / `git revert` / `git reflog` — cứu vãn ở nhiều mức (chi tiết ở 💡 Bổ sung).
 
 **Sơ đồ — vòng đời 1 file qua 3 trạng thái Git:**
 ```mermaid
@@ -79,11 +110,43 @@ Có những file không nên đưa vào Git: secret (`.env`), file rác (`*.log`
 
 ### 🧪 Lab cơ bản
 
-1. Cấu hình Git với tên và email của bạn.
-2. Tạo repo: `mkdir my-app && cd my-app && git init`.
-3. Tạo file → `git add` → `git commit`; lặp lại 3 lần với thay đổi khác nhau.
-4. Tạo `.gitignore` loại trừ `.env` và `*.log`, kiểm tra `git status` không còn thấy chúng.
-5. Xem lịch sử: `git log --oneline --graph`.
+> Mục tiêu: tạo repo, commit nhiều lần, dùng `.gitignore` và xem lịch sử.
+
+**Bước 1 — Tạo repo mới.**
+```bash
+mkdir my-app && cd my-app
+git init
+git status        # "No commits yet"
+```
+
+**Bước 2 — Commit lần đầu.**
+```bash
+echo "# My App" > README.md
+git add README.md
+git commit -m "Khởi tạo dự án"
+git log --oneline      # thấy 1 commit
+```
+
+**Bước 3 — Commit thêm 2 lần với thay đổi khác nhau.**
+```bash
+echo "console.log('hi')" > app.js
+git add app.js && git commit -m "Thêm app.js"
+echo "// ghi chú" >> app.js
+git add app.js && git commit -m "Thêm ghi chú vào app.js"
+```
+
+**Bước 4 — Dùng `.gitignore`.**
+```bash
+echo "SECRET=123" > .env
+printf ".env\n*.log\n" > .gitignore
+git status        # .env KHÔNG xuất hiện
+```
+
+**Bước 5 — Xem lịch sử dạng đồ thị.**
+```bash
+git log --oneline --graph
+```
+Bạn sẽ thấy danh sách 3 commit theo thứ tự mới → cũ.
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -128,53 +191,153 @@ git reset --hard <hash-từ-reflog>  # quay về đúng điểm đó
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** cấu hình Git → tạo repo → add/commit nhiều lần → `.gitignore` → xem lịch sử → tập cứu vãn (restore/reset/revert).
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `git init` — biến thư mục thành repo (tạo thư mục ẩn `.git`). *Kết quả:* `git status` báo "No commits yet".
-- `git add file` / `git add -p` — đưa vào staging; `-p` chọn **từng đoạn** thay đổi. **Vì sao `-p`:** commit có chủ đích, không gộp 10 việc vào 1.
-- `git commit -m "msg"` — lưu ảnh chụp vào lịch sử. *Kết quả:* `git log --oneline` hiện commit.
-- `.gitignore` — liệt kê file không theo dõi (`.env`, `*.log`, `node_modules/`). *Kết quả:* `git status` không còn thấy chúng.
-- `git log --oneline --graph` — xem lịch sử gọn, có nhánh.
+**Bước 1 — Tạo repo và hiểu `git status`.**
+```bash
+mkdir my-app && cd my-app && git init
+git status
+```
+✅ **Checkpoint:** thấy `No commits yet`.
+💡 `git init` tạo thư mục ẩn `.git` — đó là "bộ não" lưu toàn bộ lịch sử.
 
-**🧪 Thử nghiệm:**
-- Sửa 1 file → `git restore <file>` (thay đổi biến mất). Rồi commit → `git revert <hash>` (tạo commit đảo ngược). **Bài học:** `restore` bỏ thay đổi chưa lưu; `revert` hoàn tác an toàn commit đã có.
-- Lỡ `git reset --hard` nhầm? `git reflog` tìm hash cũ → `git reset --hard <hash>`. **Bài học:** Git gần như không mất gì đã commit.
+**Bước 2 — Đi qua 3 vùng bằng mắt.**
+```bash
+echo "hi" > a.txt
+git status                # a.txt màu đỏ (Untracked — ở Working Directory)
+git add a.txt
+git status                # a.txt màu xanh (Staged)
+git commit -m "thêm a.txt"
+git status                # working tree clean (đã vào Repository)
+```
+✅ **Checkpoint:** thấy file đổi trạng thái đỏ → xanh → clean.
 
-⚠️ **Dễ sai:** `git reset --hard` xóa thay đổi *chưa commit* (không cứu được). Chỉ dùng khi chắc chắn.
+**Bước 3 — Xác minh `.gitignore` hoạt động.**
+```bash
+echo "SECRET=1" > .env && printf ".env\n" > .gitignore
+git status                # .env KHÔNG xuất hiện
+```
+✅ **Checkpoint:** `.env` bị ẩn khỏi danh sách.
 
-💡 **Hiểu sâu:** 3 vùng — Working Directory (sửa) → Staging (`add`) → Repository (`commit`). Biết file đang ở vùng nào quyết định dùng lệnh cứu nào.
+**Bước 4 — Tập cứu vãn.**
+```bash
+echo "sai" >> a.txt
+git restore a.txt         # bỏ thay đổi chưa commit
+cat a.txt                 # dòng "sai" biến mất
+```
+✅ **Checkpoint:** file trở về trạng thái đã commit.
+💡 Biết file đang ở **vùng nào** quyết định dùng lệnh cứu nào (restore/reset/revert).
+
+### 🐛 Gỡ lỗi nhanh
+
+**🔧 Phao cứu sinh:** `git reflog` ghi MỌI thao tác — commit tưởng đã mất thường tìm lại được. Git gần như không mất thứ đã commit.
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| `Author identity unknown` khi commit | Chưa khai `user.name`/`user.email` | `git config --global user.name/.email` (Ngày 1) |
+| Lỡ `git add` file không nên | File vào staging | `git restore --staged <file>` (chưa mất thay đổi) |
+| Lỡ commit thiếu/sai message | Commit cuối chưa push | `git commit --amend` sửa lại |
+| Lỡ `git reset --hard` mất commit | Reset quá tay | `git reflog` tìm hash → `git reset --hard <hash>` |
+| Đã commit nhầm `.env` | `.gitignore` thêm sau khi commit | `git rm --cached .env`; **đổi secret ngay** |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** mô tả vòng đời 1 file qua 3 trạng thái của Git.
-- Vì sao cần `.gitignore`? Cho 3 ví dụ file nên bỏ qua.
-- Phân biệt `git add` (đưa vào staging) và `git commit` (lưu vào lịch sử).
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Mô tả vòng đời 1 file qua 3 trạng thái Git.</summary>
+
+> Sửa file (Working Directory) → `git add` (Staging Area) → `git commit` (Repository) → `git push` (Remote/GitHub).
+</details>
+
+<details>
+<summary>2. Vì sao cần `.gitignore`? Cho 3 ví dụ.</summary>
+
+> Để không đưa file không nên vào Git: `.env` (secret), `*.log` (rác), `node_modules/` (nặng, tái tạo được).
+</details>
+
+<details>
+<summary>3. `git add` và `git commit` khác nhau thế nào?</summary>
+
+> `git add` đưa file vào **staging** (chọn cái sẽ lưu). `git commit` mới thực sự **lưu** ảnh chụp vào lịch sử.
+</details>
+
+<details>
+<summary>4. Lỡ `git reset --hard` mất commit, cứu bằng gì?</summary>
+
+> `git reflog` để tìm hash của commit đã mất, rồi `git reset --hard <hash>` quay về.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| `git log` sau commit đầu | Hiện 1 commit với message của bạn |
-| `git status` | `working tree clean` |
-| `git log --oneline` | Liệt kê các commit |
+| `git log` sau commit đầu | Hiện commit với message của bạn |
+| `git status` (sau commit) | `working tree clean` |
+| `git status` (có `.gitignore`) | `.env` không xuất hiện |
 
-✅ **Kết quả đạt được:** Quản lý phiên bản code cục bộ thành thạo với Git.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Repository (repo)** | Kho chứa code + lịch sử |
+| **Commit** | Một ảnh chụp trạng thái được lưu |
+| **Staging area** | Khu vực chuẩn bị file cho commit |
+| **Working directory** | Thư mục làm việc — nơi sửa file |
+| **`.gitignore`** | Danh sách file Git bỏ qua |
+| **HEAD** | Con trỏ "đang ở commit nào" |
+| **reflog** | Sổ ghi mọi thao tác — nơi cứu commit mất |
+
+✅ **Kết quả đạt được:** Quản lý phiên bản code cục bộ thành thạo với Git (3 vùng, commit, gitignore, cứu vãn).
 
 ---
 
 ## Ngày 14 — Git: Branch, Merge & xử lý Conflict
 
 > ⏱️ ~90 phút · Loại: Git
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 13 (Git cơ bản) → **Ngày 14 (nhánh, merge, xử lý xung đột)** → Ngày 15 (GitHub & Pull Request). Nhánh là cách cả team làm chung 1 dự án mà không giẫm chân nhau — kỹ năng cộng tác cốt lõi.
+>
+> ✅ **Chuẩn bị:** một repo Git đã có vài commit (từ Ngày 13).
 
 ### 📘 Lý thuyết
 
-- **Branch (nhánh):** dùng phát triển song song; `main`/`master` là nhánh chính.
-- **Lệnh nhánh:** `git branch` (liệt kê), `git switch <tên>` / `git checkout <tên>`, `git switch -c <tên>` (tạo + chuyển).
-- **Merge:** `git merge <nhánh>` — hợp nhất nhánh vào nhánh hiện tại; fast-forward vs 3-way merge.
-- **Conflict (xung đột):** xảy ra khi 2 nhánh sửa cùng dòng; Git đánh dấu `<<<<`, `====`, `>>>>`.
-- **Giải quyết conflict:** sửa file thủ công, `git add`, `git commit`.
-- **Workflow phổ biến:** feature branch — mỗi tính năng 1 nhánh, merge vào main qua review.
-- **Xóa nhánh:** `git branch -d <tên>` (an toàn), `-D` (ép buộc).
-- **git stash:** tạm cất thay đổi chưa commit để chuyển nhánh.
+#### 1. Branch (nhánh) — "vũ trụ song song" của code
+
+Muốn thử tính năng mới nhưng sợ hỏng code đang chạy? Tạo một **nhánh** — bản sao song song để thử thoải mái. Hỏng thì vứt nhánh; ổn thì **merge** (gộp) về nhánh chính (`main`). Nhánh chỉ là 1 con trỏ tới commit → tạo/xoá cực rẻ, đừng ngại tạo.
+
+| Lệnh | Làm gì |
+|---|---|
+| `git branch` | Liệt kê nhánh (dấu `*` = đang ở) |
+| `git switch -c <tên>` | Tạo + chuyển sang nhánh mới |
+| `git switch <tên>` | Chuyển nhánh |
+| `git branch -d <tên>` | Xoá nhánh (đã merge); `-D` = ép xoá |
+
+#### 2. Merge — hợp nhất nhánh
+
+`git merge <nhánh>` gộp `<nhánh>` vào nhánh hiện tại. Hai kiểu:
+- **Fast-forward:** main không đổi từ khi tách → chỉ "dời con trỏ" tới, lịch sử thẳng.
+- **3-way merge:** cả hai nhánh đều có commit mới → Git tạo 1 "merge commit" gộp lại.
+
+#### 3. Conflict (xung đột) — nghe sợ nhưng đơn giản
+
+Khi 2 nhánh sửa **cùng một dòng**, Git không biết giữ bản nào → nhờ bạn quyết. Nó đánh dấu trong file:
+```
+<<<<<<< HEAD
+dòng của bạn (nhánh hiện tại)
+=======
+dòng của họ (nhánh đang merge vào)
+>>>>>>> feature-x
+```
+Bạn xoá các dấu, giữ lại đoạn đúng, rồi `git add` + `git commit`. Xong.
+
+#### 4. `git stash` — cất tạm
+
+Đang sửa dở mà cần chuyển nhánh gấp? `git stash` cất thay đổi vào "ngăn kéo", chuyển nhánh xong `git stash pop` lấy lại.
+
+#### 5. Workflow feature branch
+
+Mỗi tính năng 1 nhánh (`feature/login`), làm xong merge về `main` (qua review — học ở Ngày 15). **Quy tắc vàng:** nhánh sống *càng ngắn càng tốt* — nhánh để cả tháng = conflict khủng khiếp khi merge.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -194,11 +357,48 @@ Khi 2 nhánh sửa **cùng một dòng**, Git không biết giữ bản nào →
 
 ### 🧪 Lab cơ bản
 
-1. Tạo nhánh feature: `git switch -c feature-login`, sửa file, commit.
-2. Quay về main và merge: `git switch main && git merge feature-login`.
-3. Tạo conflict có chủ ý: sửa cùng 1 dòng ở 2 nhánh rồi merge, giải quyết conflict.
-4. Thực hành `git stash`: sửa file, stash, chuyển nhánh, rồi `git stash pop`.
-5. Xóa nhánh đã merge và liệt kê lại bằng `git branch`.
+> Mục tiêu: tạo nhánh, merge, và **cố tình tạo conflict rồi tự giải quyết** để hết sợ.
+
+**Bước 1 — Tạo nhánh feature và commit.**
+```bash
+git switch -c feature-login
+echo "login()" > login.js
+git add login.js && git commit -m "Thêm login"
+git branch          # thấy * feature-login
+```
+
+**Bước 2 — Merge về main.**
+```bash
+git switch main
+git merge feature-login
+git log --oneline --graph
+```
+
+**Bước 3 — Cố tình tạo conflict để tập xử lý.**
+```bash
+git switch -c feature-a && echo "màu XANH" > style.txt && git commit -am "xanh"
+git switch main && echo "màu ĐỎ" > style.txt && git commit -am "đỏ"
+git merge feature-a       # → CONFLICT ở style.txt
+```
+Mở `style.txt`, xoá các dấu `<<<<<<<`, `=======`, `>>>>>>>`, giữ dòng bạn muốn, rồi:
+```bash
+git add style.txt && git commit -m "Giải quyết conflict style"
+```
+
+**Bước 4 — Tập `git stash`.**
+```bash
+echo "đang dở" >> login.js
+git stash              # cất tạm
+git switch feature-login
+git switch main
+git stash pop          # lấy lại thay đổi
+```
+
+**Bước 5 — Dọn nhánh đã merge.**
+```bash
+git branch -d feature-login feature-a
+git branch             # danh sách gọn lại
+```
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -235,27 +435,78 @@ Khi 2 nhánh sửa **cùng một dòng**, Git không biết giữ bản nào →
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** tạo nhánh feature → commit → merge về main → tạo & giải quyết conflict → tập `git stash`.
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**. Trọng tâm: hết sợ conflict.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `git switch -c feature-login` — tạo + chuyển nhánh mới (`-c` = create). *Kết quả:* `git branch` hiện `* feature-login`.
-- `git switch main && git merge feature-login` — gộp nhánh vào main. *Kết quả:* `git log --graph` thấy nhánh đã hợp nhất.
-- Conflict — khi 2 nhánh sửa **cùng dòng**, Git đánh dấu `<<<<<<` (của bạn) `======` `>>>>>>` (của họ). Sửa tay → `git add` → `git commit`.
-- `git stash` / `git stash pop` — tạm cất thay đổi chưa commit để chuyển nhánh, rồi lấy lại.
+**Bước 1 — Tạo & chuyển nhánh.**
+```bash
+git switch -c feature-login
+git branch
+```
+✅ **Checkpoint:** dấu `*` nằm ở `feature-login`.
 
-**🧪 Thử nghiệm:**
-- Cố tình sửa cùng 1 dòng ở 2 nhánh rồi merge → gặp conflict thật → sửa → `git status` báo "all conflicts fixed". **Bài học:** conflict không đáng sợ, chỉ là chọn giữ phần nào.
-- `git switch <commit-hash>` (vào detached HEAD) rồi `git switch main`. **Bài học:** hiểu HEAD đang trỏ đâu; commit ở detached sẽ mất nếu không tạo nhánh.
+**Bước 2 — Merge và xem đồ thị.**
+```bash
+git switch main && git merge feature-login
+git log --oneline --graph
+```
+✅ **Checkpoint:** lịch sử cho thấy nhánh đã hợp nhất vào main.
 
-⚠️ **Dễ sai:** nhánh sống quá lâu (vài tuần) = conflict khổng lồ khi merge. Nhánh **càng ngắn càng tốt**.
+**Bước 3 — Trải nghiệm giải quyết conflict.** (làm theo Lab Bước 3)
+```bash
+git status        # sau khi merge conflict: "Unmerged paths: style.txt"
+# sửa file, xoá dấu <<< === >>>
+git add style.txt && git commit
+git status        # "working tree clean"
+```
+✅ **Checkpoint:** sau khi sửa + add + commit → `working tree clean`.
+💡 Conflict không đáng sợ — chỉ là Git hỏi "giữ phần nào". Bạn quyết, xoá dấu, commit.
 
-💡 **Hiểu sâu:** nhánh chỉ là 1 con trỏ tới commit — tạo/xóa rất rẻ. Đây là lý do Git khuyến khích mỗi tính năng 1 nhánh.
+**Bước 4 — Hiểu HEAD & detached HEAD.**
+```bash
+git switch <một-commit-hash>     # vào detached HEAD
+git switch main                  # quay lại nhánh
+```
+✅ **Checkpoint:** hiểu commit tạo ở detached HEAD sẽ mất nếu không `git switch -c` tạo nhánh.
+
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| `CONFLICT (content)` khi merge | 2 nhánh sửa cùng dòng | Mở file, xoá dấu `<<< === >>>`, giữ đúng, `git add` + `git commit` |
+| `git branch -d` báo `not fully merged` | Nhánh chưa merge, sợ mất việc | Merge trước; hoặc chắc chắn bỏ thì `-D` (ép xoá) |
+| Lỡ vào "detached HEAD" | `switch` tới commit hash | `git switch -c nhánh-moi` để giữ commit, hoặc `git switch main` |
+| Sửa dở, cần đổi nhánh gấp | Git chặn switch khi có thay đổi | `git stash` cất tạm → switch → `git stash pop` |
+| Merge nhầm nhánh | Chưa push | `git merge --abort` (khi đang conflict) hoặc `git reset --hard HEAD~1` |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** viết chuỗi lệnh tạo nhánh `hotfix`, sửa, merge vào main.
-- Khi gặp conflict, các dấu `<<<<<<` `======` `>>>>>>` nghĩa là gì?
-- `git stash` dùng trong tình huống nào?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Viết chuỗi lệnh: tạo nhánh hotfix, sửa, merge vào main.</summary>
+
+> `git switch -c hotfix` → sửa file → `git commit -am "fix"` → `git switch main` → `git merge hotfix`.
+</details>
+
+<details>
+<summary>2. Các dấu `<<<<<<<` `=======` `>>>>>>>` khi conflict nghĩa là gì?</summary>
+
+> `<<<<<<< HEAD` đến `=======` là phần của nhánh hiện tại; `=======` đến `>>>>>>>` là phần của nhánh đang merge vào. Xoá dấu, giữ đoạn đúng.
+</details>
+
+<details>
+<summary>3. `git stash` dùng khi nào?</summary>
+
+> Khi đang sửa dở (chưa muốn commit) mà cần chuyển nhánh gấp. Cất tạm bằng `stash`, xong việc `stash pop` lấy lại.
+</details>
+
+<details>
+<summary>4. Vì sao nên giữ nhánh sống ngắn?</summary>
+
+> Nhánh càng lâu, càng khác main nhiều → merge càng dễ conflict lớn. Làm xong tính năng merge ngay.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
@@ -263,24 +514,65 @@ Khi 2 nhánh sửa **cùng một dòng**, Git không biết giữ bản nào →
 | Merge vào main | `git log --graph` thấy nhánh đã hợp nhất |
 | Giải quyết conflict | Sau khi sửa, `git status` → all conflicts fixed |
 
-✅ **Kết quả đạt được:** Làm việc với nhánh, merge và xử lý conflict — kỹ năng cộng tác thiết yếu.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Branch** | Nhánh — dòng phát triển song song |
+| **Merge** | Hợp nhất nhánh này vào nhánh kia |
+| **Conflict** | Xung đột khi 2 nhánh sửa cùng dòng |
+| **Fast-forward** | Merge chỉ dời con trỏ (lịch sử thẳng) |
+| **stash** | Cất tạm thay đổi chưa commit |
+| **Detached HEAD** | Đang ở 1 commit, không trên nhánh nào |
+| **Feature branch** | Nhánh riêng cho mỗi tính năng |
+
+✅ **Kết quả đạt được:** Làm việc với nhánh, merge và xử lý conflict tự tin — kỹ năng cộng tác thiết yếu.
 
 ---
 
 ## Ngày 15 — GitHub: Remote, Collaboration & Pull Request
 
 > ⏱️ ~90 phút · Loại: Git
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 14 (branch/merge cục bộ) → **Ngày 15 (đưa code lên mây + cộng tác qua Pull Request)** → Ngày 16 (Docker). Đây là quy trình team thật — và chính là cái bạn sẽ *tự động hoá* bằng CI/CD ở Giai đoạn 3.
+>
+> ✅ **Chuẩn bị:** repo `my-app` local (Ngày 13), tài khoản GitHub + SSH key kết nối được (Ngày 1/8).
 
 ### 📘 Lý thuyết
 
-- **Remote repository:** bản sao trên server (GitHub/GitLab); `origin` là tên mặc định.
-- **Kết nối:** `git remote add origin <url>`, `git push -u origin main`, `git pull`, `git fetch`, `git clone <url>`.
-- **Push & pull:** đẩy commit lên (push), kéo thay đổi về (pull = fetch + merge).
-- **Fork & Pull Request (PR):** đóng góp vào dự án người khác; PR để review trước khi merge.
-- **Code review:** comment trên PR, yêu cầu thay đổi, approve.
-- **Issue & project board:** quản lý công việc, bug, tính năng trên GitHub.
-- **README & tài liệu:** file `README.md` là "bộ mặt" của repo (Markdown).
-- **GitHub flow:** branch → commit → push → PR → review → merge.
+#### 1. Git vs GitHub — đừng nhầm
+
+- **Git** = công cụ chạy trên máy bạn, quản lý lịch sử code (offline vẫn dùng).
+- **GitHub** = dịch vụ web *lưu trữ* repo Git trên mây + tính năng cộng tác (PR, issue, CI/CD).
+- Ví von: Git là Word, GitHub là Google Docs (lưu online + chia sẻ).
+
+#### 2. Remote — kết nối repo local với GitHub
+
+| Lệnh | Làm gì |
+|---|---|
+| `git remote add origin <url>` | Gắn repo local với repo GitHub (`origin` = biệt danh mặc định) |
+| `git push -u origin main` | Đẩy commit lên, `-u` để nhớ liên kết |
+| `git pull` | Kéo thay đổi về (= `fetch` tải về + `merge` gộp) |
+| `git fetch` | Chỉ tải về, KHÔNG gộp (an toàn để xem trước) |
+| `git clone <url>` | Sao chép repo về máy |
+
+#### 3. Pull Request (PR) — trái tim của cộng tác
+
+Thay vì sửa thẳng nhánh chính, bạn mở một **PR** = *"đề nghị gộp nhánh của tôi vào main, mọi người xem giúp"*. Người khác **review** (comment, yêu cầu sửa, approve) → rồi mới merge. Đây là cách team đảm bảo chất lượng code.
+
+#### 4. GitHub flow — quy trình chuẩn
+
+```
+branch → commit → push → mở PR → review → merge → xoá nhánh
+```
+
+#### 5. Công cụ hỗ trợ cộng tác
+
+- **Issue**: phiếu ghi việc/bug/tính năng, gắn label để phân loại.
+- **README.md**: "bộ mặt" repo (viết bằng Markdown) — mô tả, cách cài, cách chạy.
+- **Fork**: sao chép repo người khác về tài khoản mình để đóng góp (open-source).
+
+> 🔑 Lỡ đẩy secret lên GitHub = coi như **lộ vĩnh viễn** (còn trong lịch sử/cache). Việc cần làm không phải xoá commit, mà **đổi (rotate) secret đó ngay**.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -300,11 +592,37 @@ Thay vì sửa thẳng nhánh chính, bạn mở 1 **PR** = "đề nghị gộp 
 
 ### 🧪 Lab cơ bản
 
-1. Đẩy repo `my-app` lên GitHub: tạo repo trên web, `git remote add origin`, `git push -u origin main`.
-2. Viết `README.md` đầy đủ (mô tả, cách cài, cách chạy) bằng Markdown.
-3. Tạo nhánh, push lên GitHub, mở Pull Request và tự merge.
-4. Tạo 1 Issue mô tả 1 tính năng cần làm, gắn label.
-5. Thực hành clone 1 repo công khai bất kỳ về máy.
+> Mục tiêu: đưa repo lên GitHub và đi trọn 1 vòng Pull Request.
+
+**Bước 1 — Tạo repo trên GitHub** (nút **New**, đặt tên `my-app`, để trống — đừng thêm README để khỏi conflict).
+
+**Bước 2 — Kết nối và đẩy lên.**
+```bash
+cd my-app
+git remote add origin git@github.com:<username>/my-app.git
+git push -u origin main
+```
+Tải lại trang GitHub → thấy code đã lên.
+
+**Bước 3 — Viết README.md.**
+```bash
+nano README.md      # mô tả 1 dòng + cách cài + cách chạy
+git add README.md && git commit -m "Thêm README" && git push
+```
+
+**Bước 4 — Đi trọn 1 vòng Pull Request.**
+```bash
+git switch -c feature/doc
+echo "## Hướng dẫn" >> README.md
+git commit -am "Bổ sung hướng dẫn" && git push -u origin feature/doc
+```
+Trên GitHub → nút **Compare & pull request** → mô tả → **Create PR** → **Merge**.
+
+**Bước 5 — Tạo 1 Issue và clone thử 1 repo công khai.**
+```bash
+git clone https://github.com/git/git.git /tmp/git-source
+```
+Trên GitHub, mở tab **Issues → New issue**, mô tả 1 tính năng, gắn label.
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -332,27 +650,70 @@ Thay vì sửa thẳng nhánh chính, bạn mở 1 **PR** = "đề nghị gộp 
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** tạo repo trên GitHub → kết nối remote → push → viết README → mở Pull Request → tập clone.
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `git remote add origin <url>` — gắn repo local với GitHub (`origin` = tên mặc định). `git push -u origin main` — đẩy lần đầu + nhớ liên kết. *Kết quả:* repo online cập nhật.
-- `git pull` = `git fetch` (tải về) + `git merge` (gộp). **Vì sao phân biệt:** `fetch` chỉ tải, không động code đang làm; `pull` gộp luôn.
-- Pull Request (PR) — đề xuất gộp nhánh, để review trước khi vào main. *Kết quả:* tab Pull requests hiện PR.
-- `git clone <url>` — sao chép repo về máy.
+**Bước 1 — Kết nối và đẩy lần đầu.**
+```bash
+git remote add origin git@github.com:<username>/my-app.git
+git remote -v          # kiểm tra URL
+git push -u origin main
+```
+✅ **Checkpoint:** GitHub hiển thị code của bạn.
+💡 `-u` liên kết nhánh local với remote, từ đó chỉ cần gõ `git push` là đủ.
 
-**🧪 Thử nghiệm:**
-- Đổi remote sang SSH: `git remote set-url origin git@github.com:user/repo.git` rồi `git push` (không hỏi mật khẩu nhờ key Ngày 1). **Bài học:** SSH tiện hơn HTTPS.
-- Bật Branch protection cho `main` (Settings → Branches), thử push thẳng → bị chặn. **Bài học:** không ai (kể cả bạn) phá nhánh chính.
+**Bước 2 — Hiểu `fetch` vs `pull`.**
+```bash
+git fetch origin       # chỉ TẢI về, không đụng code đang làm
+git pull               # tải + gộp (= fetch + merge)
+```
+✅ **Checkpoint:** hiểu `fetch` an toàn để xem trước, `pull` gộp luôn.
 
-⚠️ **Dễ sai:** lỡ push secret lên GitHub = **lộ vĩnh viễn** (còn trong lịch sử/cache). Phải **xoay (rotate)** secret ngay, không chỉ xóa commit.
+**Bước 3 — Mở Pull Request (theo Lab Bước 4).**
+✅ **Checkpoint:** tab **Pull requests** hiện PR đang mở; sau khi merge, nhánh feature gộp vào main.
 
-💡 **Hiểu sâu:** GitHub flow: branch → commit → push → PR → review → merge. Đây là quy trình team thật — và là cái bạn sẽ tự động hóa bằng CI/CD ở Giai đoạn 3.
+**Bước 4 — (Nâng cao) bật Branch protection.**
+Settings → Branches → thêm rule cho `main` (bắt buộc PR). Thử `git push` thẳng vào main → **bị chặn**.
+✅ **Checkpoint:** không ai (kể cả bạn) push thẳng được vào `main`.
+
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| `push` hỏi username/password | Remote dùng HTTPS thay SSH | `git remote set-url origin git@github.com:user/repo.git` |
+| `Permission denied (publickey)` | SSH key chưa lên GitHub | Ôn Ngày 1/8: thêm `.pub` vào GitHub |
+| `Updates were rejected (fetch first)` | Remote có commit bạn chưa có | `git pull` (gộp) rồi `push` lại |
+| `push` bị chặn vào `main` | Branch protection đang bật (đúng ý!) | Mở PR thay vì push thẳng |
+| Lỡ push secret | Lộ vĩnh viễn trong lịch sử | **Rotate secret ngay**; thêm `.gitignore`; cân nhắc `git filter-repo` |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** phân biệt `git fetch` (chỉ tải về, không merge) và `git pull` (tải + merge).
-- Quy trình GitHub flow gồm những bước nào?
-- Pull Request dùng để làm gì trong làm việc nhóm?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. `git fetch` và `git pull` khác nhau thế nào?</summary>
+
+> `fetch` chỉ tải commit mới về (không đụng code đang làm). `pull` = `fetch` + `merge` (gộp luôn vào nhánh hiện tại).
+</details>
+
+<details>
+<summary>2. Quy trình GitHub flow gồm những bước nào?</summary>
+
+> branch → commit → push → mở PR → review → merge → xoá nhánh.
+</details>
+
+<details>
+<summary>3. Pull Request dùng để làm gì?</summary>
+
+> Đề nghị gộp nhánh vào main và để đồng đội **review** (góp ý, duyệt) trước khi merge — đảm bảo chất lượng, không sửa thẳng nhánh chính.
+</details>
+
+<details>
+<summary>4. Lỡ push secret lên GitHub thì làm gì đầu tiên?</summary>
+
+> **Đổi (rotate) secret đó ngay** — vì nó đã lộ vĩnh viễn trong lịch sử. Xoá commit là chưa đủ.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
@@ -360,7 +721,19 @@ Thay vì sửa thẳng nhánh chính, bạn mở 1 **PR** = "đề nghị gộp 
 | Tạo 1 PR | Tab Pull requests hiện PR đang mở |
 | `git clone <url>` | Thư mục project xuất hiện |
 
-✅ **Kết quả đạt được:** Cộng tác qua GitHub, làm PR, viết README — sẵn sàng làm việc nhóm thực tế.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Remote / origin** | Repo trên server / tên mặc định của remote |
+| **push / pull / fetch** | Đẩy lên / kéo về (fetch+merge) / chỉ tải về |
+| **clone** | Sao chép repo về máy |
+| **Pull Request (PR)** | Đề nghị gộp nhánh + để review |
+| **Code review** | Đọc & góp ý code trước khi merge |
+| **Fork** | Sao chép repo người khác về tài khoản mình |
+| **Branch protection** | Quy tắc bảo vệ nhánh chính |
+
+✅ **Kết quả đạt được:** Cộng tác qua GitHub, đi trọn vòng PR, viết README — sẵn sàng làm việc nhóm thực tế.
 
 ---
 
