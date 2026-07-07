@@ -77,7 +77,7 @@
 
 Token/mật khẩu phải để trong **GitHub Secrets** (che `***` trong log), đọc bằng `${{ secrets.TÊN }}`. KHÔNG viết thẳng YAML — YAML nằm trong repo, commit = lộ.
 
-> 🔑 Ghim action theo phiên bản (`@v4`, hoặc SHA), đừng dùng `@main` (thay đổi bất ngờ — rủi ro supply chain).
+> 🔑 Ghim action theo phiên bản (`@v7`, hoặc SHA), đừng dùng `@main` (thay đổi bất ngờ — rủi ro supply chain).
 
 **Sơ đồ — cấu trúc Workflow → Job → Step:**
 ```mermaid
@@ -120,7 +120,7 @@ jobs:
   hello:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: echo "Hello CI — commit ${{ github.sha }}"
 ```
 
@@ -132,7 +132,7 @@ Vào tab **Actions** trên GitHub → thấy 1 run với dấu ✓ xanh.
 
 **Bước 3 — Thêm setup môi trường + test.** Bổ sung vào job:
 ```yaml
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with: { node-version: '20' }
       - run: node --version
       - run: echo "chạy test ở đây"   # thay bằng npm test nếu có
@@ -160,13 +160,13 @@ Xem log → giá trị hiện `***` (bị che).
      test:
        runs-on: ubuntu-latest
        steps:
-         - uses: actions/checkout@v4
-         - uses: actions/setup-node@v4
+         - uses: actions/checkout@v7
+         - uses: actions/setup-node@v6
            with: { node-version: '20', cache: 'npm' }
          - run: npm ci
          - run: npm test
    ```
-2. **Ghim action theo phiên bản** (`@v4`, hoặc SHA cho bảo mật cao) — không dùng `@main` (thay đổi bất ngờ, rủi ro supply chain).
+2. **Ghim action theo phiên bản** (`@v7`, hoặc SHA cho bảo mật cao) — không dùng `@main` (thay đổi bất ngờ, rủi ro supply chain).
 3. **Quyền tối thiểu cho token:** thêm `permissions: { contents: read }` ở đầu workflow.
 4. **Trigger đúng:** PR chạy test, push main mới deploy — không deploy mỗi lần push nhánh.
 
@@ -186,15 +186,15 @@ Xem log → giá trị hiện `***` (bị che).
 
 **Giải nghĩa & kết quả mong đợi:**
 - `.github/workflows/ci.yml` — đặt đúng thư mục này GitHub mới nhận; `on: push` = chạy khi push. *Kết quả:* tab Actions hiện 1 run với dấu ✓ xanh.
-- `uses: actions/checkout@v4` — tải code repo vào runner (hầu như workflow nào cũng cần bước này đầu tiên).
-- `uses: actions/setup-node@v4` — cài runtime; `run: npm ci`/`npm test` — chạy lệnh shell.
+- `uses: actions/checkout@v7` — tải code repo vào runner (hầu như workflow nào cũng cần bước này đầu tiên).
+- `uses: actions/setup-node@v6` — cài runtime; `run: npm ci`/`npm test` — chạy lệnh shell.
 - `${{ secrets.TÊN }}` — đọc GitHub Secret; trong log hiện `***` (che).
 
 **🧪 Thử nghiệm:**
 - Sửa 1 dòng code rồi push → xem 1 run mới tự sinh, đọc log từng step. **Bài học:** CI tự kích hoạt mỗi commit.
 - Tạo 2 job (test, build) không `needs` → chạy **song song**; thêm `needs: test` vào build → tuần tự. **Bài học:** job song song mặc định.
 
-⚠️ **Dễ sai:** viết token thẳng YAML (commit = lộ vĩnh viễn). Luôn dùng `secrets.*`; ghim action `@v4`, đừng `@main`.
+⚠️ **Dễ sai:** viết token thẳng YAML (commit = lộ vĩnh viễn). Luôn dùng `secrets.*`; ghim action `@v7`, đừng `@main`.
 
 💡 **Hiểu sâu:** Workflow (cả file) → Job (chạy trên 1 runner sạch) → Step (lệnh tuần tự). Runner là máy ảo sạch mỗi lần — lý do CI "không phụ thuộc máy ai".
 
@@ -203,8 +203,8 @@ Xem log → giá trị hiện `***` (bị che).
 | Triệu chứng | Nguyên nhân | Cách sửa |
 |---|---|---|
 | Workflow không chạy | File sai chỗ/tên | Phải ở `.github/workflows/*.yml`; kiểm YAML hợp lệ |
-| `Error: ... uses: ... not found` | Sai tên/phiên bản action | Đúng `actions/checkout@v4`; xem Marketplace |
-| Job đỏ ngay bước đầu | Thiếu `checkout` nên không có code | Thêm `- uses: actions/checkout@v4` đầu tiên |
+| `Error: ... uses: ... not found` | Sai tên/phiên bản action | Đúng `actions/checkout@v7`; xem Marketplace |
+| Job đỏ ngay bước đầu | Thiếu `checkout` nên không có code | Thêm `- uses: actions/checkout@v7` đầu tiên |
 | Secret in ra rỗng | Chưa tạo secret / sai tên | Tạo ở Settings → Secrets; tên khớp `${{ secrets.X }}` |
 | Deploy chạy mỗi lần push nhánh | Trigger quá rộng | Giới hạn `on: push: branches: [main]` |
 
@@ -231,7 +231,7 @@ Xem log → giá trị hiện `***` (bị che).
 </details>
 
 <details>
-<summary>4. Vì sao ghim action `@v4` thay vì `@main`?</summary>
+<summary>4. Vì sao ghim action `@v7` thay vì `@main`?</summary>
 
 > `@main` có thể đổi bất ngờ (mất tái lập, rủi ro supply chain). Ghim phiên bản/SHA để chạy ổn định & an toàn.
 </details>
@@ -328,14 +328,14 @@ jobs:
     strategy:
       matrix: { node: [18, 20] }
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with: { node-version: '${{ matrix.node }}', cache: 'npm' }
       - run: npm ci
       - run: npm run lint --if-present
       - run: npm test --if-present
       - run: npm run build --if-present
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with: { name: build-${{ matrix.node }}, path: dist/, if-no-files-found: ignore }
 ```
 
@@ -356,7 +356,7 @@ jobs:
    strategy:
      matrix: { node: [18, 20] }
    steps:
-     - uses: actions/setup-node@v4
+     - uses: actions/setup-node@v6
        with: { node-version: '${{ matrix.node }}', cache: 'npm' }
    ```
 2. **Tách job chạy song song** (lint, test, build độc lập) → pipeline nhanh hơn nhiều.
@@ -519,12 +519,12 @@ Mỗi khi merge vào `main` → pipeline tự **build Docker image** và **push 
 
 1. **Build + push chuẩn với tag tự động:**
    ```yaml
-   - uses: docker/login-action@v3
+   - uses: docker/login-action@v4
      with: { registry: ghcr.io, username: ${{ github.actor }}, password: ${{ secrets.GITHUB_TOKEN }} }
-   - uses: docker/metadata-action@v5
+   - uses: docker/metadata-action@v6
      id: meta
      with: { images: ghcr.io/${{ github.repository }} }
-   - uses: docker/build-push-action@v6
+   - uses: docker/build-push-action@v7
      with:
        push: true
        tags: ${{ steps.meta.outputs.tags }}    # tự sinh tag từ branch/sha/version
