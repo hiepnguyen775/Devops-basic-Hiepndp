@@ -401,16 +401,41 @@ Nghe ngược đời nhưng rất khôn: chủ động xóa pod/ngắt mạng *k
 ## Ngày 53 — Cost Optimization & FinOps
 
 > ⏱️ ~60 phút · Loại: Cloud
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 52 (HA/DR) → **Ngày 53 (FinOps — tối ưu chi phí cloud như một kỹ năng)** → Ngày 54 (Service Mesh). Cloud dễ "vung tay quá trán"; FinOps đưa ý thức chi phí vào kỹ thuật.
+>
+> ✅ **Chuẩn bị:** tài khoản cloud (Cost Explorer), Terraform (Ngày 29). Cài Infracost nếu muốn ước tính chi phí.
 
 ### 📘 Lý thuyết
 
-- **FinOps:** quản lý và tối ưu chi phí cloud như một thực hành kỹ thuật.
-- **Mô hình giá:** on-demand, reserved instance, spot instance (rẻ nhưng có thể bị thu hồi).
-- **Right-sizing:** chọn đúng kích thước tài nguyên, tránh over-provisioning.
-- **Auto-scaling tiết kiệm:** scale xuống khi tải thấp; tắt môi trường dev ngoài giờ.
-- **Storage tiering:** chuyển dữ liệu ít dùng sang lớp lưu trữ rẻ hơn.
-- **Tagging tài nguyên:** gắn nhãn để theo dõi chi phí theo team/project.
-- **Công cụ:** Cost Explorer, billing alert, Infracost (ước tính chi phí Terraform).
+#### 1. FinOps là gì
+
+Thực hành **đưa ý thức chi phí vào kỹ thuật**: kỹ sư thấy được mình tiêu bao nhiêu và tối ưu. Cloud trả theo lượng dùng → dễ lãng phí (quên tắt máy, mua to hơn cần).
+
+#### 2. Ba mô hình giá — chọn đúng tiết kiệm rất nhiều
+
+| Mô hình | Khi nào | Tiết kiệm |
+|---|---|---|
+| **On-demand** | Tải thất thường, dev | 0% (đắt nhất) |
+| **Reserved / Savings Plan** | Tải ổn định, chạy lâu (DB, baseline) | ~30–70% |
+| **Spot** | Job chịu được gián đoạn (batch, CI) | ~70–90% (có thể bị thu hồi) |
+
+#### 3. Các "quả ngọt dễ hái"
+
+- **Right-sizing**: đa số máy mua *to hơn cần*. Đo metric thật (Ngày 44) → hạ size.
+- **Tắt môi trường dev ngoài giờ** (18h–8h + cuối tuần) ≈ tiết kiệm ~70% compute.
+- **Storage tiering**: chuyển dữ liệu ít dùng sang lớp rẻ hơn.
+- **Tagging**: gắn nhãn (`Project`, `Environment`, `Owner`) → biết tiền đi đâu.
+
+#### 4. Bẫy chi phí ẩn
+
+Egress traffic (dữ liệu **ra** internet tốn tiền), NAT Gateway chạy 24/7, volume/snapshot mồ côi, log/metric giữ vô hạn.
+
+#### 5. Công cụ
+
+Cost Explorer (soi chi phí), **Billing Alert** (việc đầu tiên khi tạo tài khoản), **Infracost** (ước tính chi phí Terraform ngay trong PR).
+
+> 🔑 FinOps là **văn hoá, không phải công cụ**: khi dev *thấy* "feature này tốn $500/tháng" (shift-left cost, như shift-left security) họ tự tối ưu. Chi phí là trách nhiệm chung.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -475,35 +500,106 @@ Cloud trả tiền theo lượng dùng → rất dễ "vung tay quá trán" (qu�
 
 💡 **Hiểu sâu:** 3 mô hình giá — on-demand (linh hoạt, đắt), reserved (tải ổn định, −30~70%), spot (job chịu gián đoạn, −70~90%). Right-sizing (dựa metric thật) là "quả ngọt dễ hái".
 
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Hoá đơn tăng bất ngờ | Egress / NAT / tài nguyên mồ côi | Cost Explorer soi; xoá cái không dùng; Billing Alert |
+| Không biết tiền của team nào | Thiếu tag | Bắt buộc tag `Project/Env/Owner` qua policy |
+| Máy tốn nhưng dùng ít | Over-provision | Right-sizing dựa metric thật |
+| Spot job bị gián đoạn mất việc | Dùng spot cho việc không chịu được gián đoạn | Chỉ spot cho batch/CI; job quan trọng dùng on-demand/reserved |
+| Dev environment tốn 24/7 | Không tắt ngoài giờ | Lịch tự tắt/scale-to-zero |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** khi nào nên dùng spot instance, khi nào reserved?
-- Right-sizing là gì?
-- Tagging giúp gì cho việc quản lý chi phí?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Khi nào dùng spot, khi nào reserved?</summary>
+
+> Spot cho job chịu được gián đoạn (batch, CI, worker) — rẻ 70–90% nhưng bị thu hồi. Reserved cho tải ổn định chạy lâu (DB, baseline) — rẻ 30–70%, cam kết 1–3 năm.
+</details>
+
+<details>
+<summary>2. Right-sizing là gì?</summary>
+
+> Chọn đúng kích thước tài nguyên dựa trên metric thật, tránh mua to hơn cần (over-provision) — "quả ngọt dễ hái" nhất.
+</details>
+
+<details>
+<summary>3. Tagging giúp gì cho quản lý chi phí?</summary>
+
+> Gắn nhãn (Project/Env/Owner) để biết chi phí thuộc team/dự án nào → phân bổ, quy trách nhiệm, tối ưu đúng chỗ.
+</details>
+
+<details>
+<summary>4. Kể vài bẫy chi phí ẩn.</summary>
+
+> Egress traffic ra internet, NAT Gateway 24/7, volume/snapshot mồ côi, log/metric giữ vô hạn.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Phân tích chi phí cloud | Xác định được tài nguyên tốn kém nhất |
-| Đề xuất tối ưu | Vd: right-sizing, reserved/spot, tắt idle → ước tính % tiết kiệm |
-| Gắn tag chi phí | Tài nguyên có tag phân bổ chi phí |
+| Phân tích chi phí | Xác định tài nguyên tốn nhất |
+| Đề xuất tối ưu | Right-sizing/reserved/spot/tắt idle → % tiết kiệm |
+| Gắn tag | Tài nguyên có tag phân bổ chi phí |
 
-✅ **Kết quả đạt được:** Tối ưu chi phí cloud — kỹ năng ngày càng quan trọng cho DevOps.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **FinOps** | Tối ưu chi phí cloud như kỹ năng kỹ thuật |
+| **On-demand / Reserved / Spot** | 3 mô hình giá |
+| **Right-sizing** | Chọn đúng kích thước tài nguyên |
+| **Tagging** | Gắn nhãn phân bổ chi phí |
+| **Egress** | Lưu lượng ra internet (tốn phí) |
+| **Infracost** | Ước tính chi phí Terraform |
+| **Billing Alert** | Cảnh báo chi phí |
+
+✅ **Kết quả đạt được:** Tối ưu chi phí cloud (mô hình giá, right-sizing, tagging) — kỹ năng ngày càng quan trọng.
 
 ---
 
 ## Ngày 54 — Service Mesh & Microservices nâng cao
 
 > ⏱️ ~90 phút · Loại: Kubernetes
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 53 (FinOps) → **Ngày 54 (microservices & service mesh)** → Ngày 55 (Platform Engineering). Chủ đề nâng cao — quan trọng nhất là biết *khi nào KHÔNG cần* mesh.
+>
+> ✅ **Chuẩn bị:** cluster K8s. Cài Linkerd (nhẹ hơn Istio) nếu muốn thực hành.
 
 ### 📘 Lý thuyết
 
-- **Microservices:** chia app thành nhiều dịch vụ nhỏ độc lập (vs monolith).
-- **Thách thức:** giao tiếp, khám phá dịch vụ, bảo mật, quan sát giữa hàng chục service.
-- **Service Mesh:** lớp hạ tầng xử lý giao tiếp service-to-service (Istio, Linkerd).
-- **Sidecar pattern:** proxy đi kèm mỗi pod xử lý traffic.
-- **Tính năng mesh:** traffic management (canary, A/B), mTLS, observability, retry/timeout.
-- **API Gateway:** điểm vào duy nhất, xác thực, rate limiting.
-- **Khi nào KHÔNG cần mesh:** hệ thống nhỏ thì mesh là phức tạp thừa.
+#### 1. Microservices — chia app lớn thành nhiều dịch vụ nhỏ
+
+Thay vì 1 khối code (monolith), chia thành nhiều service độc lập (user, đơn hàng...). **Lợi:** phát triển/scale riêng từng phần. **Hại:** chúng phải *nói chuyện qua mạng* → sinh vấn đề: mã hoá, retry khi lỗi, theo dõi, định tuyến.
+
+#### 2. Service Mesh — "lớp hạ tầng lo việc giao tiếp"
+
+Thay vì code các xử lý đó vào *từng* service (lặp lại), mesh (Istio, Linkerd) đẩy chúng xuống hạ tầng qua **sidecar**.
+
+#### 3. Sidecar pattern
+
+Tiêm 1 **proxy nhỏ** (Envoy/linkerd-proxy) cạnh mỗi pod. **Mọi** traffic vào/ra app đi qua proxy → proxy tự lo mTLS, retry, đo lường, chia traffic — *app không sửa code*. Pod thành `2/2 READY` (app + sidecar).
+
+#### 4. Tính năng mesh
+
+| Tính năng | Ý nghĩa |
+|---|---|
+| **Traffic management** | Canary, A/B, chia % traffic |
+| **mTLS** | Mã hoá + xác thực service-to-service |
+| **Observability** | Metric latency/traffic/error tự động |
+| **Resilience** | Retry, timeout, circuit breaker |
+
+**API Gateway** = điểm vào duy nhất từ ngoài (xác thực, rate limiting) — khác mesh (lo giao tiếp *nội bộ*).
+
+#### 5. ⚠️ Khi nào KHÔNG dùng mesh (quan trọng cho người mới)
+
+Mesh thêm **độ phức tạp lớn** (sidecar tốn tài nguyên, khó debug, học mất công). Hệ thống nhỏ (vài service) → **không cần**, dùng thẳng K8s Service + Ingress là đủ. Nhiều team thêm Istio quá sớm rồi khổ.
+
+> 🔑 Chỉ thêm mesh khi "nỗi đau microservices" thực sự xuất hiện (hàng chục service). Bắt đầu bằng **Linkerd** (nhẹ, dễ) trước **Istio** (mạnh, phức tạp).
 
 **Sơ đồ — Sidecar pattern (mọi traffic đi qua proxy):**
 ```mermaid
@@ -576,35 +672,106 @@ Mesh thêm **độ phức tạp lớn** (tốn tài nguyên, khó debug, học m
 
 💡 **Hiểu sâu:** sidecar (Envoy/linkerd-proxy) đứng giữa mọi traffic vào/ra pod → lo mTLS, retry, timeout, metric. Linkerd nhẹ (bắt đầu từ đây) vs Istio mạnh nhưng phức tạp.
 
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Pod không thành `2/2` | Chưa inject sidecar | `linkerd inject` / bật auto-inject namespace |
+| Traffic không qua mesh | Namespace chưa được mesh quản | Gắn annotation inject cho namespace/pod |
+| Mesh làm hệ thống chậm/khó debug | Thêm mesh khi chưa cần | Cân nhắc bỏ mesh nếu ít service — dùng Service+Ingress |
+| mTLS lỗi kết nối | Chỉ 1 phía có sidecar | Đảm bảo cả 2 service đều được inject |
+| Canary không chia đúng % | Cấu hình traffic split sai | Kiểm manifest split; xem dashboard mesh |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** service mesh giải quyết vấn đề gì của microservices?
-- Sidecar pattern hoạt động thế nào?
-- Khi nào KHÔNG nên dùng service mesh?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Service mesh giải quyết vấn đề gì của microservices?</summary>
+
+> Giao tiếp service-to-service: mã hoá (mTLS), retry/timeout, observability, traffic control — đồng nhất cho mọi service mà không sửa code từng cái.
+</details>
+
+<details>
+<summary>2. Sidecar pattern hoạt động thế nào?</summary>
+
+> Tiêm 1 proxy cạnh mỗi pod; mọi traffic vào/ra đi qua proxy → proxy lo mTLS/retry/metric. Pod thành `2/2 READY`.
+</details>
+
+<details>
+<summary>3. Khi nào KHÔNG nên dùng service mesh?</summary>
+
+> Khi hệ thống nhỏ (vài service) — mesh thêm phức tạp/tài nguyên/khó debug không đáng. Dùng K8s Service + Ingress là đủ.
+</details>
+
+<details>
+<summary>4. Linkerd và Istio khác nhau thế nào?</summary>
+
+> Linkerd nhẹ, đơn giản, dễ vận hành (nên bắt đầu). Istio mạnh, nhiều tính năng nhưng phức tạp.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Cài service mesh | Sidecar được tiêm vào pod (2/2 READY) |
-| Xem traffic giữa service | Đồ thị/metric luồng request hiển thị |
-| Thử canary/traffic split | Chia % traffic giữa 2 phiên bản đúng cấu hình |
+| Cài mesh + inject | Pod `2/2 READY` |
+| Xem traffic | Dashboard hiện success rate/latency |
+| Canary/traffic split | Chia % giữa 2 version đúng cấu hình |
 
-✅ **Kết quả đạt được:** Hiểu và vận hành microservices nâng cao với service mesh.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Microservices** | Chia app thành nhiều dịch vụ nhỏ |
+| **Service Mesh** | Lớp hạ tầng lo giao tiếp service |
+| **Sidecar** | Proxy đi kèm mỗi pod |
+| **mTLS** | Mã hoá + xác thực 2 chiều |
+| **Canary** | Đẩy version mới cho % nhỏ trước |
+| **API Gateway** | Cửa vào từ ngoài (auth, rate limit) |
+| **Linkerd / Istio** | 2 service mesh phổ biến |
+
+✅ **Kết quả đạt được:** Hiểu microservices & service mesh — và quan trọng nhất, biết khi nào KHÔNG cần mesh.
 
 ---
 
 ## Ngày 55 — Platform Engineering & Developer Experience
 
 > ⏱️ ~60 phút · Loại: DevOps
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 54 (Service Mesh) → **Ngày 55 (Platform Engineering — xu hướng mới nhất của DevOps)** → Ngày 56 (bắt đầu dự án tốt nghiệp). Đây là hướng tiến hoá tiếp theo của nghề.
+>
+> ✅ **Chuẩn bị:** đã trải qua toàn bộ stack DevOps (GĐ1–3) để hiểu "nỗi đau" mà platform giải quyết.
 
 ### 📘 Lý thuyết
 
-- **Platform Engineering:** xu hướng mới — xây "nền tảng nội bộ" (IDP) cho dev tự phục vụ.
-- **Internal Developer Platform (IDP):** dev tự deploy mà không cần hiểu sâu hạ tầng.
-- **Golden path:** con đường chuẩn, có rào chắn an toàn để dev đi nhanh.
-- **Self-service:** template dự án, môi trường tự động, CI/CD cấu hình sẵn.
-- **Backstage (Spotify):** portal developer phổ biến.
-- **DORA metrics:** 4 chỉ số đo hiệu suất DevOps (deployment frequency, lead time, change failure rate, MTTR).
-- **Mục tiêu:** giảm gánh nặng nhận thức cho dev, tăng tốc giao hàng an toàn.
+#### 1. Platform Engineering là gì
+
+Vấn đề: khi "DevOps cho mọi người", mỗi dev phải biết K8s, Terraform, CI/CD... → quá tải, mỗi người làm một kiểu. **Platform Engineering** giải bằng: một đội chuyên xây **nền tảng nội bộ (IDP)** che giấu phức tạp, để dev *tự phục vụ*.
+
+#### 2. Internal Developer Platform (IDP)
+
+Dev tự deploy/tạo tài nguyên mà **không cần hiểu sâu hạ tầng**. Ví dụ portal: **Backstage** (Spotify).
+
+#### 3. Golden Path — "con đường vàng"
+
+Con đường chuẩn, dễ đi nhất, có **rào chắn an toàn** sẵn. Vd: dev tạo service mới = 1 lệnh → tự có Dockerfile chuẩn, CI/CD, monitoring, quét bảo mật. Họ chỉ viết logic nghiệp vụ. (Không phải "cage" — vẫn cho đi đường khác khi cần, chỉ là đường chuẩn dễ nhất.)
+
+#### 4. DORA metrics — thước đo "team DevOps giỏi đến đâu"
+
+| Metric | Đo gì | Nhóm |
+|---|---|---|
+| **Deployment Frequency** | Deploy bao nhiêu lần/ngày | Tốc độ |
+| **Lead Time** | Commit → production mất bao lâu | Tốc độ |
+| **Change Failure Rate** | % deploy gây sự cố | Ổn định |
+| **MTTR** | Trung bình khôi phục sau sự cố | Ổn định |
+
+Team giỏi đạt **cả tốc độ lẫn ổn định** (không đánh đổi).
+
+#### 5. Self-service
+
+Template dự án, môi trường tự động tạo, CI/CD cấu hình sẵn — giảm gánh nặng nhận thức cho dev.
+
+> 🔑 Tư duy cốt lõi: **coi hạ tầng là sản phẩm, dev nội bộ là khách hàng**. Nền tảng tốt giúp dev đi nhanh mà vẫn an toàn.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -671,19 +838,65 @@ Là con đường chuẩn, dễ đi nhất, có rào chắn an toàn sẵn. Vd: 
 
 💡 **Hiểu sâu:** Platform Engineering giải bài toán "DevOps everywhere" gây quá tải nhận thức — platform team coi **dev là khách hàng**, xây nền tảng tự phục vụ. DORA: 2 chỉ số tốc độ + 2 chỉ số ổn định, team giỏi đạt cả hai.
 
+### 🐛 Gỡ lỗi nhanh (tư duy platform)
+
+| Tình huống | Sai lầm | Cách đúng |
+|---|---|---|
+| Dev quá tải vì phải biết mọi thứ | Bắt ai cũng thành chuyên gia hạ tầng | Xây golden path tự phục vụ, che phức tạp |
+| Golden path bị né tránh | Làm nó thành "cage" cứng nhắc | Làm việc đúng thành việc *dễ nhất*, vẫn cho đường khác |
+| Không biết team giỏi hay không | Đo cảm tính | Đo 4 DORA metrics |
+| Tối ưu tốc độ nhưng hay sự cố | Bỏ qua ổn định | DORA đo cả tốc độ + ổn định, phải đạt cả hai |
+| Platform không ai dùng | Không coi dev là khách hàng | Lắng nghe phản hồi, đo DX, giảm ma sát |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** 4 DORA metrics là gì?
-- Internal Developer Platform giúp gì cho dev?
-- "Golden path" nghĩa là gì?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. 4 DORA metrics là gì?</summary>
+
+> Deployment Frequency, Lead Time for Changes (tốc độ); Change Failure Rate, MTTR (ổn định).
+</details>
+
+<details>
+<summary>2. Internal Developer Platform giúp gì cho dev?</summary>
+
+> Cho dev tự phục vụ (deploy, tạo tài nguyên) mà không cần hiểu sâu hạ tầng — giảm quá tải nhận thức, đồng nhất cách làm.
+</details>
+
+<details>
+<summary>3. "Golden path" nghĩa là gì?</summary>
+
+> Con đường chuẩn, dễ đi nhất, có rào chắn an toàn sẵn (CI/CD, monitoring, scan) — làm việc đúng trở thành việc dễ nhất.
+</details>
+
+<details>
+<summary>4. Tư duy cốt lõi của Platform Engineering?</summary>
+
+> Coi **hạ tầng là sản phẩm, dev nội bộ là khách hàng** — xây nền tảng giúp dev đi nhanh mà an toàn.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Hiểu chỉ số DORA | Nêu đúng 4: deploy frequency, lead time, MTTR, change fail rate |
-| Phác thảo internal platform | Mô tả self-service cho dev (golden path) |
-| Đánh giá Developer Experience | Chỉ ra điểm ma sát và cách cải thiện |
+| Hiểu DORA | Nêu đúng 4 metric + nhóm tốc độ/ổn định |
+| Phác thảo IDP | Mô tả self-service + golden path |
+| Đánh giá DX | Chỉ ra điểm ma sát + cách cải thiện |
 
-✅ **Kết quả đạt được:** Nắm xu hướng Platform Engineering và đo hiệu suất bằng DORA.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Platform Engineering** | Xây nền tảng nội bộ cho dev tự phục vụ |
+| **IDP** | Internal Developer Platform |
+| **Golden path** | Con đường chuẩn, an toàn, dễ đi |
+| **Self-service** | Dev tự làm không cần đội hạ tầng |
+| **DORA metrics** | 4 chỉ số đo hiệu suất DevOps |
+| **MTTR** | Thời gian trung bình khôi phục |
+| **Developer Experience (DX)** | Trải nghiệm của lập trình viên |
+
+✅ **Kết quả đạt được:** Nắm xu hướng Platform Engineering và đo hiệu suất bằng DORA metrics.
 
 ---
 
