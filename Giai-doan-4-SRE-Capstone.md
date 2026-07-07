@@ -1149,6 +1149,10 @@ Một pipeline chạy được là *bằng chứng sống* bạn hiểu DevOps t
 ## Ngày 58 — Dự án tốt nghiệp — Phần 3: Monitoring & Reliability
 
 > ⏱️ ~150 phút · Loại: Capstone
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 57 (Container & CI/CD) → **Ngày 58 (thêm "giác quan" + tự lành: monitoring & reliability)** → Ngày 59 (Tài liệu & Portfolio). Đây là thứ phân biệt dự án "chạy được" với "production-ready".
+>
+> ✅ **Chuẩn bị:** app đã deploy trên K8s (Ngày 57). Ôn Prometheus/Grafana/Loki (Ngày 44–46), probe/HPA (Ngày 41), SLO (Ngày 51).
 
 ### 📘 Lý thuyết
 
@@ -1215,23 +1219,63 @@ Một pipeline chạy được là *bằng chứng sống* bạn hiểu DevOps t
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- Bạn có thể quan sát sức khỏe hệ thống qua dashboard không?
-- Alert có kích hoạt khi có vấn đề không?
-- Hệ thống tự phục hồi khi pod chết chưa?
+**✅ Checklist tự chấm Phần 3:**
+
+<details>
+<summary>1. Quan sát được sức khoẻ hệ thống qua dashboard chưa?</summary>
+
+> Grafana dashboard 4 golden signals (latency/traffic/errors/saturation) cho app của bạn, không chỉ CPU/RAM.
+</details>
+
+<details>
+<summary>2. Alert có kích hoạt khi có vấn đề chưa?</summary>
+
+> Có alert gắn với SLO (không phải mọi dao động), gửi tới kênh thật; đã test kích hoạt bằng cách gây lỗi giả.
+</details>
+
+<details>
+<summary>3. Hệ thống tự phục hồi khi pod chết chưa?</summary>
+
+> Xoá 1 pod → K8s tự tạo lại, app không gián đoạn (probe + Deployment). Tăng tải → HPA scale.
+</details>
+
+<details>
+<summary>4. Runbook thể hiện điều gì với người phỏng vấn?</summary>
+
+> Tư duy vận hành — không chỉ "xây xong" mà "biết xử lý khi hỏng + rollback". Senior đánh giá rất cao.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Có monitoring cho dự án | Grafana dashboard cho app của bạn |
-| Có alerting | Tạo cảnh báo (vd CPU>80%) và test kích hoạt |
-| Cấu hình HA/probe | App tự phục hồi, không downtime khi 1 pod chết |
+| Monitoring | Grafana dashboard cho app |
+| Alerting | Cảnh báo test kích hoạt được |
+| HA/probe | App tự phục hồi, không downtime khi mất 1 pod |
 
-✅ **Kết quả đạt được:** Dự án có observability và reliability đầy đủ — chuẩn production.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Observability** | Metric + Log + (Trace) |
+| **Golden signals** | Latency/Traffic/Errors/Saturation |
+| **SLO** | Mục tiêu độ tin cậy |
+| **Probe / HPA** | Health check / tự scale |
+| **PodDisruptionBudget** | Giới hạn pod tắt cùng lúc khi bảo trì |
+| **Runbook** | Tài liệu xử lý sự cố từng bước |
+| **Production-ready** | Đủ chuẩn chạy thật |
+
+✅ **Kết quả đạt được:** Dự án có observability + reliability đầy đủ (self-healing, SLO, runbook) — chuẩn production.
 
 ---
 
 ## Ngày 59 — Dự án tốt nghiệp — Phần 4: Tài liệu, Demo & Portfolio
 
 > ⏱️ ~120 phút · Loại: Capstone
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 58 (Monitoring & Reliability) → **Ngày 59 (biến dự án thành tài sản portfolio)** → Ngày 60 (Tốt nghiệp & định hướng nghề). Làm tốt phần này thì cả công sức 3 phần trước mới "bán" được cho nhà tuyển dụng.
+>
+> ✅ **Chuẩn bị:** dự án đã hoàn chỉnh (Ngày 56–58). Công cụ quay màn hình để làm video demo.
 
 ### 📘 Lý thuyết
 
@@ -1298,23 +1342,63 @@ Bạn đã xây xong hệ thống — giờ phải làm cho *người khác th�
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- Người lạ đọc README có hiểu và chạy được dự án không?
-- Demo có thể hiện rõ năng lực DevOps của bạn chưa?
-- Repo đã sạch và chuyên nghiệp chưa?
+**✅ Checklist tự chấm Phần 4:**
+
+<details>
+<summary>1. Người lạ đọc README có chạy được dự án không?</summary>
+
+> README kể chuyện: bài toán → kiến trúc (sơ đồ) → tech stack → cách chạy (1 lệnh) → demo → quyết định thiết kế. Người lạ đọc xong chạy được.
+</details>
+
+<details>
+<summary>2. Video demo thể hiện năng lực gì?</summary>
+
+> Luồng end-to-end: sửa code → pipeline chạy → app cập nhật → dashboard phản ánh + self-healing. Bằng chứng sống, hơn "nói suông".
+</details>
+
+<details>
+<summary>3. Repo đã sạch & an toàn chưa?</summary>
+
+> Xoá file thừa, `.gitignore` đúng, quét gitleaks lần cuối (không lộ secret), pin dự án lên profile.
+</details>
+
+<details>
+<summary>4. Vì sao "GitHub là CV" với DevOps?</summary>
+
+> Nhà tuyển dụng xem code + pipeline + IaC trước CV chữ. README đẹp + dự án chạy được = ấn tượng mạnh nhất.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| README/tài liệu hoàn chỉnh | Có hướng dẫn setup, kiến trúc, cách chạy |
-| Quay/diễn demo dự án | Trình bày được luồng: code → deploy → live → monitor |
-| Dự án nằm trên portfolio | GitHub repo công khai, pin lên profile |
+| README/tài liệu | Setup, kiến trúc, cách chạy đầy đủ |
+| Video demo | Luồng code → deploy → live → monitor |
+| Portfolio | Repo công khai, pin lên profile |
 
-✅ **Kết quả đạt được:** Dự án tốt nghiệp hoàn chỉnh, được tài liệu hóa kỹ — sẵn sàng đưa vào CV.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Portfolio** | Bộ sản phẩm để xin việc |
+| **README** | Bộ mặt & hướng dẫn của repo |
+| **ADR** | Ghi chép quyết định kiến trúc |
+| **Demo** | Video/trình diễn luồng end-to-end |
+| **gitleaks** | Quét secret lỡ commit |
+| **Technical blog** | Bài viết kỹ thuật xây thương hiệu |
+| **Pin (GitHub)** | Ghim dự án nổi bật lên profile |
+
+✅ **Kết quả đạt được:** Dự án tốt nghiệp hoàn chỉnh, tài liệu hoá kỹ — sẵn sàng đưa vào CV.
 
 ---
 
 ## Ngày 60 — TỐT NGHIỆP — Tổng kết, Chứng chỉ & Định hướng Sự nghiệp
 
 > ⏱️ ~120 phút · Loại: Milestone
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 1 (`pwd`/`ls`) → ... → **Ngày 60 (nhìn lại cả hành trình + định hướng nghề)** 🎓. Đây là vạch đích của 60 ngày — và vạch xuất phát của sự nghiệp DevOps.
+>
+> ✅ **Chuẩn bị:** dự án capstone hoàn chỉnh (Ngày 56–59). Sẵn sàng nhìn lại + lập kế hoạch 90 ngày tiếp theo.
 
 ### 📘 Lý thuyết
 
@@ -1390,15 +1474,51 @@ CNCF Landscape có hàng trăm công cụ — đừng học hết, hiểu **danh
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- Tự đánh giá toàn diện theo [bảng kiểm năng lực](#phụ-lục-c--bảng-kiểm-năng-lực-tốt-nghiệp).
-- Lập kế hoạch học 90 ngày tiếp theo: chứng chỉ + chủ đề chuyên sâu.
-- Xác định vị trí công việc mục tiêu và khoảng cách kỹ năng cần lấp.
+**✍️ Tự kiểm tra (tổng kết cả hành trình):**
+
+<details>
+<summary>1. Vẽ lại bức tranh DevOps end-to-end (không nhìn tài liệu).</summary>
+
+> Code → CI (test/scan) → Build image → Registry → CD/GitOps → K8s (probe/HPA) → Monitor (metric/log + alert) → phát hiện vấn đề → cải tiến → lặp lại.
+</details>
+
+<details>
+<summary>2. Chứng chỉ và portfolio — cái nào quan trọng hơn?</summary>
+
+> Cần **cả hai**: chứng chỉ mở cửa CV (qua vòng lọc), portfolio/dự án thực chiến thuyết phục khi phỏng vấn. Không thay thế nhau.
+</details>
+
+<details>
+<summary>3. Lộ trình chứng chỉ hợp lý?</summary>
+
+> Nhập môn: LFCA / AWS CCP. Trung cấp (3–6 tháng): AWS SAA, CKA, Terraform Associate. Chuyên sâu: CKS, AWS DevOps Pro.
+</details>
+
+<details>
+<summary>4. Câu "thần chú" để phát triển dài hạn?</summary>
+
+> *"Consistency beats intensity"* — học đều mỗi ngày thắng học dồn rồi bỏ. Kỹ năng DevOps là tích luỹ; duy trì nhịp học sau tốt nghiệp mới tạo khác biệt.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Hoàn thành checklist 17 kỹ năng | Tự đánh dấu phần lớn các mục |
-| Có dự án tốt nghiệp | Link repo + demo sẵn sàng đưa vào CV |
-| Lên kế hoạch chứng chỉ | Chọn được LFCA/AWS CCP/CKA và mốc thời gian |
+| Checklist 17 kỹ năng | Tự đánh dấu phần lớn mục |
+| Dự án tốt nghiệp | Link repo + demo sẵn sàng đưa vào CV |
+| Kế hoạch chứng chỉ | Chọn LFCA/AWS CCP/CKA + mốc thời gian |
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **LFCA / AWS CCP** | Chứng chỉ nhập môn Linux / Cloud |
+| **CKA** | Certified Kubernetes Administrator |
+| **Terraform Associate** | Chứng chỉ IaC Terraform |
+| **CNCF Landscape** | Bản đồ công cụ cloud-native |
+| **SRE / Platform Engineer** | Các hướng nghề tiến hoá của DevOps |
+| **DORA** | 4 chỉ số đo hiệu suất DevOps |
+| **Consistency beats intensity** | Học đều thắng học dồn |
 
 ✅ **Kết quả đạt được — TỐT NGHIỆP! 🎓** Bạn đã có nền tảng SysOps + DevOps vững chắc, portfolio thực chiến và lộ trình phát triển tiếp theo.
 
