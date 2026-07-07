@@ -818,16 +818,59 @@ ps aux --sort=-%cpu | head -5    # 5 tiến trình ngốn CPU nhất
 ## Ngày 4 — Linux: Người dùng, nhóm & phân quyền
 
 > ⏱️ ~90 phút · Loại: Linux
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 3 (tiến trình & dịch vụ) → **Ngày 4 (ai được làm gì: user, nhóm, quyền)** → Ngày 5 (Bash scripting). Đây là nền **bảo mật** của Linux — hiểu nó là hiểu 80% vì sao server bị/không bị hack.
+>
+> ✅ **Chuẩn bị:** môi trường Linux có quyền `sudo`. Cẩn thận: các lệnh hôm nay đụng tới user/quyền hệ thống — nên làm trên VM/máy lab, đừng thử trên server thật.
 
 ### 📘 Lý thuyết
 
-- **User & group:** mỗi user thuộc 1+ nhóm; `root` là superuser quyền tối cao.
-- **Quản lý user:** `sudo adduser <tên>`, `sudo usermod -aG <nhóm> <user>` (thêm vào nhóm), `sudo deluser <tên>`, `su <user>` (đổi user), `whoami`, `id`.
-- **Sudo:** cho phép user thường chạy lệnh quyền root; cấu hình trong `/etc/sudoers` (sửa bằng `visudo`, **không** sửa trực tiếp).
-- **Phân quyền file:** `r` (read=4), `w` (write=2), `x` (execute=1); 3 nhóm: **owner – group – other**.
-- **chmod:** `chmod 755 file` (rwxr-xr-x), `chmod 644` (rw-r--r--), `chmod 600` (rw-------, dùng cho secret), `chmod +x script.sh`.
-- **chown:** `chown user:group file`, `chown -R` (đệ quy cho thư mục).
-- **Đọc `ls -la`:** ký tự đầu `d`=thư mục, `-`=file, `l`=symlink; 9 ký tự tiếp theo là phân quyền.
+#### 1. User & Group — vì sao Linux chia quyền chặt
+
+Server có nhiều người dùng + nhiều dịch vụ. Nếu ai cũng làm được mọi thứ thì 1 sai lầm (hoặc 1 hacker) phá sạch. Nên Linux tách bạch **user** (người/dịch vụ dùng máy) và **group** (nhóm gom nhiều user để cấp quyền chung). `root` là *superuser* — quyền tối cao, như Administrator của Windows nhưng mạnh hơn.
+
+| Lệnh | Làm gì |
+|---|---|
+| `whoami` / `id` | Tôi là ai / uid, gid, các nhóm của tôi |
+| `sudo adduser <tên>` | Tạo user mới (hỏi mật khẩu, tạo home) |
+| `sudo usermod -aG <nhóm> <user>` | **Thêm** user vào nhóm (`-aG` = append) |
+| `su - <user>` | Chuyển sang user khác |
+| `sudo deluser <tên>` | Xoá user |
+
+> ⚠️ Luôn có `-a` trong `usermod -aG`. Thiếu `-a` (`usermod -G`) sẽ **xoá hết nhóm cũ** của user — lỗi nguy hiểm.
+
+#### 2. `sudo` — mượn quyền admin trong chốc lát
+
+Đừng đăng nhập thẳng bằng `root` (1 lệnh sai = phá hệ thống, không có lớp bảo vệ). Dùng user thường, thêm `sudo` trước lệnh khi *thực sự cần* quyền cao. Cấu hình ai được sudo nằm ở `/etc/sudoers` — **chỉ sửa bằng `visudo`** (nó kiểm tra cú pháp, tránh khoá mình ra ngoài).
+
+#### 3. Phân quyền file — đọc số quyền không cần tính
+
+Mỗi file có quyền cho **3 nhóm**: owner (chủ) – group (nhóm) – other (người khác). Mỗi nhóm có 3 quyền, mỗi quyền một giá trị số:
+
+| Quyền | Ký tự | Số |
+|---|---|---|
+| Read (đọc) | `r` | 4 |
+| Write (ghi) | `w` | 2 |
+| Execute (chạy) | `x` | 1 |
+
+Cộng lại ra một chữ số (0–7):
+- `7` = 4+2+1 = `rwx` · `6` = 4+2 = `rw-` · `5` = 4+1 = `r-x` · `0` = `---`
+
+Ba chữ số = ba nhóm. Ví dụ `chmod 750` = owner `rwx`(7) / group `r-x`(5) / other `---`(0).
+
+| Lệnh hay dùng | Kết quả | Dùng khi |
+|---|---|---|
+| `chmod 644 file` | `rw-r--r--` | File thường (ai cũng đọc, chỉ chủ ghi) |
+| `chmod 755 file` | `rwxr-xr-x` | Script/thư mục (ai cũng chạy) |
+| `chmod 600 file` | `rw-------` | File bí mật (SSH key) — chỉ chủ đọc |
+| `chmod +x script.sh` | thêm quyền chạy | Cho file script chạy được |
+
+#### 4. `chown` & đọc dòng `ls -l`
+
+- `sudo chown user:group file` đổi chủ:nhóm; `chown -R` cho cả thư mục con.
+- Dòng `ls -l`: ký tự **đầu** `d`=thư mục, `-`=file, `l`=symlink; **9 ký tự sau** chia 3 cụm rwx (owner-group-other). Hiểu cái này là hiểu 80% phân quyền Linux.
+
+> 🔑 `chmod 777` ("ai cũng làm mọi thứ") nghe tiện nhưng là **lỗ hổng bảo mật** — đừng dùng. Luôn cấp quyền tối thiểu (*least privilege*).
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -848,15 +891,45 @@ Mỗi file có quyền cho 3 nhóm: **owner** (chủ) – **group** (nhóm) – 
 
 ### 🧪 Lab cơ bản
 
-1. Tạo user mới và thêm vào nhóm sudo:
-   ```bash
-   sudo adduser devuser
-   sudo usermod -aG sudo devuser
-   ```
-2. Tạo `test.sh`, xem quyền `ls -la`, cấp quyền chạy `chmod +x test.sh`.
-3. Thực hành chmod số: tạo file rồi đặt 644, 755, 600 và quan sát `ls -la` thay đổi.
-4. Đổi chủ sở hữu: `sudo chown devuser:devuser <file>`.
-5. Đăng nhập thử user mới: `su - devuser`, chạy `whoami` và `id`, rồi `exit`.
+> Mục tiêu: tạo user, cấp quyền nhóm, và tập đọc/đổi quyền file cho thành thạo.
+
+**Bước 1 — Tạo user mới và thêm vào nhóm sudo.**
+```bash
+sudo adduser devuser              # nhập mật khẩu khi được hỏi
+sudo usermod -aG sudo devuser     # (Fedora: nhóm là 'wheel' thay vì 'sudo')
+id devuser
+```
+Bạn sẽ thấy `id devuser` in ra uid/gid và danh sách groups (có `sudo`).
+
+**Bước 2 — Tạo file và xem quyền.**
+```bash
+touch test.sh
+ls -l test.sh          # thấy dạng -rw-r--r--
+chmod +x test.sh
+ls -l test.sh          # giờ có x: -rwxr-xr-x
+```
+
+**Bước 3 — Luyện đọc `chmod` số.**
+```bash
+chmod 644 test.sh && ls -l test.sh    # -rw-r--r--
+chmod 755 test.sh && ls -l test.sh    # -rwxr-xr-x
+chmod 600 test.sh && ls -l test.sh    # -rw-------
+```
+Mỗi lần đối chiếu số ↔ chuỗi `rwx` cho tới khi đọc được mà không cần tính.
+
+**Bước 4 — Đổi chủ sở hữu.**
+```bash
+sudo chown devuser:devuser test.sh
+ls -l test.sh          # cột owner giờ là devuser
+```
+
+**Bước 5 — Đăng nhập thử user mới.**
+```bash
+su - devuser
+whoami                 # in: devuser
+id
+exit                   # quay về user cũ
+```
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -882,55 +955,163 @@ Mỗi file có quyền cho 3 nhóm: **owner** (chủ) – **group** (nhóm) – 
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** tạo user → thêm vào nhóm sudo → tập đọc & đổi quyền (`chmod`) → đổi chủ sở hữu (`chown`) → đăng nhập thử user mới.
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `sudo adduser devuser` — tạo user (hỏi mật khẩu, tạo home). *Kết quả:* `id devuser` in uid/gid/groups.
-- `sudo usermod -aG sudo devuser` — `-aG` = **append** vào **G**roup (thêm, không ghi đè). **⚠️ Thiếu `-a`** = xóa hết nhóm cũ → lỗi nguy hiểm.
-- `chmod 750 file` — quyền dạng số: r=4 w=2 x=1, mỗi chữ số cho owner/group/other. `750` = `rwx`(7)/`r-x`(5)/`---`(0). *Kết quả:* `ls -l` hiện `-rwxr-x---`.
-- `chmod +x script.sh` — thêm quyền chạy (file mới mặc định không chạy được).
-- `chmod 600 ~/.ssh/id_ed25519` — chỉ owner đọc/ghi. **Vì sao bắt buộc:** SSH *từ chối* private key nếu quyền quá mở.
-- `sudo chown devuser:devuser file` — đổi chủ:nhóm. *Kết quả:* `ls -l` cột owner đổi.
-- `su - devuser` — chuyển user (dấu `-` nạp môi trường login đầy đủ); `whoami`/`id` xác nhận; `exit` quay về.
+**Bước 1 — Tạo user và xác nhận nhóm.**
+```bash
+sudo adduser devuser
+sudo usermod -aG sudo devuser
+id devuser
+```
+✅ **Checkpoint:** `id devuser` in ra có `sudo` trong danh sách groups.
+💡 `-aG` = **a**ppend vào **G**roup (thêm, không ghi đè). Thiếu `-a` là xoá hết nhóm cũ.
 
-**🧪 Thử nghiệm:**
-- Tạo file rồi đặt lần lượt `chmod 644`, `755`, `600`, mỗi lần `ls -l`. **Bài học:** đọc `rwxr-xr-x` ↔ `755` mà không cần tính.
-- `find / -perm -4000 -type f 2>/dev/null` — tìm file SUID. **Bài học:** đây là chỗ hacker hay nhắm để leo quyền.
+**Bước 2 — Đọc quyền thành thạo bằng cách đổi qua lại.**
+```bash
+touch f && chmod 644 f && ls -l f     # -rw-r--r--
+chmod 750 f && ls -l f                # -rwxr-x---
+chmod 600 f && ls -l f                # -rw-------
+```
+✅ **Checkpoint:** bạn đọc được `rwxr-x---` ↔ `750` mà không cần tính.
+💡 3 chữ số = owner/group/other; mỗi số = tổng r(4)+w(2)+x(1).
 
-⚠️ **Dễ sai:** `chmod 777` "cho nhanh" = ai cũng đọc/ghi/chạy = lỗ hổng. Luôn cấp quyền tối thiểu.
+**Bước 3 — Đổi chủ sở hữu.**
+```bash
+sudo chown devuser:devuser f
+ls -l f
+```
+✅ **Checkpoint:** cột owner đổi thành `devuser`.
 
-💡 **Hiểu sâu:** ký tự đầu `ls -l`: `d`=thư mục, `-`=file, `l`=symlink; 9 ký tự sau chia 3 nhóm rwx (owner-group-other). Hiểu cái này là hiểu 80% phân quyền Linux.
+**Bước 4 — (Nâng cao) tìm file SUID — nơi hacker hay nhắm để leo quyền.**
+```bash
+find / -perm -4000 -type f 2>/dev/null
+```
+✅ **Checkpoint:** ra danh sách vài file (như `/usr/bin/sudo`, `/usr/bin/passwd`).
+💡 File SUID chạy với quyền của **chủ file** (thường root) chứ không phải người chạy — tiện nhưng là điểm rủi ro cần audit.
+
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| SSH báo `UNPROTECTED PRIVATE KEY FILE` | Quyền key quá mở | `chmod 600 ~/.ssh/id_ed25519` |
+| `Permission denied` khi chạy `./script.sh` | Thiếu quyền `x` | `chmod +x script.sh` |
+| User mới không dùng được `sudo` | Chưa thêm vào nhóm sudo/wheel, hoặc chưa đăng nhập lại | `usermod -aG sudo <user>`; đăng xuất/vào lại để áp nhóm |
+| Lỡ `usermod -G` (thiếu -a) làm mất nhóm | Ghi đè hết nhóm cũ | Thêm lại từng nhóm: `usermod -aG sudo,docker <user>` |
+| Sửa `/etc/sudoers` xong bị khoá sudo | Sai cú pháp | Luôn dùng `visudo` (nó chặn lưu file sai cú pháp) |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** giải mã quyền `rwxr-x---` sang số → **đáp án: 750**.
-- Khi nào dùng 600 cho file? (gợi ý: file chứa secret / SSH key).
-- Vì sao không nên làm việc thường xuyên dưới quyền root? (1 lệnh sai = phá cả hệ thống, không có lớp bảo vệ).
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Giải mã quyền `rwxr-x---` sang số.</summary>
+
+> `750` (owner rwx=7, group r-x=5, other ---=0).
+</details>
+
+<details>
+<summary>2. Khi nào dùng `600` cho file?</summary>
+
+> Cho file chứa bí mật như SSH private key — chỉ chủ đọc/ghi, không ai khác đụng được. SSH còn *bắt buộc* key phải 600.
+</details>
+
+<details>
+<summary>3. Vì sao không nên làm việc thường xuyên dưới quyền root?</summary>
+
+> Root không có lớp bảo vệ: 1 lệnh sai (vd `rm -rf`) phá cả hệ thống. Dùng user thường + `sudo` khi cần để giảm rủi ro.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| `id devuser` | Hiện uid, gid, groups |
+| `id devuser` | Hiện uid, gid, groups (có sudo) |
 | `ls -l` sau `chmod 755` | `-rwxr-xr-x` |
 | `ls -l` sau `chown` | owner = devuser |
 
-✅ **Kết quả đạt được:** Quản lý user/group, hiểu sâu phân quyền — kỹ năng cốt lõi của SysOps.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **User / Group** | Người dùng / nhóm người dùng |
+| **root / superuser** | Tài khoản quyền tối cao |
+| **Permission** (rwx) | Quyền đọc/ghi/chạy |
+| **Owner / Group / Other** | Chủ / nhóm / người khác (3 nhóm quyền) |
+| **sudo** | Chạy 1 lệnh với quyền cao (mượn quyền admin) |
+| **Least privilege** | Nguyên tắc cấp quyền tối thiểu đủ dùng |
+| **SUID** | Cờ đặc biệt: file chạy với quyền của chủ file |
+
+✅ **Kết quả đạt được:** Quản lý user/group, đọc & đổi quyền file thành thạo, hiểu sudo và nguyên tắc least privilege — kỹ năng cốt lõi của SysOps.
 
 ---
 
 ## Ngày 5 — Bash Scripting: Cơ bản
 
 > ⏱️ ~90 phút · Loại: Bash
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 4 (user & quyền) → **Ngày 5 (viết script đầu tiên: biến, if, for, hàm)** → Ngày 6 (Bash nâng cao & tự động hoá). Đây là bước chuyển từ "gõ tay từng lệnh" sang "để máy tự chạy" — khởi đầu của tự động hoá.
+>
+> ✅ **Chuẩn bị:** môi trường Linux + trình soạn thảo (nano/vim). Nên đã quen `chmod +x` từ Ngày 4.
 
 ### 📘 Lý thuyết
 
-- **Shebang:** `#!/bin/bash` ở dòng đầu cho biết dùng trình thông dịch nào.
-- **Biến:** `TEN='giá trị'` (**không khoảng trắng** quanh `=`), dùng `$TEN` hoặc `${TEN}`.
-- **Đọc input:** `read -p 'Nhập tên: ' name`; tham số dòng lệnh: `$1`, `$2`, `$@` (tất cả tham số), `$#` (số lượng tham số).
-- **Điều kiện:** `if [ điều_kiện ]; then ... elif ... else ... fi`.
-- **So sánh:** số (`-eq -ne -gt -lt -ge -le`), chuỗi (`= != -z`), file (`-f` tồn tại file, `-d` thư mục, `-e` tồn tại).
-- **Vòng lặp:** `for i in 1 2 3; do ...; done`; `while [ điều_kiện ]; do ...; done`.
-- **Hàm:** `ten() { ... }`; gọi: `ten arg1 arg2`.
-- **Exit code:** `$?` (kết quả lệnh trước, `0`=thành công); `exit 0` / `exit 1`.
+#### 1. Script là gì & dòng shebang
+
+Một **script** là 1 file text chứa các lệnh xếp theo thứ tự để máy *tự chạy hết một lượt*. Dòng đầu tiên `#!/bin/bash` (gọi là **shebang**) báo cho máy: "chạy file này bằng bash". Sau đó phải `chmod +x file.sh` (cấp quyền chạy) rồi mới gọi được `./file.sh`.
+
+```bash
+#!/bin/bash
+echo "Hello DevOps"
+```
+
+#### 2. Biến
+
+```bash
+TEN='An'          # ⚠️ KHÔNG có khoảng trắng quanh dấu =
+echo "$TEN"       # dùng bằng $TEN hoặc ${TEN}
+```
+Bash rất khó tính: `TEN = 'An'` (có khoảng trắng) sẽ **lỗi**, vì bash tưởng `TEN` là một lệnh.
+
+#### 3. Nhận dữ liệu vào
+
+| Cách | Ý nghĩa |
+|---|---|
+| `read -p 'Nhập tên: ' name` | Hỏi người dùng, lưu vào `$name` |
+| `$1`, `$2`, ... | Tham số thứ 1, 2... khi gọi `./script.sh arg1 arg2` |
+| `$@` | Tất cả tham số |
+| `$#` | Số lượng tham số |
+
+#### 4. Điều kiện `if` & phép so sánh
+
+```bash
+if [ "$n" -gt 10 ]; then
+  echo "lớn hơn 10"
+elif [ "$n" -eq 10 ]; then
+  echo "bằng 10"
+else
+  echo "nhỏ hơn 10"
+fi
+```
+
+| Loại | Toán tử |
+|---|---|
+| Số | `-eq` (=), `-ne` (≠), `-gt` (>), `-lt` (<), `-ge` (≥), `-le` (≤) |
+| Chuỗi | `=`, `!=`, `-z` (rỗng?) |
+| File | `-f` (file tồn tại?), `-d` (thư mục?), `-e` (tồn tại?) |
+
+#### 5. Vòng lặp & hàm
+
+```bash
+for i in 1 2 3; do echo "file$i"; done      # lặp qua danh sách
+while [ "$n" -lt 5 ]; do n=$((n+1)); done    # lặp theo điều kiện
+
+chao() { echo "Xin chào, $1!"; }             # định nghĩa hàm
+chao "An"                                     # gọi hàm → Xin chào, An!
+```
+
+#### 6. Exit code — cách script "biết" thành công hay thất bại
+
+Mỗi lệnh chạy xong trả về một số: `0` = thành công, khác `0` = lỗi. Xem bằng `echo $?`. Đây là cách script *ra quyết định*: nếu bước trước lỗi thì dừng, không làm bừa. `exit 0` = kết thúc script báo OK; `exit 1` = báo lỗi.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -953,11 +1134,53 @@ Mỗi lệnh chạy xong trả về 1 số: `0` = thành công, khác `0` = lỗ
 
 ### 🧪 Lab cơ bản
 
-1. `hello.sh` in `Hello DevOps`, cấp `chmod +x`, chạy `./hello.sh`.
-2. Script nhận tên qua `read` và chào: `Xin chào, <tên>!`.
-3. Script dùng vòng `for` tạo 5 file: `file1.txt` → `file5.txt`.
-4. Script kiểm tra file tồn tại không, in thông báo tương ứng (dùng `-f`).
-5. Lưu tất cả vào `~/devops-lab/scripts/` và push lên GitHub.
+> Mục tiêu: viết những script đầu tiên có biến, input, vòng lặp, điều kiện. Mỗi script là 1 file đầy đủ copy-chạy được.
+
+**Bước 1 — `hello.sh`.**
+```bash
+cd ~/devops-lab/scripts
+nano hello.sh
+```
+Nội dung đầy đủ:
+```bash
+#!/bin/bash
+echo "Hello DevOps"
+```
+Chạy:
+```bash
+chmod +x hello.sh
+./hello.sh          # in: Hello DevOps
+```
+
+**Bước 2 — `greet.sh` (nhận tên rồi chào).**
+```bash
+#!/bin/bash
+read -p "Nhập tên của bạn: " name
+echo "Xin chào, $name!"
+```
+Chạy `./greet.sh` → gõ tên → thấy lời chào.
+
+**Bước 3 — `taofile.sh` (vòng for tạo 5 file).**
+```bash
+#!/bin/bash
+for i in 1 2 3 4 5; do
+  touch "file$i.txt"
+  echo "Đã tạo file$i.txt"
+done
+```
+
+**Bước 4 — `kiemtra.sh` (kiểm tra file tồn tại).**
+```bash
+#!/bin/bash
+if [ -f "$1" ]; then
+  echo "File '$1' tồn tại."
+else
+  echo "Không tìm thấy '$1'."
+fi
+```
+Chạy: `./kiemtra.sh /etc/hostname` (tồn tại) rồi `./kiemtra.sh /khong/co` (không).
+
+**Bước 5 — Lưu & push.** Đưa hết vào `~/devops-lab/scripts/` rồi commit + push lên GitHub (ôn lại Git ở các ngày sau).
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -987,56 +1210,170 @@ Mỗi lệnh chạy xong trả về 1 số: `0` = thành công, khác `0` = lỗ
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** viết `hello.sh` → cấp quyền chạy → chạy → thêm biến/đọc input → thêm vòng lặp/điều kiện → bọc header an toàn (nâng cao).
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `#!/bin/bash` (shebang) — dòng đầu báo "dùng bash chạy file này". **Vì sao cần:** để `./hello.sh` biết trình thông dịch.
-- `chmod +x hello.sh` rồi `./hello.sh` — phải cấp quyền chạy trước. *Kết quả:* in `Hello DevOps`.
-- `TEN='giá trị'` — **không khoảng trắng** quanh `=`. Dùng lại bằng `$TEN`.
-- `read -p 'Nhập tên: ' name` — đọc input vào biến `name`. *Kết quả:* gõ tên → script chào lại.
-- `for i in 1 2 3; do ...; done` / `if [ -f file ]; then ...; fi` — vòng lặp / kiểm tra; `-f` = "file tồn tại?".
-- `echo $?` — exit code lệnh trước (`0` = thành công). **Vì sao quan trọng:** script tự động dựa vào đây để biết bước trước có ổn không.
+**Bước 1 — Viết & chạy script đầu tiên.**
+```bash
+nano hello.sh          # dán 2 dòng ở Lab Bước 1
+chmod +x hello.sh
+./hello.sh
+```
+Bạn sẽ thấy: `Hello DevOps`.
+✅ **Checkpoint:** in ra đúng dòng chữ.
+⚠️ Nếu báo `Permission denied` → chưa `chmod +x`. Nếu `command not found` khi gõ `hello.sh` (thiếu `./`) → phải gõ `./hello.sh` (dấu `./` = "file trong thư mục hiện tại").
 
-**🧪 Thử nghiệm:**
-- `if [ -f /etc/hostname ]; then echo có; else echo không; fi` rồi đổi sang file không tồn tại. **Bài học:** thấy `[ -f ]` hoạt động.
-- (Nâng cao) Thêm `set -euo pipefail` đầu script rồi cố dùng 1 biến chưa khai báo → script dừng ngay. **Bài học:** vì sao dòng này là "đai an toàn" của script production.
+**Bước 2 — Hiểu exit code.**
+```bash
+./hello.sh
+echo $?                # in: 0 (thành công)
+ls /khong-co-thu-muc-nay
+echo $?                # in: 2 (khác 0 = lỗi)
+```
+✅ **Checkpoint:** thấy `0` sau lệnh thành công, khác `0` sau lệnh lỗi.
+💡 Script tự động dùng exit code để quyết định có chạy tiếp hay dừng.
 
-⚠️ **Dễ sai:** viết `TEN = 'x'` (có khoảng trắng) → lỗi. Bash hiểu khoảng trắng là phân tách lệnh/tham số.
+**Bước 3 — Thử điều kiện với file.**
+```bash
+if [ -f /etc/hostname ]; then echo "có"; else echo "không"; fi
+```
+✅ **Checkpoint:** in `có`. Đổi sang `/khong/co` → in `không`.
 
-💡 **Hiểu sâu:** `$((n % 2))` là *arithmetic expansion* — bash tính số học trong `$(( ))`; `%` là chia lấy dư, `n % 2 == 0` → chẵn. Kiểm cú pháp script bằng `shellcheck file.sh` trước khi chạy.
+**Bước 4 — (Nâng cao) bọc "đai an toàn".** Thêm dòng đầu `set -euo pipefail` vào script rồi cố dùng một biến chưa khai báo → script **dừng ngay** thay vì chạy bừa.
+✅ **Checkpoint:** script thoát với thông báo `unbound variable`.
+💡 Đây là dòng đầu bắt buộc của script production (chi tiết ở Lab nâng cao).
+
+### 🐛 Gỡ lỗi nhanh
+
+**🔧 Mẹo debug script:** chạy `bash -x ./script.sh` để in ra từng lệnh được thực thi (thấy chính xác chỗ sai). Và luôn `shellcheck script.sh` trước khi dùng.
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| `Permission denied` | Chưa cấp quyền chạy | `chmod +x script.sh` |
+| `command not found` khi gõ tên script | Thiếu `./` (bash không tìm ở thư mục hiện tại) | Gõ `./script.sh` |
+| `TEN: command not found` | Viết `TEN = 'x'` có khoảng trắng | Bỏ khoảng trắng: `TEN='x'` |
+| `[: too many arguments` | Biến rỗng/có space không quote | Quote biến: `[ "$x" = "y" ]` |
+| `bad interpreter` | Sai shebang hoặc file có ký tự Windows (CRLF) | Kiểm tra dòng `#!/bin/bash`; `dos2unix script.sh` |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** viết script nhận 1 số, in `Chẵn` hoặc `Lẻ` (gợi ý: `$((n % 2))`).
-- Giải thích ý nghĩa exit code 0 và khác 0.
-- Phân biệt `$@` (danh sách tham số) và `$#` (số lượng tham số).
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Viết script nhận 1 số, in "Chẵn" hoặc "Lẻ".</summary>
+
+> ```bash
+> #!/bin/bash
+> if [ $(( $1 % 2 )) -eq 0 ]; then echo "Chẵn"; else echo "Lẻ"; fi
+> ```
+> `$(( ))` là *arithmetic expansion* (tính số học), `%` là chia lấy dư.
+</details>
+
+<details>
+<summary>2. Exit code 0 và khác 0 nghĩa là gì?</summary>
+
+> `0` = lệnh thành công; khác `0` = có lỗi. Xem bằng `echo $?`.
+</details>
+
+<details>
+<summary>3. `$@` và `$#` khác nhau thế nào?</summary>
+
+> `$@` = danh sách **tất cả** tham số. `$#` = **số lượng** tham số.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
 | `./hello.sh` | In `Hello DevOps` |
 | `echo $?` sau lệnh thành công | `0` |
-| `./greet.sh An` | `Xin chào, An!` |
+| `./greet.sh` (nhập An) | `Xin chào, An!` |
 
-✅ **Kết quả đạt được:** Viết được script Bash với biến, điều kiện, vòng lặp, hàm.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Script** | File chứa chuỗi lệnh để máy tự chạy |
+| **Shebang** (`#!/bin/bash`) | Dòng đầu chỉ định trình thông dịch |
+| **Variable** | Biến — hộp đựng giá trị |
+| **Exit code** (`$?`) | Mã kết thúc: 0 = ok, khác 0 = lỗi |
+| **Argument / Parameter** | Tham số truyền vào script (`$1`, `$2`) |
+| **Loop / Condition** | Vòng lặp (`for`/`while`) / điều kiện (`if`) |
+| **Function** | Hàm — nhóm lệnh gọi lại được |
+
+✅ **Kết quả đạt được:** Viết được script Bash với biến, điều kiện, vòng lặp, hàm, và hiểu exit code.
 
 ---
 
 ## Ngày 6 — Bash Scripting: Nâng cao & tự động hóa
 
 > ⏱️ ~90 phút · Loại: Bash
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 5 (Bash cơ bản) → **Ngày 6 (ghép công cụ + xử lý văn bản + hẹn giờ tự động)** → Ngày 7 (mạng). Hôm nay bạn viết được script *tự động hoá thật* (backup theo lịch) — đúng công việc SysOps làm mỗi ngày.
+>
+> ✅ **Chuẩn bị:** đã nắm Bash cơ bản (Ngày 5). Có thư mục `~/devops-lab` để thực hành backup.
 
 ### 📘 Lý thuyết
 
-- **Pipe & redirect:** `|` (nối lệnh), `>` (ghi đè), `>>` (nối thêm), `2>` (ghi lỗi), `&>` (cả output + lỗi), `<` (đầu vào).
-- **Lệnh xử lý văn bản:** `grep` (tìm), `sed` (thay thế), `awk` (xử lý cột), `cut`, `sort`, `uniq`, `wc -l` (đếm dòng).
-- **Kết hợp:** `ps aux | grep nginx | awk '{print $2}'` → lấy PID.
-- **Xử lý lỗi:** `set -e`, `set -u`, `trap` (bắt tín hiệu — dọn dẹp khi thoát).
-- **Mảng:** `arr=(a b c)`; `${arr[0]}`; `${arr[@]}` (tất cả); `${#arr[@]}` (số phần tử).
-- **Cron job:** tự động chạy script theo lịch; `crontab -e` để sửa. Cú pháp: `phút giờ ngày tháng thứ lệnh`.
-- **Logging:** ghi log có timestamp bằng `date` trong script để debug sau này.
+#### 1. Pipe & Redirect — nối và chuyển hướng dữ liệu
 
-> **Cú pháp cron** — 5 trường: `* * * * *` = phút (0–59) · giờ (0–23) · ngày (1–31) · tháng (1–12) · thứ (0–6, 0=CN)
-> Ví dụ: `0 2 * * *` = 2h sáng mỗi ngày · `*/15 * * * *` = mỗi 15 phút · `0 3 * * 0` = 3h sáng Chủ Nhật.
+| Ký hiệu | Ý nghĩa | Ví dụ |
+|---|---|---|
+| `\|` | Nối: output lệnh trái → input lệnh phải | `ps aux \| grep nginx` |
+| `>` | Ghi đè ra file (xoá cũ) | `echo hi > f.txt` |
+| `>>` | Nối thêm vào cuối file | `echo hi >> f.txt` |
+| `2>` | Chuyển hướng **lỗi** (stderr) | `cmd 2> err.log` |
+| `2>&1` | Gộp lỗi chung với output | `cmd >> log 2>&1` |
+| `<` | Lấy đầu vào từ file | `mysql < dump.sql` |
+
+#### 2. Ba công cụ xử lý văn bản phải thuộc
+
+| Lệnh | Vai trò | Ví như |
+|---|---|---|
+| `grep` | Tìm dòng chứa chữ gì đó | Ctrl+F |
+| `awk` | Cắt lấy **cột** | Lấy cột B trong Excel |
+| `sed` | Tìm-và-thay-thế hàng loạt | Find & Replace |
+
+Ghép lại: `ps aux | grep nginx | awk '{print $2}'` = "liệt kê tiến trình → lọc dòng nginx → in cột 2 (PID)".
+
+#### 3. Xử lý lỗi & làm script bền
+
+- `set -e` dừng khi có lệnh lỗi; `set -u` báo lỗi nếu dùng biến chưa khai báo; `set -o pipefail` bắt lỗi giữa pipe. Gộp: `set -euo pipefail`.
+- `trap 'dọn_dẹp' EXIT` — chạy hàm dọn dẹp khi script thoát (xoá file tạm, gỡ lock...).
+- `cmd1 && cmd2` (chạy cmd2 nếu cmd1 OK), `cmd1 || cmd2` (chạy cmd2 nếu cmd1 lỗi) — nền tảng script tự phục hồi.
+
+#### 4. Mảng
+
+```bash
+arr=(web db cache)
+echo "${arr[0]}"      # web
+echo "${arr[@]}"      # tất cả: web db cache
+echo "${#arr[@]}"     # số phần tử: 3
+```
+
+#### 5. Cron — hẹn giờ chạy tự động
+
+`crontab -e` để sửa lịch. Cú pháp **5 trường** + lệnh:
+
+```
+┌───── phút (0-59)
+│ ┌─── giờ (0-23)
+│ │ ┌─ ngày trong tháng (1-31)
+│ │ │ ┌ tháng (1-12)
+│ │ │ │ ┌ thứ (0-6, 0=Chủ Nhật)
+* * * * *  <lệnh>
+```
+
+| Lịch | Ý nghĩa |
+|---|---|
+| `0 2 * * *` | 2h sáng **mỗi ngày** |
+| `*/15 * * * *` | **Mỗi 15 phút** |
+| `0 3 * * 0` | 3h sáng **Chủ Nhật** |
+
+`*` = "mọi giá trị". Xem lịch hiện có: `crontab -l`.
+
+#### 6. Logging trong script
+
+Ghi log có mốc thời gian để sau này điều tra: `echo "[$(date '+%F %T')] thông điệp" >> app.log`. Cron chạy âm thầm — không log thì hỏng cũng không biết.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -1060,11 +1397,46 @@ Muốn máy *tự* chạy script lúc 2h sáng mỗi ngày? Đó là việc củ
 
 ### 🧪 Lab cơ bản
 
-1. Script backup: nén `~/devops-lab` thành `.tar.gz` có timestamp trong tên.
-2. Dùng `grep + awk` lấy danh sách PID các tiến trình của 1 user.
-3. Script kiểm tra dung lượng đĩa, nếu >80% thì in cảnh báo (`df + awk`).
-4. Tạo cron job chạy backup 2h sáng mỗi ngày: `0 2 * * * /path/backup.sh`.
-5. Thêm logging có timestamp vào script, ghi ra `~/devops-lab/logs/backup.log`.
+> Mục tiêu: viết một script backup có log, rồi hẹn giờ cho nó tự chạy bằng cron.
+
+**Bước 1 — Script backup `backup.sh`** (file đầy đủ):
+```bash
+#!/bin/bash
+STAMP="$(date +%F_%H%M%S)"
+LOG="$HOME/devops-lab/logs/backup.log"
+mkdir -p "$HOME/devops-lab/logs" "$HOME/devops-lab/backups"
+
+echo "[$(date '+%F %T')] Bắt đầu backup" >> "$LOG"
+tar -czf "$HOME/devops-lab/backups/backup-$STAMP.tar.gz" -C "$HOME/devops-lab" scripts configs
+echo "[$(date '+%F %T')] Xong: backup-$STAMP.tar.gz" >> "$LOG"
+```
+```bash
+chmod +x backup.sh && ./backup.sh
+ls ~/devops-lab/backups     # thấy backup-2026-....tar.gz
+cat ~/devops-lab/logs/backup.log
+```
+
+**Bước 2 — Dùng grep + awk lấy PID.**
+```bash
+ps aux | grep bash | awk '{print $2}'    # in cột PID của các tiến trình bash
+```
+
+**Bước 3 — Kiểm tra dung lượng đĩa (df + awk).**
+```bash
+USAGE=$(df / | awk 'NR==2{print $5}' | tr -d '%')
+echo "Đĩa / đang dùng ${USAGE}%"
+[ "$USAGE" -gt 80 ] && echo "⚠️ CẢNH BÁO: đĩa gần đầy!"
+```
+
+**Bước 4 — Hẹn giờ backup 2h sáng mỗi ngày.**
+```bash
+crontab -e
+# thêm dòng (đường dẫn TUYỆT ĐỐI):
+# 0 2 * * * /home/<user>/devops-lab/scripts/backup.sh >> /home/<user>/devops-lab/logs/cron.log 2>&1
+crontab -l                  # xác nhận dòng vừa thêm
+```
+
+**Bước 5 — Log đã có sẵn** trong `backup.sh` ở Bước 1 (mỗi dòng có `[thời gian]`). Kiểm tra `cat ~/devops-lab/logs/backup.log`.
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -1136,36 +1508,95 @@ journalctl -u backup.service   # log của lần backup gần nhất
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** viết script backup (tar) → lọc văn bản (grep/awk) → kiểm tra đĩa → hẹn giờ bằng cron → thêm logging.
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `tar -czf backup-$(date +%F).tar.gz ~/devops-lab` — `c`=create, `z`=nén gzip, `f`=tên file; `$(date +%F)` chèn ngày YYYY-MM-DD vào tên. *Kết quả:* file `.tar.gz` xuất hiện.
-- `ps aux | grep nginx | awk '{print $2}'` — `awk '{print $2}'` in **cột 2** (PID). **Vì sao:** trích đúng dữ liệu từ output lộn xộn.
-- `df / | awk 'NR==2{print $5}' | tr -d '%'` — lấy % dùng đĩa, bỏ `%` để so sánh số. *Kết quả:* ra số như `42`.
-- `crontab -e` — sửa bảng hẹn giờ. 5 trường: `phút giờ ngày tháng thứ`. `0 2 * * *` = 2h sáng mỗi ngày; `*/15 * * * *` = mỗi 15 phút.
-- `>> file 2>&1` — ghi cả output (`>>` nối thêm) lẫn lỗi (`2>&1`) vào log. **Vì sao cron cần:** cron chạy âm thầm, không log thì hỏng cũng không biết.
+**Bước 1 — Chạy backup và kiểm tra kết quả.**
+```bash
+./backup.sh
+ls ~/devops-lab/backups
+```
+Bạn sẽ thấy file `backup-2026-...tar.gz`.
+✅ **Checkpoint:** có file `.tar.gz` mới + log ghi 2 dòng.
+💡 `tar -czf`: `c`=create, `z`=nén gzip, `f`=tên file. `$(date +%F_%H%M%S)` là *command substitution* — bash chạy `date` rồi chèn kết quả vào tên file.
 
-**🧪 Thử nghiệm:**
-- `echo x > f` (2 lần) vs `echo x >> f` (2 lần) rồi `cat f`. **Bài học:** `>` ghi đè (1 dòng), `>>` nối thêm (2 dòng).
-- `grep -c -i error /var/log/syslog` — đếm dòng chứa "error". **Bài học:** `grep` + đếm = công cụ điều tra log.
+**Bước 2 — Hiểu `>` vs `>>` bằng trải nghiệm.**
+```bash
+echo x > f; echo x > f; cat f      # chỉ 1 dòng (ghi đè)
+echo x >> f; echo x >> f; cat f    # thêm 2 dòng (nối thêm)
+```
+✅ **Checkpoint:** thấy rõ `>` ghi đè, `>>` nối thêm.
 
-⚠️ **Dễ sai:** cron không có `$PATH` đầy đủ như terminal → dùng **đường dẫn tuyệt đối** cho lệnh/script trong cron, nếu không "chạy tay được mà cron thì không".
+**Bước 3 — Trích dữ liệu bằng grep + awk.**
+```bash
+df / | awk 'NR==2{print $5}' | tr -d '%'
+```
+Bạn sẽ thấy một con số (vd `42`).
+✅ **Checkpoint:** ra số phần trăm đĩa (không có dấu `%`).
+💡 `awk 'NR==2'` lấy dòng thứ 2, `{print $5}` in cột 5, `tr -d '%'` xoá dấu `%` để so sánh số được.
 
-💡 **Hiểu sâu:** `$(lệnh)` là *command substitution* — bash chạy lệnh bên trong rồi thay bằng kết quả: `backup-$(date +%F).tar.gz` → `backup-2026-06-22.tar.gz`. Hiện đại hơn cron là **systemd timer** (xem 💡 Bổ sung).
+**Bước 4 — Hẹn giờ bằng cron.**
+```bash
+crontab -e     # thêm dòng lịch (dùng đường dẫn TUYỆT ĐỐI)
+crontab -l     # xác nhận
+```
+✅ **Checkpoint:** `crontab -l` in ra dòng lịch vừa thêm.
+⚠️ **Cực hay sai:** cron KHÔNG có `$PATH` đầy đủ như terminal → luôn dùng **đường dẫn tuyệt đối** cho script/lệnh, nếu không "chạy tay được mà cron thì không".
+
+### 🐛 Gỡ lỗi nhanh
+
+**🔧 Debug script:** `bash -x ./script.sh` in từng lệnh khi chạy. Debug cron: luôn thêm `>> cron.log 2>&1` vào dòng cron để bắt lỗi.
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Script chạy tay OK, cron thì không | Cron thiếu `$PATH`, dùng đường dẫn tương đối | Dùng đường dẫn tuyệt đối cho mọi lệnh/file |
+| Không biết cron có chạy không | Không ghi log | Thêm `>> /path/cron.log 2>&1` vào dòng cron |
+| `tar: Removing leading /` (cảnh báo) | Dùng đường dẫn tuyệt đối trong tar | Bình thường; hoặc dùng `-C <thư_mục>` rồi đường dẫn tương đối |
+| So sánh số báo `integer expression expected` | Biến chứa ký tự (vd còn dấu `%`) | Lọc sạch bằng `tr -d '%'` trước khi so sánh |
+| Cron chạy sai giờ | Nhầm thứ tự 5 trường, hoặc sai múi giờ | Nhớ `phút giờ ngày tháng thứ`; kiểm `timedatectl` |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** viết cron chạy mỗi 15 phút → **đáp án: `*/15 * * * *`**.
-- Giải thích khác nhau giữa `>` (ghi đè) và `>>` (nối thêm).
-- Dùng `grep + wc -l` đếm số dòng chứa từ `error` trong 1 file log.
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Viết dòng cron chạy mỗi 15 phút.</summary>
+
+> `*/15 * * * * <lệnh>`
+</details>
+
+<details>
+<summary>2. `>` và `>>` khác nhau thế nào?</summary>
+
+> `>` ghi đè (xoá nội dung cũ), `>>` nối thêm vào cuối file.
+</details>
+
+<details>
+<summary>3. Đếm số dòng chứa "error" trong file log?</summary>
+
+> `grep -c -i error /var/log/syslog` (hoặc `grep -i error file | wc -l`). `-c` đếm, `-i` không phân biệt hoa/thường.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Chạy `backup.sh` | Tạo `backup-YYYYMMDD_HHMMSS.tar.gz` |
+| Chạy `backup.sh` | Tạo `backup-YYYY-MM-DD_HHMMSS.tar.gz` |
 | `crontab -l` | Hiện dòng lịch chạy script |
 | Xem log | Mỗi dòng dạng `[2026-06-05 10:00:00] ...` |
 
-✅ **Kết quả đạt được:** Tự động hóa tác vụ với Bash, cron, xử lý văn bản — kỹ năng SysOps thực chiến.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Pipe** (`\|`) | Nối output lệnh này vào input lệnh kia |
+| **Redirect** (`>`, `>>`) | Chuyển hướng output ra file (ghi đè/nối) |
+| **stdout / stderr** | Luồng ra chuẩn / luồng lỗi chuẩn (`2>`) |
+| **Cron / crontab** | Trình hẹn giờ chạy lệnh theo lịch / bảng lịch |
+| **Command substitution** `$( )` | Chạy lệnh rồi thay bằng kết quả |
+| **Retention policy** | Chính sách giữ/xoá backup cũ |
+| **Array** | Mảng — danh sách nhiều giá trị |
+
+✅ **Kết quả đạt được:** Tự động hóa tác vụ với Bash, cron, xử lý văn bản (grep/awk/sed), redirect & log — kỹ năng SysOps thực chiến.
 
 ---
 
