@@ -1603,24 +1603,63 @@ crontab -l     # xác nhận
 ## Ngày 7 — Mạng máy tính cho DevOps: Cơ bản
 
 > ⏱️ ~90 phút · Loại: Network
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 6 (tự động hoá Bash) → **Ngày 7 (IP, port, DNS, HTTP — cách các máy nói chuyện)** → Ngày 8 (SSH). Mạng là nền để hiểu vì sao "app không gọi được API", "server không truy cập được" — kỹ năng debug sống còn.
+>
+> ✅ **Chuẩn bị:** môi trường Linux có Internet. Cài sẵn vài công cụ: `sudo apt install -y iproute2 dnsutils netcat-openbsd curl`.
 
 ### 📘 Lý thuyết
 
-- **Mô hình TCP/IP:** tầng ứng dụng (HTTP, DNS) → giao vận (TCP, UDP) → Internet (IP) → liên kết.
-- **Địa chỉ IP:** IPv4 (`192.168.1.1`), public vs private; CIDR (`192.168.1.0/24`); localhost (`127.0.0.1`).
-- **Port (cổng dịch vụ):**
-  | Dịch vụ | Port |
-  |---|---|
-  | SSH | 22 |
-  | HTTP | 80 |
-  | HTTPS | 443 |
-  | DNS | 53 |
-  | MySQL | 3306 |
-  | PostgreSQL | 5432 |
-- **DNS:** phân giải tên miền → IP; bản ghi A, CNAME, MX; lệnh `nslookup`, `dig`.
-- **TCP vs UDP:** TCP đáng tin cậy (bắt tay 3 bước), UDP nhanh nhưng không đảm bảo.
-- **Công cụ kiểm tra:** `ping` (kết nối), `curl` (gửi HTTP request), `wget` (tải), `netstat`/`ss` (xem cổng đang mở), `traceroute`.
-- **HTTP status:** 2xx (OK), 3xx (redirect), 4xx (lỗi client, vd 404 không tìm thấy), 5xx (lỗi server, vd 500).
+#### 1. Mô hình TCP/IP — dữ liệu đi qua các tầng
+
+Dữ liệu đóng gói qua 4 tầng: **Ứng dụng** (HTTP, DNS) → **Giao vận** (TCP, UDP) → **Internet** (IP) → **Liên kết** (mạng vật lý). Bạn chủ yếu làm việc ở tầng ứng dụng và giao vận.
+
+#### 2. Địa chỉ IP — "địa chỉ nhà" của mỗi máy
+
+| Khái niệm | Nghĩa |
+|---|---|
+| IPv4 | Dạng `192.168.1.10` (4 số 0–255) |
+| Private IP | Địa chỉ trong mạng nội bộ (`10.x`, `192.168.x`, `172.16-31.x`) |
+| Public IP | Địa chỉ Internet nhìn thấy được |
+| `127.0.0.1` (localhost) | Chính máy này |
+| CIDR `192.168.1.0/24` | Một dải mạng — `/24` = 256 địa chỉ |
+
+#### 3. Port — "số căn hộ" của dịch vụ
+
+Một máy (1 IP) chạy nhiều dịch vụ, mỗi dịch vụ ngồi ở một **cổng (port)**. Gửi request tới `IP:port` = giao thư tới đúng căn hộ.
+
+| Dịch vụ | Port | Dịch vụ | Port |
+|---|---|---|---|
+| SSH | 22 | DNS | 53 |
+| HTTP | 80 | MySQL | 3306 |
+| HTTPS | 443 | PostgreSQL | 5432 |
+
+#### 4. DNS — "danh bạ" đổi tên miền thành IP
+
+`google.com` → `142.250.x.x`. Bản ghi hay gặp: **A** (tên → IPv4), **CNAME** (tên → tên khác), **MX** (mail). Tra bằng `nslookup <domain>` hoặc `dig <domain>`.
+
+#### 5. TCP vs UDP
+
+| | TCP | UDP |
+|---|---|---|
+| Kiểu | Thư bảo đảm, có xác nhận (bắt tay 3 bước) | Thả vào hòm, không xác nhận |
+| Đặc điểm | Đáng tin, chậm hơn | Nhanh, có thể rớt gói |
+| Dùng cho | Web, SSH, database | Video call, DNS, game |
+
+#### 6. HTTP status code — câu trả lời của server
+
+| Mã | Nghĩa | Ví dụ |
+|---|---|---|
+| `2xx` | Thành công | 200 OK |
+| `3xx` | Chuyển hướng | 301 Moved |
+| `4xx` | Lỗi do **client** | 404 Not Found, 403 Forbidden |
+| `5xx` | Lỗi do **server** | 500 Internal Error, 502 Bad Gateway |
+
+> 🔑 Phân biệt 4xx/5xx cho biết "lỗi tại mình (client) hay tại server" — hướng debug khác hẳn nhau.
+
+#### 7. Công cụ kiểm tra mạng
+
+`ping` (máy còn sống?), `curl` (gửi HTTP request), `wget` (tải file), `ss`/`netstat` (cổng nào đang mở), `traceroute`/`mtr` (gói đi qua đâu), `nc` (netcat — kiểm tra cổng).
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -1644,11 +1683,38 @@ Phân biệt 4xx/5xx giúp bạn biết "lỗi tại mình hay tại server".
 
 ### 🧪 Lab cơ bản
 
-1. Kiểm tra IP máy: `ip addr` (hoặc `ip a`).
-2. Ping thử: `ping -c 4 google.com`, quan sát thời gian phản hồi.
-3. Gọi API công khai: `curl https://api.github.com`, xem JSON trả về.
-4. Xem cổng đang lắng nghe: `ss -tuln`.
-5. Phân giải DNS: `nslookup github.com` và `dig github.com` — so sánh.
+> Mục tiêu: dùng thành thạo bộ công cụ mạng để tự trả lời "máy có mạng không / cổng có mở không / tên miền ra IP nào".
+
+**Bước 1 — Xem IP của máy.**
+```bash
+ip addr        # hoặc: ip a
+```
+Bạn sẽ thấy dòng `inet 192.168.x.x` — đó là IP nội bộ của bạn.
+
+**Bước 2 — Ping kiểm tra kết nối.**
+```bash
+ping -c 4 google.com
+```
+Bạn sẽ thấy 4 dòng `64 bytes ... time=..ms` (`-c 4` để không ping vô hạn).
+
+**Bước 3 — Gọi một API công khai.**
+```bash
+curl https://api.github.com
+```
+Bạn sẽ thấy một khối JSON trả về.
+
+**Bước 4 — Xem cổng đang lắng nghe trên máy.**
+```bash
+ss -tuln
+```
+Bạn sẽ thấy danh sách `LISTEN` trên các cổng (vd `22`, `80`).
+
+**Bước 5 — Phân giải DNS và so sánh 2 công cụ.**
+```bash
+nslookup github.com
+dig github.com +short
+```
+Cả hai đều ra địa chỉ IP của `github.com`.
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -1695,53 +1761,153 @@ Phân biệt 4xx/5xx giúp bạn biết "lỗi tại mình hay tại server".
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** xem IP máy → ping kiểm tra kết nối → gọi API bằng curl → xem cổng đang mở → phân giải DNS.
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**. Trọng tâm ngày này là *phản xạ debug mạng*.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `ip a` (hoặc `ip addr`) — xem IP các card mạng. *Kết quả:* dòng `inet 192.168.x.x` là IP nội bộ của bạn.
-- `ping -c 4 google.com` — gửi 4 gói thử (`-c 4` để không ping vô hạn). *Kết quả:* `64 bytes ... time=..ms`.
-- `curl https://api.github.com` — gửi HTTP GET, in nội dung trả về (JSON). **Vì sao curl:** công cụ test API/website từ dòng lệnh.
-- `ss -tuln` — cổng đang **lắng nghe**: `-t` TCP, `-u` UDP, `-l` listening, `-n` hiện số. *Kết quả:* danh sách LISTEN trên 22, 80...
-- `nslookup github.com` / `dig github.com` — phân giải tên miền → IP. *Kết quả:* ra địa chỉ IP của domain.
+**Bước 1 — Xác định máy có ra Internet không.**
+```bash
+ping -c 4 8.8.8.8        # ping IP (kiểm tra mạng)
+ping -c 4 google.com     # ping tên (kiểm tra cả DNS)
+```
+✅ **Checkpoint:** cả hai đều có `time=..ms`.
+💡 Nếu ping IP được nhưng ping tên fail → mạng OK nhưng **DNS hỏng**. Đây là cách khoanh vùng lỗi.
 
-**🧪 Thử nghiệm:**
-- `nc -zv github.com 443` (mở) vs `nc -zv github.com 444` (đóng). **Bài học:** phân biệt "cổng mở" với "đóng/timeout" — kỹ năng debug cốt lõi.
-- `curl -o /dev/null -s -w "HTTP %{http_code} | %{time_total}s\n" https://github.com` — chỉ in mã trạng thái + thời gian. **Bài học:** đo nhanh website sống/chậm.
+**Bước 2 — Đo một website "sống & nhanh" không.**
+```bash
+curl -o /dev/null -s -w "HTTP %{http_code} | %{time_total}s\n" https://github.com
+```
+Bạn sẽ thấy: `HTTP 200 | 0.35s`.
+✅ **Checkpoint:** mã `200` (hoặc `301`), kèm thời gian phản hồi.
 
-⚠️ **Dễ sai:** nhầm "ping được = mọi thứ OK". Ping (ICMP) chạy nhưng cổng dịch vụ (80/443) vẫn có thể chết. Phải kiểm cả tầng dịch vụ (`curl`/`nc`).
+**Bước 3 — Kiểm tra một cổng có mở không (mở vs đóng).**
+```bash
+nc -zv github.com 443     # mở  → "succeeded"
+nc -zv github.com 444     # đóng → "timed out" hoặc "refused"
+```
+✅ **Checkpoint:** thấy rõ khác biệt giữa cổng mở và đóng.
+💡 Đây là kỹ năng debug cốt lõi: "app không gọi được DB" thường là cổng đóng/firewall chặn.
 
-💡 **Hiểu sâu:** port là "cánh cửa" dịch vụ trên 1 IP: SSH 22, HTTP 80, HTTPS 443, MySQL 3306, PostgreSQL 5432. `ss -tlnp` (thêm `p`) cho biết *tiến trình nào* giữ cổng — vàng khi điều tra "ai chiếm cổng 80".
+**Bước 4 — Xem tiến trình nào giữ cổng nào.**
+```bash
+sudo ss -tlnp
+```
+✅ **Checkpoint:** thấy cột `users:(("nginx",pid=...))` — biết *ai* đang nghe cổng 80.
+
+### 🐛 Gỡ lỗi nhanh
+
+**🔧 Phản xạ điều tra mạng theo tầng:** `ping IP` (mạng?) → `ping tên` (DNS?) → `nc -zv host port` (cổng mở?) → `curl -v` (tầng HTTP?).
+
+| Triệu chứng | Nguyên nhân | Cách phân biệt / sửa |
+|---|---|---|
+| Ping IP được, ping tên fail | DNS hỏng | Kiểm tra `/etc/resolv.conf`; thử `dig @1.1.1.1 <tên>` |
+| `Connection refused` | Cổng đóng / không có dịch vụ nghe | Dịch vụ chưa chạy — kiểm `ss -tlnp` trên máy đích |
+| `Connection timed out` | Firewall chặn im lặng | Kiểm firewall (Ngày 9), security group cloud |
+| Ping được nhưng web không vào | Dịch vụ ở cổng 80/443 chết | `curl -v`; kiểm `systemctl status nginx` |
+| `curl` trả 502/504 | Reverse proxy không tới được backend | Kiểm backend có chạy không (học kỹ Ngày 23) |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** liệt kê port mặc định của SSH, HTTP, HTTPS, MySQL.
-- 404 vs 500 khác nhau ý nghĩa thế nào? (404 = client gọi sai đường dẫn; 500 = server lỗi).
-- Khi nào dùng TCP, khi nào dùng UDP?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Port mặc định của SSH, HTTP, HTTPS, MySQL, PostgreSQL?</summary>
+
+> SSH 22, HTTP 80, HTTPS 443, MySQL 3306, PostgreSQL 5432.
+</details>
+
+<details>
+<summary>2. 404 vs 500 khác nhau thế nào?</summary>
+
+> 404 = lỗi phía **client** (gọi sai đường dẫn, trang không tồn tại). 500 = lỗi phía **server** (server hỏng khi xử lý). 4xx = tại mình, 5xx = tại server.
+</details>
+
+<details>
+<summary>3. Khi nào dùng TCP, khi nào UDP?</summary>
+
+> TCP khi cần tin cậy (web, SSH, database). UDP khi cần nhanh, chấp nhận rớt gói (video call, DNS, game).
+</details>
+
+<details>
+<summary>4. "Ping được nghĩa là mọi thứ OK" — đúng hay sai?</summary>
+
+> Sai. Ping (ICMP) chỉ nói máy còn sống; dịch vụ ở cổng 80/443 vẫn có thể chết. Phải kiểm cả tầng dịch vụ bằng `curl`/`nc`.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
 | `ip a` | Hiện inet `192.168.x.x` |
-| `ping google.com` | `64 bytes... time=..ms` |
-| `ss -tlnp` | Liệt kê LISTEN trên 22, 80... |
+| `ping -c4 google.com` | `64 bytes... time=..ms` |
+| `sudo ss -tlnp` | Liệt kê LISTEN + tiến trình trên 22, 80... |
 
-✅ **Kết quả đạt được:** Hiểu IP, port, DNS, HTTP — kiến thức mạng nền tảng để làm việc với server.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **IP address** | Địa chỉ máy trên mạng |
+| **Port** | Cổng — điểm vào của một dịch vụ trên máy |
+| **DNS** | Hệ phân giải tên miền → IP |
+| **TCP / UDP** | Hai giao thức giao vận (tin cậy / nhanh) |
+| **HTTP status code** | Mã kết quả HTTP (2xx/4xx/5xx) |
+| **CIDR** (`/24`) | Cách viết dải mạng |
+| **Listening port** | Cổng đang mở chờ kết nối |
+
+✅ **Kết quả đạt được:** Hiểu IP, port, DNS, HTTP và có phản xạ debug mạng theo tầng — nền tảng làm việc với server.
 
 ---
 
 ## Ngày 8 — SSH: Kết nối & quản lý server từ xa
 
 > ⏱️ ~90 phút · Loại: Network
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 7 (mạng cơ bản) → **Ngày 8 (đăng nhập & quản lý server từ xa bằng SSH)** → Ngày 9 (hardening bảo mật). SSH là cách bạn "ngồi vào" mọi server trên đời — kỹ năng dùng mỗi ngày suốt sự nghiệp.
+>
+> ✅ **Chuẩn bị:** đã tạo SSH key ở Ngày 1. Có thể thực hành với GitHub (miễn phí) hoặc một VM Linux thứ hai làm "server".
 
 ### 📘 Lý thuyết
 
-- **SSH (Secure Shell):** giao thức kết nối an toàn tới server từ xa, mặc định cổng 22.
-- **Đăng nhập:** `ssh user@host` hoặc `ssh -p 2222 user@host`.
-- **Khóa SSH:** cặp khóa public/private; xác thực bằng khóa an toàn hơn mật khẩu.
-- **Tạo khóa:** `ssh-keygen -t ed25519 -C 'email'`; lưu ở `~/.ssh/`.
-- **Copy khóa lên server:** `ssh-copy-id user@host` (thêm public key vào `~/.ssh/authorized_keys`).
-- **Chuyển file:** `scp file user@host:/path`, `rsync -avz` (đồng bộ, hiệu quả hơn).
-- **File config `~/.ssh/config`:** đặt alias cho server để gõ gọn.
-- **Bảo mật SSH:** tắt đăng nhập root, đổi cổng mặc định, chỉ dùng key (sửa `/etc/ssh/sshd_config`).
+#### 1. SSH là gì
+
+**SSH (Secure Shell)** là giao thức đăng nhập vào server từ xa qua mạng **một cách mã hoá an toàn** — như Remote Desktop nhưng bằng dòng lệnh. Mặc định chạy ở cổng 22.
+
+```bash
+ssh user@host                 # kết nối cơ bản
+ssh -p 2222 user@host         # nếu server đổi cổng SSH sang 2222
+```
+
+#### 2. Khoá SSH — vì sao tốt hơn mật khẩu
+
+Khi tạo key bạn được **một cặp**:
+- **Private key** (`id_ed25519`) — giữ kín trên máy bạn, KHÔNG bao giờ chia sẻ.
+- **Public key** (`id_ed25519.pub`) — đem dán lên server.
+
+Cơ chế: chỉ ai giữ private key tương ứng mới "mở" được ổ khoá public trên server. Mật khẩu có thể bị brute-force; key thì dài và không gõ qua mạng → an toàn hơn nhiều.
+
+#### 3. Các thao tác dùng hằng ngày
+
+| Lệnh | Làm gì |
+|---|---|
+| `ssh-keygen -t ed25519 -C 'email'` | Tạo cặp khoá |
+| `ssh-copy-id user@host` | Dán public key lên server (lần sau khỏi nhập mật khẩu) |
+| `scp file user@host:~/` | Copy 1 file qua mạng |
+| `rsync -avz ./d/ user@host:/d/` | Đồng bộ thư mục (chỉ copy phần thay đổi) |
+
+#### 4. File `~/.ssh/config` — "danh bạ server"
+
+Thay vì gõ IP dài mỗi lần, đặt biệt danh:
+```ssh-config
+Host web-01
+    HostName 10.0.0.11
+    User admin
+    IdentityFile ~/.ssh/id_ed25519
+```
+Giờ chỉ cần `ssh web-01`.
+
+#### 5. Bảo mật SSH (đào sâu Ngày 9)
+
+Sửa `/etc/ssh/sshd_config`: `PermitRootLogin no` (cấm login root), `PasswordAuthentication no` (chỉ dùng key), có thể đổi cổng mặc định. Sau khi sửa: `sudo sshd -t` (test) → `sudo systemctl reload ssh`.
+
+> 🔑 Luôn giữ **1 phiên SSH đang mở** khi sửa cấu hình sshd — nếu lỡ khoá nhầm còn cứu được.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -1761,11 +1927,42 @@ Khi tạo key, bạn được **một cặp**: khóa *private* (giữ kín trên
 
 ### 🧪 Lab cơ bản
 
-1. Tạo cặp khóa: `ssh-keygen -t ed25519 -C 'devops-lab'`.
-2. Xem public key: `cat ~/.ssh/id_ed25519.pub`.
-3. Thêm SSH key vào GitHub, test: `ssh -T git@github.com`.
-4. Tạo `~/.ssh/config` với 1 alias mẫu cho server.
-5. Thực hành `scp` copy file giữa các thư mục / máy.
+> Mục tiêu: kết nối bằng key (không mật khẩu), đặt alias server, và copy file qua SSH.
+
+**Bước 1 — Tạo (hoặc dùng lại) cặp khoá.**
+```bash
+ssh-keygen -t ed25519 -C 'devops-lab'    # Enter 3 lần nếu chưa có key
+cat ~/.ssh/id_ed25519.pub                # xem public key
+```
+
+**Bước 2 — Gắn key lên GitHub và test.**
+Copy nội dung `.pub` vào GitHub → Settings → SSH keys, rồi:
+```bash
+ssh -T git@github.com
+```
+Bạn sẽ thấy: `Hi <username>! You've successfully authenticated...`.
+
+**Bước 3 — Tạo file `~/.ssh/config` với 1 alias.**
+```ssh-config
+Host web-01
+    HostName 10.0.0.11
+    User admin
+    IdentityFile ~/.ssh/id_ed25519
+```
+(Sửa HostName/User theo server thật của bạn. Nếu chưa có server, cứ tạo để hiểu cú pháp.)
+
+**Bước 4 — (Nếu có VM thứ 2) copy public key sang và đăng nhập không mật khẩu.**
+```bash
+ssh-copy-id admin@10.0.0.11
+ssh admin@10.0.0.11        # lần này KHÔNG hỏi mật khẩu
+```
+
+**Bước 5 — Copy file qua SSH.**
+```bash
+scp ~/devops-lab/scripts/hello.sh admin@10.0.0.11:~/
+# hoặc đồng bộ cả thư mục:
+rsync -avz ~/devops-lab/scripts/ admin@10.0.0.11:~/scripts/
+```
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -1842,36 +2039,96 @@ ssh -D 1080 admin@web-01
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** tạo SSH key → xem & copy public key → gắn lên GitHub → tạo `~/.ssh/config` alias → tập scp/rsync.
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `ssh-keygen -t ed25519 -C 'devops-lab'` — tạo cặp khóa. *Kết quả:* `~/.ssh/id_ed25519` (private) + `.pub` (public).
-- `ssh user@host` / `ssh -p 2222 user@host` — kết nối; `-p` đổi cổng nếu server không dùng 22. *Kết quả:* vào shell **không hỏi mật khẩu** (nếu đã cài key).
-- `ssh-copy-id user@host` — chép public key lên server (vào `~/.ssh/authorized_keys`). **Vì sao:** từ đó đăng nhập bằng key.
-- `scp file user@host:~/` — copy 1 file qua SSH. `rsync -avz -e ssh ./d/ host:/d/` — đồng bộ thư mục (copy phần khác biệt).
-- File `~/.ssh/config`: đặt `Host web-01 / HostName / User / IdentityFile` → chỉ cần gõ `ssh web-01`.
+**Bước 1 — Kiểm tra bạn đã có key.**
+```bash
+ls ~/.ssh/
+```
+✅ **Checkpoint:** có `id_ed25519` và `id_ed25519.pub`. Nếu chưa → `ssh-keygen -t ed25519`.
 
-**🧪 Thử nghiệm:**
-- Tạo alias trong `~/.ssh/config` rồi `ssh web-01` thay vì gõ đầy đủ. **Bài học:** quản nhiều server không cần nhớ IP.
-- `ssh -v user@host` (verbose) khi bị từ chối — đọc nó dừng ở bước nào (offer key? permission?). **Bài học:** cách debug "không SSH được".
+**Bước 2 — Đặt đúng quyền cho `.ssh` (rất hay bị lỗi).**
+```bash
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/id_ed25519
+```
+✅ **Checkpoint:** không còn cảnh báo quyền khi SSH.
+💡 SSH **từ chối** private key nếu quyền quá mở (người khác đọc được). Đây là lỗi #1 khi "không SSH được".
 
-⚠️ **Dễ sai:** quyền `~/.ssh`/key sai → SSH từ chối. Chuẩn: `chmod 700 ~/.ssh`, `chmod 600 ~/.ssh/id_ed25519`.
+**Bước 3 — Đặt alias và dùng thử.**
+```bash
+nano ~/.ssh/config      # dán khối Host web-01 ở Lab Bước 3
+ssh web-01              # thay vì ssh admin@10.0.0.11
+```
+✅ **Checkpoint:** gõ `ssh web-01` là kết nối được (nếu server tồn tại).
 
-💡 **Hiểu sâu:** SSH có thể "đào hầm": `ssh -L 5432:10.0.1.50:5432 user@bastion` đưa cổng DB nội bộ về `localhost:5432` của bạn — chọc tới dịch vụ trong mạng riêng mà không mở thêm firewall (xem 💡 Bổ sung).
+**Bước 4 — Khi bị từ chối, debug bằng verbose.**
+```bash
+ssh -v user@host
+```
+✅ **Checkpoint:** đọc log thấy SSH dừng ở bước nào (offer key? permission denied?).
+💡 `-v` (verbose) cho thấy nó thử key nào, bị từ chối ở đâu — chìa khoá để gỡ "không SSH được".
+
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| `Permission denied (publickey)` | Public key chưa lên server, hoặc sai key | `ssh-copy-id` lại; kiểm `~/.ssh/authorized_keys` trên server |
+| `UNPROTECTED PRIVATE KEY FILE` | Quyền key quá mở | `chmod 600 ~/.ssh/id_ed25519`, `chmod 700 ~/.ssh` |
+| `Connection refused` cổng 22 | Dịch vụ ssh không chạy / sai cổng | Kiểm `systemctl status ssh` trên server; đúng `-p <cổng>` |
+| `Connection timed out` | Firewall / security group chặn | Mở cổng 22 (Ngày 9 / cloud security group) |
+| `Host key verification failed` | Host key đổi (cài lại server / MITM) | Xác minh rồi xoá dòng cũ: `ssh-keygen -R <host>` |
+| Vẫn hỏi mật khẩu dù có key | Key chưa được server chấp nhận | `ssh -v` xem nó có "offer" key không; `ssh-copy-id` lại |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** viết lệnh SSH kết nối user `admin` tới host `10.0.0.5` qua cổng `2200`. → `ssh -p 2200 admin@10.0.0.5`
-- Vì sao xác thực bằng khóa an toàn hơn mật khẩu? (key dài, không brute-force được, không gõ qua mạng).
-- Phân biệt `scp` (copy 1 lần) và `rsync` (đồng bộ, chỉ copy phần thay đổi).
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Viết lệnh SSH: user admin, host 10.0.0.5, cổng 2200.</summary>
+
+> `ssh -p 2200 admin@10.0.0.5`
+</details>
+
+<details>
+<summary>2. Vì sao xác thực bằng key an toàn hơn mật khẩu?</summary>
+
+> Key rất dài (không brute-force nổi) và **không gõ qua mạng**; private key luôn ở lại máy bạn. Mật khẩu ngắn, gõ qua mạng, dễ đoán/lộ.
+</details>
+
+<details>
+<summary>3. `scp` và `rsync` khác nhau thế nào?</summary>
+
+> `scp` copy toàn bộ file mỗi lần. `rsync` đồng bộ — chỉ copy phần **thay đổi**, tiếp tục được khi đứt, nhanh hơn với thư mục lớn.
+</details>
+
+<details>
+<summary>4. Vì sao chỉ giữ 1 phiên SSH mở khi sửa sshd_config?</summary>
+
+> Nếu cấu hình sai làm khoá SSH, phiên đang mở vẫn còn để bạn sửa lại. Đóng hết mà lỡ khoá là mất luôn quyền vào server.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| `ssh user@host` (đã copy key) | Vào shell, **không hỏi mật khẩu** |
+| `ssh -T git@github.com` | `Hi <user>! You've successfully authenticated...` |
 | `ls ~/.ssh` | Có `id_ed25519` và `id_ed25519.pub` |
-| `scp file user@host:~/` | `100% transferred` |
+| `ssh user@host` (đã copy key) | Vào shell, **không hỏi mật khẩu** |
 
-✅ **Kết quả đạt được:** Kết nối SSH bằng khóa, truyền file an toàn, cấu hình SSH — kỹ năng vận hành server thiết yếu.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **SSH** | Giao thức đăng nhập server từ xa an toàn (mã hoá) |
+| **Public / Private key** | Khoá công khai (chia sẻ) / khoá bí mật (giữ kín) |
+| **`authorized_keys`** | File chứa các public key được phép vào server |
+| **scp / rsync** | Copy file qua SSH / đồng bộ thư mục hiệu quả |
+| **Bastion / Jump host** | Máy trung gian để vào mạng nội bộ |
+| **SSH tunnel** (`-L`) | Đường hầm mã hoá tới dịch vụ nội bộ |
+| **known_hosts** | Danh sách host key đã tin tưởng |
+
+✅ **Kết quả đạt được:** Kết nối SSH bằng khoá (không mật khẩu), truyền file an toàn, cấu hình alias & hiểu tunnel — kỹ năng vận hành server thiết yếu.
 
 ---
 
