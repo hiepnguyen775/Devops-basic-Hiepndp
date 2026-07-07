@@ -83,13 +83,15 @@ Nhiều ngôn ngữ (Java, Python, Node, Go) có agent OTel tự động sinh sp
 
 > Mục tiêu: chạy Jaeger, cho một app sinh trace, và xem cây span trên UI. File đầy đủ, copy-chạy được.
 
-**Bước 1 — Chạy Jaeger all-in-one bằng Docker.**
+**Bước 1 — Chạy Jaeger v2 all-in-one bằng Docker.**
 ```bash
 docker run -d --name jaeger \
   -p 16686:16686 \
-  -p 4318:4318 \
-  jaegertracing/all-in-one:latest
+  -p 4317:4317 -p 4318:4318 \
+  jaegertracing/jaeger:2.19.0
 ```
+> ℹ️ **Dùng Jaeger v2** (image `jaegertracing/jaeger`) — v2 chạy trên nền OpenTelemetry Collector, **bật OTLP sẵn** (không cần env var), lưu tạm in-memory. Cổng `4317` = OTLP gRPC, `4318` = OTLP HTTP, `16686` = UI. (Jaeger **v1** `all-in-one` đã **EOL 31/12/2025** — nếu buộc dùng v1 phải thêm `-e COLLECTOR_OTLP_ENABLED=true`. Kiểm phiên bản v2 mới nhất tại jaegertracing.io.)
+
 Mở `http://localhost:16686` → thấy UI Jaeger (chưa có trace nào).
 
 **Bước 2 — App Node tự sinh trace (auto-instrumentation).** Tạo thư mục, 3 file:
@@ -163,10 +165,10 @@ curl localhost:3000        # gọi vài lần
 
 **Bước 1 — Chạy Jaeger và mở UI.**
 ```bash
-docker run -d --name jaeger -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one:latest
+docker run -d --name jaeger -p 16686:16686 -p 4317:4317 -p 4318:4318 jaegertracing/jaeger:2.19.0
 ```
 ✅ **Checkpoint:** mở `localhost:16686` thấy UI Jaeger.
-💡 Cổng `16686` = UI; `4318` = nơi nhận telemetry OTLP/HTTP từ app.
+💡 Cổng `16686` = UI; `4318` = OTLP/HTTP, `4317` = OTLP/gRPC. Jaeger v2 bật OTLP sẵn (v1 đã EOL — nếu dùng v1 mới cần `COLLECTOR_OTLP_ENABLED=true`).
 
 **Bước 2 — Chạy app với OTel auto-instrumentation.**
 ```bash
@@ -316,8 +318,11 @@ Khi restart, Vault niêm phong lại — kể cả admin cũng không đọc đ�
 ```bash
 docker run -d --name vault --cap-add=IPC_LOCK \
   -e VAULT_DEV_ROOT_TOKEN_ID=root \
+  -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 \
   -p 8200:8200 hashicorp/vault:latest
 ```
+> ℹ️ `VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200` để truy cập được từ host (mặc định dev nghe `127.0.0.1` trong container → port-map không tới). `--cap-add=IPC_LOCK` cho Vault khoá RAM. Image `hashicorp/vault` tự chạy `server -dev` khi có `VAULT_DEV_ROOT_TOKEN_ID`.
+
 Mở `http://localhost:8200` (UI) — đăng nhập token `root`.
 
 **Bước 2 — Cấu hình CLI trỏ tới Vault.**
@@ -379,7 +384,8 @@ docker exec -e VAULT_ADDR=http://localhost:8200 -e VAULT_TOKEN=$APPTOKEN vault \
 
 **Bước 1 — Chạy Vault dev & kiểm tra.**
 ```bash
-docker run -d --name vault --cap-add=IPC_LOCK -e VAULT_DEV_ROOT_TOKEN_ID=root -p 8200:8200 hashicorp/vault:latest
+docker run -d --name vault --cap-add=IPC_LOCK -e VAULT_DEV_ROOT_TOKEN_ID=root \
+  -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 -p 8200:8200 hashicorp/vault:latest
 export VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=root
 ```
 ✅ **Checkpoint:** UI `localhost:8200` đăng nhập bằng token `root`; `vault status` → `Sealed false`.
@@ -761,9 +767,11 @@ kubectl get nodes        # node do GKE quản
 
 **Bước 2 — Cài cert-manager (chạy được cả trên Minikube).**
 ```bash
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+# Ghim phiên bản cụ thể (khuyến nghị của cert-manager) — thay vX.Y.Z bằng bản mới nhất:
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.2/cert-manager.yaml
 kubectl get pods -n cert-manager      # các pod cert-manager Running
 ```
+> ℹ️ Docs cert-manager khuyên **ghim version** (không dùng `latest`) để tránh lệch tương thích. Xem bản mới nhất tại [cert-manager.io/docs/installation](https://cert-manager.io/docs/installation/) (hoặc cài bằng Helm cho dễ nâng cấp).
 
 **Bước 3 — Tạo `ClusterIssuer` Let's Encrypt** (`issuer.yaml`):
 ```yaml
@@ -823,9 +831,9 @@ kubectl describe certificate app-tls
 
 > Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**. Phần cert-manager làm được trên Minikube (miễn phí).
 
-**Bước 1 — Cài cert-manager.**
+**Bước 1 — Cài cert-manager** (ghim version — thay `v1.16.2` bằng bản mới nhất):
 ```bash
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.2/cert-manager.yaml
 kubectl get pods -n cert-manager
 ```
 ✅ **Checkpoint:** 3 pod cert-manager (`cert-manager`, `cainjector`, `webhook`) đều `Running`.
