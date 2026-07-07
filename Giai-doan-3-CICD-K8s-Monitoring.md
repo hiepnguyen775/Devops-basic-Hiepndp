@@ -39,17 +39,45 @@
 
 > ⏱️ ~90 phút · Loại: CI/CD
 >
+> 🧭 **Bạn đang ở đâu:** Giai đoạn 2 (Git, Docker, Cloud, IaC) → **Ngày 31 (CI/CD — robot tự build/test/deploy khi push)** → Ngày 32 (CI pipeline đầy đủ). Đây là kỹ năng "định danh" của DevOps, giải nốt nỗi đau deploy tay ở Ngày 28.
 > 🔧 *Ví dụ dùng GitHub Actions; tương đương: **GitLab CI** (`.gitlab-ci.yml`), **Jenkins**, **CircleCI**.*
+>
+> ✅ **Chuẩn bị:** một repo GitHub (có app/test càng tốt). Không cần cài gì — GitHub cấp runner sẵn.
 
 ### 📘 Lý thuyết
 
-- **CI (Continuous Integration):** mỗi lần push code → tự động build + test, phát hiện lỗi sớm.
-- **CD (Continuous Delivery/Deployment):** tự động đưa code đã test lên staging/production.
-- **Pipeline:** chuỗi bước tự động (lint → build → test → deploy).
-- **GitHub Actions:** CI/CD tích hợp sẵn GitHub; cấu hình YAML trong `.github/workflows/`.
-- **Khái niệm:** workflow, job, step, action, runner, trigger (`on: push`, `pull_request`).
-- **Marketplace:** hàng nghìn action có sẵn (checkout, setup-node, docker build...).
-- **Secret:** lưu thông tin nhạy cảm trong GitHub Secrets, không hard-code.
+#### 1. CI/CD là gì — "robot làm thay việc lặp lại"
+
+| | Viết tắt | Robot làm gì |
+|---|---|---|
+| **CI** | Continuous Integration | Mỗi lần push → tự **build + test + lint**, bắt lỗi sớm |
+| **CD** | Continuous Delivery/Deployment | Sau khi test đạt → tự **đưa lên** staging/production |
+
+Đây chính là lời giải cho 5 điểm yếu của deploy tay (Ngày 28): lặp lại được, có dấu vết, không phụ thuộc 1 người, rollback bằng re-run, ít sai.
+
+#### 2. GitHub Actions — robot có sẵn trong GitHub
+
+Đặt 1 file YAML vào `.github/workflows/`. GitHub tự đọc và chạy mỗi khi có sự kiện (push, mở PR). Không cần cài server CI riêng.
+
+#### 3. Ba tầng khái niệm
+
+| Tầng | Là gì | Cách chạy |
+|---|---|---|
+| **Workflow** | Cả quy trình (1 file YAML) | Kích bởi trigger |
+| **Job** | Nhóm việc chạy trên 1 runner sạch | Các job **song song** mặc định (`needs:` để xếp thứ tự) |
+| **Step** | Từng bước (1 lệnh/action) | **Tuần tự** trong job |
+
+#### 4. Các thành phần khác
+
+- **Trigger** (`on: push`, `on: pull_request`): khi nào workflow chạy.
+- **Action** (từ Marketplace): khối dựng sẵn — `actions/checkout`, `setup-node`, `docker build`...
+- **Runner**: máy ảo GitHub cấp (ubuntu/windows/macos), **sạch mỗi lần chạy**.
+
+#### 5. Secret
+
+Token/mật khẩu phải để trong **GitHub Secrets** (che `***` trong log), đọc bằng `${{ secrets.TÊN }}`. KHÔNG viết thẳng YAML — YAML nằm trong repo, commit = lộ.
+
+> 🔑 Ghim action theo phiên bản (`@v4`, hoặc SHA), đừng dùng `@main` (thay đổi bất ngờ — rủi ro supply chain).
 
 **Sơ đồ — cấu trúc Workflow → Job → Step:**
 ```mermaid
@@ -82,11 +110,41 @@ Bạn chỉ cần đặt 1 file YAML vào thư mục `.github/workflows/`. GitHu
 
 ### 🧪 Lab cơ bản
 
-1. Tạo `.github/workflows/ci.yml` chạy khi push: in `Hello CI`, chạy trên `ubuntu-latest`.
-2. Push lên GitHub, vào tab Actions xem workflow chạy.
-3. Thêm bước checkout code (`actions/checkout`) và setup môi trường (`setup-node`/`setup-python`).
-4. Thêm bước chạy test đơn giản (echo hoặc lệnh test thật).
-5. Tạo 1 GitHub Secret và in (che) nó trong workflow để hiểu cơ chế.
+> Mục tiêu: tạo workflow đầu tiên, thấy nó tự chạy khi push, và hiểu cơ chế Secret.
+
+**Bước 1 — Tạo `.github/workflows/ci.yml`** (file đầy đủ):
+```yaml
+name: CI
+on: [push]
+jobs:
+  hello:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "Hello CI — commit ${{ github.sha }}"
+```
+
+**Bước 2 — Push và xem chạy.**
+```bash
+git add .github/workflows/ci.yml && git commit -m "Thêm CI" && git push
+```
+Vào tab **Actions** trên GitHub → thấy 1 run với dấu ✓ xanh.
+
+**Bước 3 — Thêm setup môi trường + test.** Bổ sung vào job:
+```yaml
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: node --version
+      - run: echo "chạy test ở đây"   # thay bằng npm test nếu có
+```
+
+**Bước 4 — Tạo Secret & in (che).** GitHub → Settings → Secrets and variables → Actions → New secret (tên `MY_SECRET`). Thêm step:
+```yaml
+      - run: echo "Secret là ${{ secrets.MY_SECRET }}"
+```
+Xem log → giá trị hiện `***` (bị che).
+
+**Bước 5 — Sửa 1 dòng code rồi push** → xem run mới tự sinh, đọc log từng step.
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -140,35 +198,104 @@ Bạn chỉ cần đặt 1 file YAML vào thư mục `.github/workflows/`. GitHu
 
 💡 **Hiểu sâu:** Workflow (cả file) → Job (chạy trên 1 runner sạch) → Step (lệnh tuần tự). Runner là máy ảo sạch mỗi lần — lý do CI "không phụ thuộc máy ai".
 
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Workflow không chạy | File sai chỗ/tên | Phải ở `.github/workflows/*.yml`; kiểm YAML hợp lệ |
+| `Error: ... uses: ... not found` | Sai tên/phiên bản action | Đúng `actions/checkout@v4`; xem Marketplace |
+| Job đỏ ngay bước đầu | Thiếu `checkout` nên không có code | Thêm `- uses: actions/checkout@v4` đầu tiên |
+| Secret in ra rỗng | Chưa tạo secret / sai tên | Tạo ở Settings → Secrets; tên khớp `${{ secrets.X }}` |
+| Deploy chạy mỗi lần push nhánh | Trigger quá rộng | Giới hạn `on: push: branches: [main]` |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** phân biệt CI và CD.
-- workflow, job, step quan hệ với nhau thế nào?
-- Vì sao dùng GitHub Secrets thay vì viết token trực tiếp trong YAML?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Phân biệt CI và CD.</summary>
+
+> CI = tự build+test+lint mỗi khi push (bắt lỗi sớm). CD = tự đưa bản đã test lên staging/production. CI lo "code ổn không", CD lo "đưa lên đâu".
+</details>
+
+<details>
+<summary>2. Workflow, job, step quan hệ thế nào?</summary>
+
+> Workflow (cả file YAML) chứa nhiều job; job chạy trên 1 runner sạch (song song mặc định); mỗi job có nhiều step chạy tuần tự.
+</details>
+
+<details>
+<summary>3. Vì sao dùng GitHub Secrets thay vì viết token trong YAML?</summary>
+
+> YAML nằm trong repo → commit token = lộ vĩnh viễn. Secret được che `***` trong log và không nằm trong code.
+</details>
+
+<details>
+<summary>4. Vì sao ghim action `@v4` thay vì `@main`?</summary>
+
+> `@main` có thể đổi bất ngờ (mất tái lập, rủi ro supply chain). Ghim phiên bản/SHA để chạy ổn định & an toàn.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
 | Tạo workflow đầu tiên | Tab Actions hiện job chạy với dấu ✓ xanh |
 | Workflow tự kích hoạt khi push | Mỗi commit → 1 run mới |
-| Đọc log của job | Xem được output từng step |
+| Đọc log của job | Xem được output từng step, secret hiện `***` |
 
-✅ **Kết quả đạt được:** Hiểu CI/CD, tạo được pipeline GitHub Actions đầu tiên.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **CI / CD** | Tích hợp / Chuyển giao–Triển khai liên tục |
+| **Workflow / Job / Step** | Quy trình / nhóm việc / bước |
+| **Runner** | Máy ảo chạy job (sạch mỗi lần) |
+| **Trigger** | Sự kiện kích hoạt workflow (push/PR) |
+| **Action** | Khối dựng sẵn trên Marketplace |
+| **Secret** | Biến bí mật được che trong log |
+| **Pipeline** | Chuỗi bước tự động hoá |
+
+✅ **Kết quả đạt được:** Hiểu CI/CD, tạo được pipeline GitHub Actions đầu tiên và biết dùng Secret an toàn.
 
 ---
 
 ## Ngày 32 — CI Pipeline: Build, Test & Lint tự động
 
 > ⏱️ ~90 phút · Loại: CI/CD
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 31 (workflow đầu tiên) → **Ngày 32 (CI pipeline đầy đủ: lint → test → build, chặn code lỗi)** → Ngày 33 (CD build & push image). Đây là "hàng rào chất lượng" tự động cho mọi code vào main.
+>
+> ✅ **Chuẩn bị:** repo có app + test (Ngày 31). Ôn YAML (Ngày 22).
 
 ### 📘 Lý thuyết
 
-- **Các bước CI điển hình:** install dependencies → lint (kiểm tra style) → unit test → build.
-- **Matrix build:** test trên nhiều phiên bản (Node 18, 20...) hoặc nhiều OS song song.
-- **Caching:** cache dependencies (`node_modules`, pip) để pipeline chạy nhanh hơn.
-- **Status check & badge:** hiển thị trạng thái build trên README.
-- **Fail fast:** pipeline dừng ngay khi 1 bước lỗi.
-- **Artifact:** lưu kết quả build (file, report) để dùng ở job sau hoặc tải về.
-- **Bảo vệ nhánh:** yêu cầu CI pass trước khi merge PR (branch protection).
+#### 1. Các bước CI điển hình
+
+`install dependencies → lint (kiểm style) → unit test → build`. Bất kỳ bước nào fail → pipeline dừng, báo đỏ, **chặn merge**.
+
+#### 2. Matrix build
+
+Chạy cùng job trên **nhiều phiên bản/OS song song** (vd Node 18 và 20) để chắc code chạy khắp nơi:
+```yaml
+strategy:
+  matrix: { node: [18, 20] }
+```
+
+#### 3. Caching — tăng tốc pipeline
+
+Nhớ lại thư viện đã tải (`node_modules`, pip) → lần sau không tải lại → nhanh hơn nhiều: `cache: 'npm'` trong `setup-node`.
+
+#### 4. Artifact
+
+File kết quả (bản build, test report) được **lưu lại** để tải về hoặc cho job sau dùng: `actions/upload-artifact`.
+
+#### 5. Fail fast & Branch protection
+
+- **Fail fast:** 1 step lỗi → dừng job ngay (tiết kiệm). Muốn xem hết lỗi thì `fail-fast: false`.
+- **Branch protection** ("hàng rào chất lượng"): bật cho `main` → bắt buộc CI xanh + có review mới được merge. Không có nó, CI chỉ là trang trí.
+
+> 🔑 Mục tiêu: pipeline **dưới 10 phút**. Chậm → dev ngại push → gom nhiều thay đổi → khó tìm lỗi. Tăng tốc bằng cache + chạy job song song.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -187,11 +314,38 @@ Bật cho nhánh `main`: bắt buộc CI xanh + có người review mới đư�
 
 ### 🧪 Lab cơ bản
 
-1. Mở rộng pipeline: thêm bước lint, test, build cho app của bạn.
-2. Cấu hình matrix build chạy test trên 2 phiên bản runtime.
-3. Thêm caching dependencies để tăng tốc.
-4. Upload 1 artifact (vd thư mục build) bằng `actions/upload-artifact`.
-5. Bật branch protection: yêu cầu CI pass mới được merge vào main.
+> Mục tiêu: pipeline lint→test→build có matrix + cache + artifact, và chặn merge khi đỏ.
+
+**Bước 1 — Workflow CI đầy đủ `ci.yml`** (file hoàn chỉnh):
+```yaml
+name: CI
+on:
+  push: { branches: [main] }
+  pull_request: { branches: [main] }
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: { node: [18, 20] }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ matrix.node }}', cache: 'npm' }
+      - run: npm ci
+      - run: npm run lint --if-present
+      - run: npm test --if-present
+      - run: npm run build --if-present
+      - uses: actions/upload-artifact@v4
+        with: { name: build-${{ matrix.node }}, path: dist/, if-no-files-found: ignore }
+```
+
+**Bước 2 — Push & xem matrix.** Tab Actions hiện **2 job** (Node 18, Node 20) chạy song song.
+
+**Bước 3 — Kiểm chứng cache.** Chạy CI lần 2 → bước `npm ci` nhanh hơn (dùng cache).
+
+**Bước 4 — Xem artifact.** Trong trang run → phần Artifacts có `build-18`, `build-20` tải về được.
+
+**Bước 5 — Bật branch protection.** Settings → Branches → rule cho `main`: require status checks (chọn job `test`) + require PR review.
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -237,35 +391,105 @@ Bật cho nhánh `main`: bắt buộc CI xanh + có người review mới đư�
 
 💡 **Hiểu sâu:** matrix dùng khi cần đảm bảo code chạy trên **nhiều môi trường** (phiên bản runtime/OS). Artifact = cách chuyển file giữa job (build → deploy).
 
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Pipeline chậm (>10 phút) | Không cache, không song song | Bật `cache:`; tách job song song |
+| `npm ci` lỗi `lock file` | Thiếu `package-lock.json` | Commit lock file; hoặc dùng `npm install` |
+| Matrix chỉ chạy 1 job | Cú pháp matrix sai | Kiểm `strategy: matrix:` đúng thụt lề |
+| Merge được dù CI đỏ | Chưa bật branch protection | Settings → Branches → require status checks |
+| Artifact rỗng | Đường dẫn `path:` sai | Trỏ đúng thư mục build (`dist/`) |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** matrix build hữu ích trong trường hợp nào?
-- Caching trong CI cải thiện điều gì?
-- Artifact dùng để làm gì?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Matrix build hữu ích khi nào?</summary>
+
+> Khi cần đảm bảo code chạy trên **nhiều môi trường** (phiên bản runtime, OS) — chạy cùng test song song trên tất cả.
+</details>
+
+<details>
+<summary>2. Caching trong CI cải thiện gì?</summary>
+
+> Nhớ thư viện đã tải → không tải lại mỗi lần → pipeline nhanh hơn nhiều (giảm phút build).
+</details>
+
+<details>
+<summary>3. Artifact dùng để làm gì?</summary>
+
+> Lưu file kết quả (bản build, test report) để chuyển giữa job (build→deploy), tải về debug, hoặc phát hành.
+</details>
+
+<details>
+<summary>4. Branch protection giải quyết điều gì?</summary>
+
+> Bắt buộc CI xanh + review trước khi merge → không ai lọt code lỗi vào main. Không có nó, CI chỉ là trang trí.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Pipeline tự chạy test | Job Test → passed (xanh) khi code đúng |
-| Test fail | CI báo lỗi đỏ và chặn merge |
-| Lint tự động | Step lint chạy, báo cảnh báo/lỗi format |
+| Pipeline tự chạy | Job test passed (xanh) trên cả Node 18 & 20 |
+| Test fail | CI đỏ và chặn merge |
+| Cache | Lần chạy 2 cài dependency nhanh hơn |
 
-✅ **Kết quả đạt được:** Xây dựng CI pipeline hoàn chỉnh: lint + test + build + bảo vệ nhánh.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Lint** | Kiểm tra style/lỗi code tự động |
+| **Matrix build** | Chạy trên nhiều phiên bản/OS song song |
+| **Cache** | Lưu dependency để chạy nhanh lần sau |
+| **Artifact** | File kết quả build/report được lưu |
+| **Fail fast** | Dừng ngay khi 1 bước lỗi |
+| **Status check** | Kết quả CI gắn vào PR |
+| **Branch protection** | Quy tắc bảo vệ nhánh chính |
+
+✅ **Kết quả đạt được:** Xây dựng CI pipeline hoàn chỉnh — lint + test + build + matrix + cache + bảo vệ nhánh.
 
 ---
 
 ## Ngày 33 — CD Pipeline: Build & Push Docker Image
 
 > ⏱️ ~90 phút · Loại: CI/CD
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 32 (CI test) → **Ngày 33 (tự build Docker image + push lên registry)** → Ngày 34 (tự deploy lên server). Đây là mắt xích nối "code đã test" với "image sẵn sàng deploy".
+>
+> ✅ **Chuẩn bị:** repo có Dockerfile (Ngày 17). Tài khoản Docker Hub hoặc dùng GHCR (`ghcr.io`) miễn phí sẵn trong GitHub.
 
 ### 📘 Lý thuyết
 
-- **Mục tiêu:** mỗi khi merge vào main → tự động build Docker image và push lên registry.
-- **Docker trong Actions:** `docker/build-push-action`, `docker/login-action`.
-- **Registry:** Docker Hub hoặc GitHub Container Registry (`ghcr.io`).
-- **Đặt tag image theo commit SHA hoặc version** để truy vết.
-- **Lưu credential registry trong GitHub Secrets.**
-- **Conditional steps:** chỉ push khi ở nhánh main (`if: github.ref == ...`).
-- **Multi-platform build (buildx)** cho amd64/arm64 (nâng cao).
+#### 1. Mục tiêu
+
+Mỗi khi merge vào `main` → pipeline tự **build Docker image** và **push lên registry** (kho image để server kéo về chạy).
+
+#### 2. Registry & action
+
+- **Registry:** Docker Hub, hoặc **GitHub Container Registry** (`ghcr.io` — tích hợp sẵn).
+- **Action:** `docker/login-action` (đăng nhập), `docker/build-push-action` (build + push), `docker/metadata-action` (tự sinh tag).
+
+#### 3. Tag theo commit SHA — KHÔNG dùng `latest`
+
+| Tag | Vấn đề/Lợi ích |
+|---|---|
+| `latest` | "Mới nhất *lúc nào?*" — không ai biết đang chạy gì, không rollback đúng |
+| `myapp:a1b2c3d` (SHA) | Định danh duy nhất của đúng commit → biết ngay code nào, truy vết hoàn hảo |
+
+#### 4. `GITHUB_TOKEN` — token tự sinh, an toàn
+
+Để push lên `ghcr.io`, GitHub tự cấp 1 token tạm mỗi lần chạy (hết hạn ngay sau, quyền giới hạn theo repo) → an toàn hơn Personal Access Token cá nhân. Credential registry luôn để trong **GitHub Secrets**.
+
+#### 5. Cache layer & nâng cao
+
+- **Cache layer** (`cache-from/to: type=gha`): không cache thì mỗi build cài lại từ đầu (chậm).
+- **Conditional:** chỉ push khi ở `main` (`if: github.ref == 'refs/heads/main'`).
+- **Multi-platform** (buildx): build cho amd64/arm64.
+
+> 🔑 Ở production, **luôn deploy theo tag bất biến** (SHA/version), không bao giờ `latest`. Đây là nền tảng để rollback chính xác.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -335,35 +559,107 @@ Bật cho nhánh `main`: bắt buộc CI xanh + có người review mới đư�
 
 💡 **Hiểu sâu:** `GITHUB_TOKEN` tự sinh mỗi run, hết hạn sau run, quyền theo repo → an toàn hơn Personal Access Token cá nhân.
 
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| `denied: permission` khi push GHCR | Thiếu quyền packages cho token | Thêm `permissions: { packages: write }` vào workflow |
+| `unauthorized` login registry | Sai secret user/pass | Kiểm secret; GHCR dùng `${{ github.actor }}` + `GITHUB_TOKEN` |
+| Build rất chậm mỗi lần | Không cache layer | Thêm `cache-from/to: type=gha` |
+| Image push cả khi ở nhánh phụ | Thiếu điều kiện | Thêm `if: github.ref == 'refs/heads/main'` |
+| Không biết server chạy bản nào | Deploy theo `latest` | Tag theo SHA/semver bất biến |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** vì sao nên tag image theo commit SHA thay vì chỉ `latest`?
-- Credential registry nên lưu ở đâu trong GitHub Actions?
-- Giải thích bước `login-action` làm gì.
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Vì sao tag image theo commit SHA thay vì `latest`?</summary>
+
+> `latest` không cho biết chính xác đang chạy code nào → không rollback đúng. SHA (`myapp:a1b2c3d`) định danh duy nhất commit → truy vết & rollback chính xác.
+</details>
+
+<details>
+<summary>2. Credential registry nên lưu ở đâu?</summary>
+
+> Trong **GitHub Secrets** (che trong log). Với GHCR có thể dùng `GITHUB_TOKEN` tự sinh, khỏi tạo secret riêng.
+</details>
+
+<details>
+<summary>3. `login-action` làm gì?</summary>
+
+> Đăng nhập vào registry (Docker Hub/GHCR) để pipeline có quyền push image.
+</details>
+
+<details>
+<summary>4. `GITHUB_TOKEN` an toàn hơn PAT ở điểm nào?</summary>
+
+> Tự sinh mỗi run, hết hạn ngay sau run, quyền giới hạn theo repo — lộ cũng ít hại hơn token cá nhân full quyền.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| CI tự build Docker image | Image được tạo trong runner |
-| Push image lên registry | Docker Hub/GHCR hiện image với tag mới |
-| Image gắn tag theo commit | Tag dạng sha hoặc version xuất hiện |
+| CI tự build image | Image tạo trong runner |
+| Push lên registry | GHCR/Docker Hub hiện image tag mới |
+| Tag theo commit | Tag dạng SHA/semver xuất hiện |
 
-✅ **Kết quả đạt được:** Tự động build và đẩy Docker image lên registry mỗi lần merge.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Registry** | Kho lưu image (Docker Hub, GHCR) |
+| **GHCR** | GitHub Container Registry (`ghcr.io`) |
+| **build-push-action** | Action build + đẩy image |
+| **Immutable tag** | Tag bất biến (SHA/semver) |
+| **`GITHUB_TOKEN`** | Token tự sinh mỗi run |
+| **Layer cache** | Cache tầng image trong CI |
+| **buildx** | Build đa nền tảng (amd64/arm64) |
+
+✅ **Kết quả đạt được:** Tự động build và đẩy Docker image (tag SHA) lên registry mỗi lần merge.
 
 ---
 
 ## Ngày 34 — CD Pipeline: Tự động Deploy lên Server
 
 > ⏱️ ~90 phút · Loại: CI/CD
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 33 (build & push image) → **Ngày 34 (tự deploy lên server: push code là app live)** → Ngày 35 (Milestone pipeline hoàn chỉnh). Đây là mắt xích cuối biến `git push` thành "app cập nhật trên production, không động tay".
+>
+> ✅ **Chuẩn bị:** một VM cloud SSH được (Ngày 27) đã cài Docker, và image đã push lên registry (Ngày 33).
 
 ### 📘 Lý thuyết
 
-- **Deploy tự động:** sau khi push image, pipeline SSH vào server và cập nhật container.
-- **SSH trong CI:** lưu private key trong Secrets, dùng action SSH (vd `appleboy/ssh-action`).
-- **Chiến lược cập nhật:** pull image mới → `docker compose up -d` (recreate container).
-- **Zero-downtime cơ bản:** health check trước khi chuyển traffic.
-- **Rollback:** quay về image version trước nếu deploy lỗi.
-- **Môi trường:** tách workflow deploy staging vs production (environments + approval).
-- **Bảo mật pipeline:** least privilege cho deploy key.
+#### 1. Deploy tự động
+
+Sau khi image ở registry, pipeline **SSH vào server** → pull image mới → `docker compose up -d`. Giờ chỉ cần `git push` → vài phút sau app cập nhật, không thao tác tay.
+
+#### 2. SSH trong CI
+
+Lưu **SSH private key + host** trong GitHub Secrets, dùng action SSH (vd `appleboy/ssh-action`). Dùng **deploy key riêng, quyền tối thiểu** — không dùng key cá nhân full quyền.
+
+#### 3. Continuous Delivery vs Deployment (khác 1 chữ, quan trọng)
+
+| | Cách chạy | Dùng cho |
+|---|---|---|
+| **Delivery** | Tự động đến *sát* production, cần người **bấm nút duyệt** | Production (an toàn) |
+| **Deployment** | Tự động hoàn toàn, không cần duyệt | Staging (nhanh) |
+
+#### 4. Health check & Rollback
+
+- Sau `up -d`, pipeline `curl /health` → fail thì **rollback tự động**.
+- Quy tắc: **rollback trước, điều tra sau**. Deploy theo tag bất biến (Ngày 33) → rollback = chạy lại deploy với tag cũ.
+
+#### 5. Ba chiến lược deploy nâng cao (gặp lại ở K8s)
+
+| Chiến lược | Cách làm |
+|---|---|
+| **Rolling** | Thay dần từng instance (mặc định, đơn giản) |
+| **Blue-Green** | Dựng môi trường mới song song, gạt công tắc traffic, rollback tức thì |
+| **Canary** | Cho ~10% user thử trước, ổn mới mở rộng |
+
+> 🔑 Production nên có bước **approval** (GitHub Environments + required reviewers) — chặn deploy nhầm giữa đêm. Staging thì tự động hoàn toàn.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -434,19 +730,65 @@ Quy tắc: **rollback trước, điều tra sau**. Vì deploy theo tag bất bi�
 
 💡 **Hiểu sâu:** 3 chiến lược deploy: Rolling (thay dần), Blue-Green (2 môi trường switch tức thì), Canary (đẩy % nhỏ trước). Bạn sẽ gặp lại ở K8s.
 
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| SSH trong CI `Permission denied` | Sai key/host trong Secrets | Kiểm secret; đúng user; public key đã ở server chưa |
+| Deploy xong app vẫn bản cũ | Quên `docker compose pull` | Pull image mới trước `up -d`; dùng tag SHA mới |
+| Deploy giữa đêm gây sự cố | Production auto-deploy không duyệt | Thêm Environment + required reviewers |
+| App lỗi sau deploy mà không rollback | Thiếu health check | `curl /health` sau deploy, fail thì rollback |
+| Deploy key quyền quá rộng | Dùng key cá nhân full quyền | Tạo deploy key riêng, quyền tối thiểu |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** mô tả luồng CD đầy đủ từ git push đến app chạy bản mới.
-- Vì sao production deploy nên có bước approval?
-- Rollback hoạt động thế nào trong chiến lược deploy của bạn?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Mô tả luồng CD đầy đủ từ git push đến app bản mới.</summary>
+
+> `git push → CI test → build image → push registry → SSH deploy server (pull + up -d) → health check → (fail? rollback)`.
+</details>
+
+<details>
+<summary>2. Vì sao production deploy nên có approval?</summary>
+
+> Production ảnh hưởng người dùng thật; cần 1 người nhìn lại trước khi lên, đặc biệt giờ cao điểm. Đây là Continuous Delivery (bấm nút) vs Deployment (tự động hoàn toàn).
+</details>
+
+<details>
+<summary>3. Rollback hoạt động thế nào?</summary>
+
+> Vì deploy theo tag bất biến, rollback = chạy lại deploy với tag SHA cũ. Nguyên tắc: rollback trước, điều tra sau.
+</details>
+
+<details>
+<summary>4. Blue-Green và Canary khác nhau thế nào?</summary>
+
+> Blue-Green: 2 môi trường song song, gạt toàn bộ traffic sang bản mới (rollback tức thì). Canary: đẩy cho % nhỏ user trước, theo dõi rồi mới mở rộng.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Pipeline tự deploy lên server | Sau khi push, server tự cập nhật phiên bản mới |
-| Dùng secrets an toàn | SSH key/token trong Secrets, không lộ trong log |
-| Xác nhận deploy thành công | `curl` tới server trả về version mới |
+| Pipeline tự deploy | Sau push, server cập nhật bản mới |
+| Secrets an toàn | SSH key trong Secrets, không lộ log |
+| Xác nhận deploy | `curl` server trả về version mới |
 
-✅ **Kết quả đạt được:** Hoàn chỉnh pipeline CI/CD end-to-end: push code là tự động lên production.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **CD (Delivery/Deployment)** | Chuyển giao (có duyệt) / triển khai (tự động) |
+| **Deploy key** | Khoá SSH riêng cho việc deploy |
+| **Health check** | Kiểm tra app khoẻ sau deploy |
+| **Rollback** | Quay về bản trước khi lỗi |
+| **Rolling / Blue-Green / Canary** | 3 chiến lược triển khai |
+| **Environment (GitHub)** | Môi trường có quy tắc duyệt |
+| **Zero-downtime** | Triển khai không gián đoạn |
+
+✅ **Kết quả đạt được:** Hoàn chỉnh pipeline CI/CD end-to-end — push code là tự động lên server, có health check & rollback.
 
 ---
 
