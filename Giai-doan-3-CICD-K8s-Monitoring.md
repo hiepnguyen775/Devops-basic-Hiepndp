@@ -1912,6 +1912,10 @@ Nó chỉ *mã hóa base64* (đổi qua lại, ai cũng giải: `echo ... | base
 ## Ngày 40 — MILESTONE: Deploy Full-stack lên Kubernetes
 
 > ⏱️ ~120 phút · Loại: Milestone
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 36–39 (từng mảnh K8s) → **Ngày 40 (ghép app 3 tầng lên K8s thật)** → Ngày 41 (health check & autoscaling). Cùng app CloudNote từng chạy Docker Compose (Ngày 21), giờ chạy trên K8s với self-healing + scale.
+>
+> ✅ **Chuẩn bị:** cluster local + Ingress addon bật. Đã nắm Deployment/Service/ConfigMap/Secret/PVC (Ngày 36–39).
 
 ### 📘 Lý thuyết — Tổng kết
 
@@ -1983,15 +1987,51 @@ flowchart TB
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Tự chấm:** bạn deploy được ứng dụng nhiều tầng lên K8s chưa?
-- **Mở rộng:** thêm liveness/readiness probe cho các pod.
-- Vẽ sơ đồ kiến trúc K8s của bạn.
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Mỗi tầng của app 3 tầng dùng đối tượng K8s nào?</summary>
+
+> Frontend/backend: Deployment + Service (ClusterIP), expose qua Ingress. Database: StatefulSet + PVC. Cấu hình: ConfigMap. Mật khẩu: Secret. Gom trong 1 Namespace.
+</details>
+
+<details>
+<summary>2. Vì sao đặt tên file YAML có số thứ tự (00-, 10-, 20-)?</summary>
+
+> Để `kubectl apply -f k8s/` áp dụng đúng thứ tự phụ thuộc (namespace trước, rồi db, backend, frontend, ingress).
+</details>
+
+<details>
+<summary>3. Xoá 1 pod backend giữa lúc dùng thì sao?</summary>
+
+> App không gián đoạn: Service chuyển traffic sang pod còn sống, K8s tự tạo lại pod mới (self-healing + load balancing).
+</details>
+
+<details>
+<summary>4. Vì sao database dùng StatefulSet chứ không Deployment?</summary>
+
+> Database cần danh tính + storage ổn định cho mỗi pod. Deployment không đảm bảo điều đó → dễ mất dữ liệu.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
 | App full-stack trên K8s | frontend + backend + db đều Running |
-| Truy cập từ ngoài cụm | Mở qua Ingress/NodePort thấy giao diện app |
+| Truy cập từ ngoài cụm | Mở qua Ingress thấy giao diện app |
 | Manifests trong repo | `k8s/` có deployment, service, configmap... |
+
+### 📚 Thuật ngữ Anh–Việt (tổng hợp K8s cơ bản)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Manifest** | File YAML mô tả đối tượng K8s |
+| **Deployment / StatefulSet** | Chạy app stateless / stateful |
+| **Service / Ingress** | Địa chỉ ổn định / cửa vào định tuyến |
+| **ConfigMap / Secret** | Cấu hình / bí mật tách khỏi image |
+| **PVC** | Xin lưu trữ bền vững |
+| **Namespace** | Vùng logic cluster |
+| **Self-healing / Scale** | Tự tạo lại pod / tăng bản sao |
 
 ✅ **Kết quả đạt được — MỐC 5:** Triển khai ứng dụng full-stack lên Kubernetes — kỹ năng cao cấp.
 
@@ -2000,16 +2040,44 @@ flowchart TB
 ## Ngày 41 — Kubernetes: Health Check, Resource & Autoscaling
 
 > ⏱️ ~90 phút · Loại: Kubernetes
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 40 (deploy full-stack) → **Ngày 41 (làm pod "khoẻ mạnh": probe, tài nguyên, tự scale)** → Ngày 42 (Helm). Đây là các mảnh biến app "chạy được" thành app "vận hành production được".
+>
+> ✅ **Chuẩn bị:** cluster local + 1 Deployment. Bật metrics-server: `minikube addons enable metrics-server`.
 
 ### 📘 Lý thuyết
 
-- **Probe:** liveness (pod còn sống?), readiness (sẵn sàng nhận traffic?), startup (khởi động xong chưa?).
-- **Resource requests & limits:** requests (tối thiểu cần), limits (trần tối đa) cho CPU/RAM.
-- **QoS class:** Guaranteed, Burstable, BestEffort — ảnh hưởng thứ tự bị evict khi thiếu tài nguyên.
-- **Horizontal Pod Autoscaler (HPA):** tự scale số pod theo CPU/metric.
-- **Metrics Server:** cần cài để HPA hoạt động.
-- **Vertical vs Horizontal scaling.**
-- **Node affinity, taints & tolerations** (giới thiệu): điều khiển pod chạy ở node nào.
+#### 1. Probe — cách K8s "bắt mạch" pod
+
+| Probe | Hỏi gì | Fail thì sao |
+|---|---|---|
+| **readinessProbe** | "Sẵn sàng nhận traffic chưa?" | Tạm gỡ pod khỏi Service (ngừng gửi request), **KHÔNG restart** |
+| **livenessProbe** | "Còn sống không, hay treo?" | **Restart pod** |
+| **startupProbe** | "Khởi động xong chưa?" | Hoãn 2 probe kia cho app khởi động chậm |
+
+> ⚠️ Lỗi kinh điển: liveness probe quá gắt → app đang bận bị tưởng "chết" → restart lặp vô tận (**CrashLoopBackOff**). Readiness mới là cái để "tạm ngừng nhận traffic".
+
+#### 2. Resource requests & limits
+
+| | Nghĩa | Vượt thì sao |
+|---|---|---|
+| **requests** | Tối thiểu pod cần (K8s dùng để **xếp pod** vào máy đủ chỗ) | — |
+| **limits** | Trần tối đa | Vượt RAM → **OOMKilled**; vượt CPU → bị **throttle** (chậm) |
+
+Không đặt limits → 1 pod ngốn RAM có thể làm chết cả node.
+
+#### 3. Horizontal Pod Autoscaler (HPA)
+
+Tự tăng/giảm **số pod** theo tải: "CPU > 60% → tăng pod (2→5), tải giảm → giảm lại". Cần cài **Metrics Server** trước, nếu không HPA hiện `<unknown>`.
+
+- **Horizontal scaling** = thêm **pod** (K8s giỏi việc này).
+- **Vertical scaling** = tăng CPU/RAM cho 1 pod.
+
+#### 4. Điều khiển pod chạy ở node nào (giới thiệu)
+
+**Node affinity** (ưu tiên node), **taints & tolerations** (node "đuổi" pod trừ khi pod chịu được) — dùng để xếp pod đúng loại node (vd pod GPU chỉ chạy node có GPU).
+
+> 🔑 Nhớ khác biệt: **liveness fail = restart**; **readiness fail = ngừng nhận traffic (không restart)**. Hiểu điều này tránh được CrashLoopBackOff.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -2087,17 +2155,63 @@ Không đặt limits → 1 pod ngốn RAM có thể làm chết cả máy.
 
 💡 **Hiểu sâu:** readiness fail = gỡ khỏi Service (ngừng nhận traffic, KHÔNG restart); liveness fail = **restart pod**. Vượt limit RAM = OOMKilled; vượt limit CPU = throttle (chậm, không chết).
 
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Pod `CrashLoopBackOff` | Liveness probe quá gắt / app chậm khởi động | Dùng `startupProbe`; nới `initialDelaySeconds`/`failureThreshold` |
+| Pod `OOMKilled` | Vượt limit RAM | Tăng `limits.memory`; tối ưu app |
+| HPA hiện `<unknown>` | Chưa cài Metrics Server | `minikube addons enable metrics-server` |
+| HPA không scale dù tải cao | Chưa đặt `resources.requests` | HPA cần requests để tính % → đặt requests |
+| Pod không nhận traffic dù Running | readiness chưa pass | Kiểm endpoint `/ready`; xem `describe pod` |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** phân biệt liveness và readiness probe.
-- requests và limits khác nhau thế nào?
-- HPA tự động làm gì khi CPU tăng cao?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Liveness và readiness probe khác nhau thế nào?</summary>
+
+> Liveness fail → **restart pod**. Readiness fail → **gỡ pod khỏi Service** (ngừng nhận traffic), không restart.
+</details>
+
+<details>
+<summary>2. requests và limits khác nhau?</summary>
+
+> requests = mức tối thiểu (K8s dùng để xếp pod). limits = trần cứng (vượt RAM → OOMKilled, vượt CPU → throttle).
+</details>
+
+<details>
+<summary>3. HPA làm gì khi CPU tăng cao?</summary>
+
+> Tự tăng số pod (trong khoảng min–max) để chia tải; khi tải giảm thì giảm pod lại. Cần Metrics Server + requests.
+</details>
+
+<details>
+<summary>4. App khởi động chậm bị restart liên tục — sửa thế nào?</summary>
+
+> Thêm `startupProbe` để hoãn liveness/readiness cho tới khi app khởi động xong; nới `failureThreshold`/`initialDelaySeconds`.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Cấu hình probe | `kubectl describe pod` hiện probe, pod chỉ nhận traffic khi Ready |
-| Đặt requests/limits | `kubectl describe` hiện CPU/Memory limits |
-| Bật HPA | `kubectl get hpa`; tăng tải → số pod tự tăng |
+| Cấu hình probe | `describe pod` hiện probe; pod nhận traffic khi Ready |
+| Đặt requests/limits | `describe` hiện CPU/Memory limits |
+| Bật HPA + tạo tải | `kubectl get hpa`; số pod tự tăng |
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **liveness / readiness / startup probe** | Bắt mạch: còn sống / sẵn sàng / khởi động xong |
+| **requests / limits** | Tài nguyên tối thiểu / trần |
+| **OOMKilled** | Bị giết vì vượt limit RAM |
+| **Throttle** | Bị bóp CPU khi vượt limit |
+| **HPA** | Tự scale số pod theo tải |
+| **Metrics Server** | Nguồn số liệu cho HPA |
+| **Taints & tolerations** | Điều khiển pod chạy ở node nào |
 
 ✅ **Kết quả đạt được:** Cấu hình health check, giới hạn tài nguyên và autoscaling — vận hành K8s production.
 
@@ -2106,16 +2220,47 @@ Không đặt limits → 1 pod ngốn RAM có thể làm chết cả máy.
 ## Ngày 42 — Helm: Package Manager cho Kubernetes
 
 > ⏱️ ~90 phút · Loại: Kubernetes
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 41 (pod khoẻ mạnh) → **Ngày 42 (Helm — đóng gói app K8s, 1 chart nhiều môi trường)** → Ngày 43 (GitOps/ArgoCD). Helm cũng là cách bạn cài Prometheus/Grafana ở Ngày 44 chỉ bằng 1 lệnh.
+>
+> ✅ **Chuẩn bị:** cluster local + cài Helm (`helm version`).
 
 ### 📘 Lý thuyết
 
-- **Vấn đề:** quản lý nhiều file YAML lặp lại, khó tái sử dụng giữa các môi trường.
-- **Helm:** "apt cho Kubernetes" — đóng gói ứng dụng K8s thành **Chart**.
-- **Cấu trúc Chart:** `Chart.yaml`, `values.yaml`, `templates/` (YAML có biến).
-- **Templating:** dùng `{{ .Values.xxx }}` để tham số hóa.
-- **Lệnh:** `helm install`, `helm upgrade`, `helm rollback`, `helm uninstall`, `helm list`.
-- **Repository:** kho chart công khai (Artifact Hub); cài app phổ biến chỉ 1 lệnh.
-- **values.yaml:** ghi đè cấu hình cho từng môi trường (dev/prod).
+#### 1. Vấn đề: quản cả đống YAML rất mệt
+
+Một app trên K8s có chục file YAML; mỗi môi trường (dev/prod) cần giá trị khác (replica, image tag). Copy-sửa thủ công = dễ sai, khó quản.
+
+#### 2. Helm — "apt cho Kubernetes"
+
+Helm đóng gói toàn bộ YAML của app thành 1 **Chart** có biến. Bạn điền giá trị qua `values.yaml` → Helm "điền vào khuôn" tạo YAML thật. **1 chart + nhiều values → nhiều môi trường.**
+
+#### 3. Cấu trúc Chart
+
+| Thành phần | Vai trò |
+|---|---|
+| `Chart.yaml` | Metadata (tên, version) |
+| `values.yaml` | Giá trị mặc định (tham số hoá) |
+| `templates/` | YAML có biến `{{ .Values.xxx }}` |
+
+#### 4. Lệnh chính
+
+| Lệnh | Làm gì |
+|---|---|
+| `helm install` | Cài app (1 release) |
+| `helm upgrade` | Nâng cấp |
+| `helm rollback <release> <rev>` | Quay về revision cũ |
+| `helm list` / `helm history` | Xem release / lịch sử |
+| `helm repo add ...` | Thêm kho chart (cài Prometheus/Postgres 1 lệnh) |
+
+#### 5. Helm vs Kustomize
+
+| | Cách tiếp cận | Phù hợp |
+|---|---|---|
+| **Helm** | Template + biến | App phức tạp, phân phối, nhiều môi trường |
+| **Kustomize** | Overlay/patch YAML thuần | Đơn giản, tích hợp sẵn `kubectl -k` |
+
+> 🔑 `helm upgrade` áp dụng **ngay** — luôn xem trước bằng `helm diff upgrade` (plugin) hoặc `--dry-run`. `helm rollback` cứu bạn khi upgrade hỏng.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -2184,17 +2329,63 @@ Một khuôn, nhiều môi trường.
 
 💡 **Hiểu sâu:** Helm = template (biến) cho YAML K8s, giải bài toán YAML lặp lại + nhiều môi trường. Đối thủ nhẹ hơn: Kustomize (overlay/patch, có sẵn `kubectl -k`).
 
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| `helm install` lỗi template | Biến `{{ .Values.x }}` chưa có trong values | Bổ sung vào `values.yaml`; `helm lint` |
+| Upgrade làm hỏng, muốn quay lại | — | `helm rollback <release> <revision>`; `helm history` xem rev |
+| Không biết upgrade đổi gì | Áp dụng "mù" | `helm diff upgrade` (plugin) hoặc `--dry-run` trước |
+| Release "stuck" pending-upgrade | Upgrade trước bị ngắt | `helm rollback`; hoặc `--force`/xử lý theo tài liệu |
+| Values không được áp | Sai `-f` / ưu tiên override | `helm get values <release>` kiểm tra thực tế |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** Helm giải quyết vấn đề gì so với `kubectl apply` nhiều file?
-- `values.yaml` và `templates/` quan hệ thế nào?
-- Viết lệnh cài 1 chart với tên release tùy chỉnh.
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Helm giải quyết gì so với `kubectl apply` nhiều file?</summary>
+
+> Đóng gói + tham số hoá YAML thành chart: 1 chart deploy được nhiều môi trường (values khác nhau), có version + rollback, cài app phổ biến bằng 1 lệnh.
+</details>
+
+<details>
+<summary>2. `values.yaml` và `templates/` quan hệ thế nào?</summary>
+
+> `templates/` chứa YAML có biến `{{ .Values.x }}`; `values.yaml` cung cấp giá trị. Helm "điền biến" để sinh YAML thật.
+</details>
+
+<details>
+<summary>3. Viết lệnh cài chart với tên release tuỳ chỉnh.</summary>
+
+> `helm install <tên-release> ./chart -f values-prod.yaml`
+</details>
+
+<details>
+<summary>4. Trước khi `helm upgrade` production nên làm gì?</summary>
+
+> `helm diff upgrade` (plugin) hoặc `--dry-run` để xem chính xác sẽ đổi gì — như `terraform plan`.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
 | Cài app bằng Helm | `helm install` → STATUS: deployed |
-| Liệt kê release | `helm list` hiện release của bạn |
-| Nâng cấp & rollback | `helm upgrade` rồi `helm rollback` chạy thành công |
+| Liệt kê release | `helm list` hiện release |
+| Upgrade & rollback | Chạy thành công, `helm history` thấy các revision |
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Helm** | Trình quản lý gói cho K8s |
+| **Chart** | Gói app K8s (có biến) |
+| **values.yaml** | Giá trị cấu hình cho chart |
+| **Template** | YAML có biến `{{ .Values.x }}` |
+| **Release** | Một lần cài chart vào cluster |
+| **Repository** | Kho chart (Artifact Hub) |
+| **Kustomize** | Cách quản YAML bằng overlay (đối thủ nhẹ hơn) |
 
 ✅ **Kết quả đạt được:** Đóng gói và quản lý ứng dụng K8s bằng Helm — chuẩn công nghiệp.
 
