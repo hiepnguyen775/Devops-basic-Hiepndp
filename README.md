@@ -26,6 +26,7 @@
 
 **Bổ sung (nên học kèm):**
 - 🐍 [Module Python cho DevOps (3 ngày)](./Module-Python-cho-DevOps.md) — học sau Bash (Ngày 5–6); lấp khoảng trống so với roadmap chuẩn.
+- 🧩 [**Module nâng cao bổ sung (4 bài)**](./Module-Nang-Cao-Bo-Sung.md) — học **sau Giai đoạn 3**; lấp nốt các lỗ hổng so với roadmap chuẩn: **Distributed Tracing** (OpenTelemetry+Jaeger — trụ cột observability thứ 3), **HashiCorp Vault** (quản secret production), **Message Queue** (Kafka & RabbitMQ), **Managed K8s + cert-manager + Serverless**.
 - 📚 [Tài liệu tham khảo & Cách học hiệu quả](./Tai-lieu-tham-khao.md) — docs chính thức, nền tảng lab tương tác, cộng đồng. **Đọc file này trước khi bắt đầu.**
 - 🏗️ [**Bộ khung dự án tốt nghiệp — CloudNote**](./capstone-cloudnote/) — code thật sẵn sàng (FastAPI + Postgres + Docker + K8s + Terraform + CI/CD + Monitoring) kèm sơ đồ kiến trúc. Chạy local bằng 1 lệnh `docker compose up`, rồi tự hoàn thiện các `# TODO`.
 
