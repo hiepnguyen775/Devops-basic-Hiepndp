@@ -740,17 +740,50 @@ Settings → Branches → thêm rule cho `main` (bắt buộc PR). Thử `git pu
 ## Ngày 16 — Docker: Khái niệm & container đầu tiên
 
 > ⏱️ ~90 phút · Loại: Docker
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 13–15 (Git/GitHub) → **Ngày 16 (Docker — đóng gói app vào "hộp" chạy đâu cũng giống nhau)** → Ngày 17 (tự viết Dockerfile). Docker giải quyết dứt điểm bệnh "works on my machine" — nền tảng của mọi thứ container/K8s về sau.
+>
+> ✅ **Chuẩn bị:** cài Docker (Docker Desktop, hoặc trên Linux theo docs.docker.com), kiểm tra `docker --version` chạy được.
 
 ### 📘 Lý thuyết
 
-- **Vấn đề Docker giải quyết:** *"works on my machine"* — đóng gói app + dependencies thành 1 đơn vị chạy ở đâu cũng giống nhau.
-- **Container vs VM:** container chia sẻ kernel host, nhẹ hơn nhiều, khởi động trong vài giây.
-- **Khái niệm:** Image (khuôn mẫu chỉ đọc) → Container (instance đang chạy của image).
-- **Docker Hub:** kho chứa image công khai (registry).
-- **Lệnh cơ bản:** `docker run`, `docker ps` (`-a` xem cả đã dừng), `docker stop/start`, `docker rm`, `docker images`, `docker rmi`.
-- **Tương tác:** `docker exec -it <container> bash`, `docker logs <container>`.
-- **Port mapping:** `-p 8080:80` (cổng host : cổng container).
-- **Volume cơ bản:** `-v đường_dẫn_host:đường_dẫn_container` để lưu dữ liệu bền vững.
+#### 1. Vấn đề Docker giải quyết
+
+App chạy ngon trên máy bạn nhưng lên server thì lỗi (thiếu thư viện, khác phiên bản, khác cấu hình) — bệnh *"works on my machine"*. **Docker** đóng gói app *cùng mọi thứ nó cần* vào 1 "hộp" (**container**) → hộp chạy giống hệt nhau ở mọi nơi.
+
+#### 2. Container vs Máy ảo (VM)
+
+| | Máy ảo (VM) | Container |
+|---|---|---|
+| Đóng gói | Cả 1 hệ điều hành riêng | Chỉ app + thư viện |
+| Kernel | Riêng từng VM | **Dùng chung kernel host** |
+| Nặng | GB, khởi động phút | MB, khởi động **giây** |
+| Ví như | Căn nhà riêng | Căn hộ chung cư |
+
+#### 3. Image vs Container — dễ nhầm nhất
+
+- **Image** = khuôn mẫu **chỉ đọc** (như khuôn bánh / file cài đặt).
+- **Container** = một bản **đang chạy** của image (cái bánh làm từ khuôn). Từ 1 image chạy được nhiều container.
+- **Docker Hub** = kho chứa image công khai (registry) để `pull` về.
+
+#### 4. Lệnh cơ bản
+
+| Lệnh | Làm gì |
+|---|---|
+| `docker run <image>` | Tạo + chạy container |
+| `docker ps` / `docker ps -a` | Container đang chạy / kể cả đã dừng |
+| `docker stop/start/rm <ct>` | Dừng / chạy lại / xoá container |
+| `docker images` / `docker rmi` | Liệt kê / xoá image |
+| `docker logs <ct>` | Xem log container |
+| `docker exec -it <ct> bash` | Vào shell bên trong container |
+
+#### 5. Cờ hay dùng khi `docker run`
+
+- `-d` chạy nền (detached); `--name web` đặt tên.
+- `-p 8080:80` map **cổng host : cổng container** (mở `localhost:8080` → tới cổng 80 trong container).
+- `-v host_path:container_path` gắn volume để lưu dữ liệu bền vững (Ngày 19).
+
+> 🔑 Container **sống nhờ tiến trình chính (PID 1)**. Tiến trình đó kết thúc → container tắt. Vì thế `docker run ubuntu` thoát ngay (không có gì chạy) còn `nginx` thì sống.
 
 **Sơ đồ — Container vs Máy ảo (vì sao container nhẹ hơn):**
 ```mermaid
@@ -793,11 +826,40 @@ Hình dung: VM là *căn nhà riêng* (móng, tường, mái riêng); container 
 
 ### 🧪 Lab cơ bản
 
-1. Cài Docker (Docker Desktop hoặc trên Ubuntu theo docs.docker.com), kiểm tra `docker --version`.
-2. Chạy hello-world: `docker run hello-world`.
-3. Chạy nginx: `docker run -d -p 8080:80 --name web nginx`, mở `http://localhost:8080`.
-4. Vào trong container: `docker exec -it web bash`, khám phá, `exit`.
-5. Xem log & dọn dẹp: `docker logs web`, `docker stop web`, `docker rm web`.
+> Mục tiêu: chạy container đầu tiên, map cổng, vào trong container, xem log và dọn dẹp.
+
+**Bước 1 — Xác nhận Docker chạy.**
+```bash
+docker --version
+docker run hello-world
+```
+Bạn sẽ thấy `Hello from Docker!` — xác nhận Docker hoạt động.
+
+**Bước 2 — Chạy nginx và mở trên trình duyệt.**
+```bash
+docker run -d -p 8080:80 --name web nginx
+docker ps        # thấy container "web" đang chạy
+```
+Mở `http://localhost:8080` → trang **Welcome to nginx!**.
+
+**Bước 3 — Vào bên trong container.**
+```bash
+docker exec -it web bash
+# bên trong: ls /usr/share/nginx/html ; cat /etc/nginx/nginx.conf | head
+exit
+```
+
+**Bước 4 — Xem log.**
+```bash
+docker logs web         # thấy log request khi bạn mở trình duyệt
+```
+
+**Bước 5 — Dọn dẹp.**
+```bash
+docker stop web
+docker rm web
+docker ps -a            # không còn "web"
+```
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -832,52 +894,152 @@ Hình dung: VM là *căn nhà riêng* (móng, tường, mái riêng); container 
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** cài Docker → chạy hello-world → chạy nginx có map cổng → vào trong container → xem log & dọn dẹp.
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `docker run hello-world` — kéo image test + chạy. *Kết quả:* `Hello from Docker!` (xác nhận Docker hoạt động).
-- `docker run -d -p 8080:80 --name web nginx` — `-d` chạy nền, `-p 8080:80` map cổng host:container, `--name` đặt tên. *Kết quả:* mở `localhost:8080` thấy trang nginx.
-- `docker ps` (`-a` cả đã dừng) — liệt kê container; `docker logs web` — xem log; `docker exec -it web bash` — vào shell trong container.
-- `docker stop web && docker rm web` — dừng rồi xóa container.
+**Bước 1 — Chạy nginx nền + map cổng.**
+```bash
+docker run -d -p 8080:80 --name web nginx
+docker ps
+```
+✅ **Checkpoint:** `docker ps` hiện `web` với `0.0.0.0:8080->80/tcp`, mở `localhost:8080` ra trang nginx.
+💡 `-p 8080:80` = "khách gõ cổng 8080 của máy → chuyển vào cổng 80 trong container".
 
-**🧪 Thử nghiệm:**
-- `docker run ubuntu` (thoát ngay) vs `docker run nginx` (chạy mãi). **Bài học:** container sống nhờ tiến trình **foreground** (PID 1); ubuntu không có gì chạy nên thoát.
-- Chạy `docker run -p 8080:80 nginx` 2 lần → lần 2 lỗi `port is already allocated`. **Bài học:** mỗi cổng host chỉ 1 container giữ.
+**Bước 2 — Hiểu "container sống nhờ tiến trình chính".**
+```bash
+docker run --name u ubuntu        # thoát NGAY (Exited)
+docker ps -a | grep u             # thấy STATUS Exited (0)
+```
+✅ **Checkpoint:** container ubuntu ở trạng thái `Exited` ngay, còn `web` (nginx) vẫn `Up`.
+💡 ubuntu không có tiến trình foreground nào → PID 1 kết thúc → container tắt. nginx chạy foreground nên sống.
 
-⚠️ **Dễ sai:** quên dọn → `docker system df` thấy image/volume rác ngốn đĩa; dọn bằng `docker system prune -a` (cẩn thận volume).
+**Bước 3 — Vào trong container xem thực tế.**
+```bash
+docker exec -it web bash
+ls /usr/share/nginx/html ; exit
+```
+✅ **Checkpoint:** vào được shell, thấy file `index.html`.
 
-💡 **Hiểu sâu:** Image = khuôn (chỉ đọc), Container = instance đang chạy (khuôn bánh vs cái bánh). Container nhẹ vì **chia sẻ kernel host**, không cần Guest OS đầy đủ như VM.
+**Bước 4 — Dọn dẹp gọn gàng.**
+```bash
+docker stop web && docker rm web u
+docker system df        # xem Docker đang chiếm bao nhiêu đĩa
+```
+✅ **Checkpoint:** `docker ps -a` không còn container lab.
+💡 `docker system prune -a` dọn image/container rác — chạy định kỳ kẻo đầy đĩa.
+
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| `port is already allocated` | Cổng host đã bị container khác giữ | Đổi cổng (`-p 8081:80`) hoặc `docker ps` tìm & dừng cái cũ |
+| Container `Exited (0)` ngay | Không có tiến trình foreground | Bình thường với ubuntu; app thật thì xem `docker logs` |
+| Container `Exited (1/137)` | App crash / bị kill (OOM) | `docker logs <ct>` đọc lỗi; 137 = hết RAM |
+| `Cannot connect to the Docker daemon` | Docker daemon chưa chạy | `sudo systemctl start docker`; Docker Desktop mở chưa |
+| `permission denied ... docker.sock` | User chưa trong nhóm docker | `sudo usermod -aG docker $USER` rồi đăng nhập lại |
+| `no space left on device` | Image/volume rác | `docker system prune -a`; `docker system df` để xem |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** phân biệt image và container bằng ví dụ đời thực (gợi ý: khuôn bánh vs cái bánh).
-- Giải thích `-p 3000:80` nghĩa là gì.
-- Vì sao container nhẹ hơn máy ảo (VM)?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Phân biệt image và container bằng ví dụ đời thực.</summary>
+
+> Image = khuôn bánh (chỉ đọc, tạo sẵn). Container = cái bánh làm ra từ khuôn (bản đang chạy). Một khuôn làm được nhiều bánh.
+</details>
+
+<details>
+<summary>2. `-p 3000:80` nghĩa là gì?</summary>
+
+> Map cổng 3000 của **máy host** vào cổng 80 **trong container**. Truy cập `localhost:3000` sẽ tới dịch vụ nghe cổng 80 bên trong.
+</details>
+
+<details>
+<summary>3. Vì sao container nhẹ hơn VM?</summary>
+
+> Container dùng chung kernel của host, chỉ đóng gói app + thư viện (MB, khởi động giây). VM cõng cả hệ điều hành riêng (GB, khởi động phút).
+</details>
+
+<details>
+<summary>4. Vì sao `docker run ubuntu` thoát ngay còn nginx thì chạy mãi?</summary>
+
+> Container sống nhờ tiến trình PID 1. Ubuntu không chạy gì ở foreground → thoát ngay. nginx chạy foreground → giữ container sống.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
 | `docker run hello-world` | `Hello from Docker!` |
-| `docker ps` | Liệt kê CONTAINER ID, IMAGE... |
-| `docker run -p 8080:80 nginx` | `localhost:8080` hiện trang nginx |
+| `docker ps` | Liệt kê container đang chạy |
+| Mở `localhost:8080` | Trang `Welcome to nginx!` |
 
-✅ **Kết quả đạt được:** Hiểu container, chạy được container đầu tiên, thao tác Docker cơ bản.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Image** | Khuôn mẫu chỉ đọc để tạo container |
+| **Container** | Bản đang chạy của một image |
+| **Registry / Docker Hub** | Kho chứa image |
+| **Port mapping** (`-p`) | Ánh xạ cổng host ↔ container |
+| **Volume** | Ổ lưu dữ liệu bền vững ngoài container |
+| **Daemon** (dockerd) | Tiến trình nền chạy Docker |
+| **detached** (`-d`) | Chạy container ở chế độ nền |
+
+✅ **Kết quả đạt được:** Hiểu container vs VM, chạy được container đầu tiên, map cổng, xem log và dọn dẹp Docker.
 
 ---
 
 ## Ngày 17 — Docker: Dockerfile & Build Image
 
 > ⏱️ ~90 phút · Loại: Docker
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 16 (chạy image có sẵn) → **Ngày 17 (tự viết Dockerfile để đóng gói app của mình)** → Ngày 18 (tối ưu image nhỏ gọn). Đây là lúc bạn biến app của mình thành image chạy được ở bất kỳ đâu.
+>
+> ✅ **Chuẩn bị:** Docker chạy được (Ngày 16). Một app nhỏ để đóng gói (Node.js hoặc Python — mình dùng Node ở lab).
 
 ### 📘 Lý thuyết
 
-- **Dockerfile:** file "công thức" để build image của riêng bạn.
-- **Chỉ thị chính:** `FROM` (image gốc), `WORKDIR` (thư mục làm việc), `COPY`/`ADD`, `RUN` (chạy lệnh khi build).
-- **`ENV`** (biến môi trường), **`EXPOSE`** (khai báo cổng), **`CMD`** (lệnh chạy mặc định), **`ENTRYPOINT`**.
-- **Build:** `docker build -t tên-image:tag .` (dấu chấm = context hiện tại).
-- **Layer caching:** mỗi chỉ thị tạo 1 layer; sắp xếp hợp lý để tận dụng cache, build nhanh hơn.
-- **`.dockerignore`:** loại trừ file không cần đưa vào image (như `.gitignore`).
-- **CMD vs ENTRYPOINT:** CMD dễ ghi đè, ENTRYPOINT cố định lệnh chính.
-- **Tag & push:** `docker tag`, `docker push` lên Docker Hub.
+#### 1. Dockerfile là gì
+
+Là file "công thức nấu ăn" mô tả *từng bước* tạo image của riêng app bạn. `docker build` đọc nó → "nấu" ra image.
+
+#### 2. Các chỉ thị chính
+
+| Chỉ thị | Ý nghĩa | Chạy lúc |
+|---|---|---|
+| `FROM node:20` | Chọn image nền | build |
+| `WORKDIR /app` | Thư mục làm việc trong image | build |
+| `COPY src dst` | Chép file vào image | build |
+| `RUN <lệnh>` | Chạy lệnh (vd cài thư viện) | **build** |
+| `ENV KEY=val` | Đặt biến môi trường | build+run |
+| `EXPOSE 3000` | Khai báo cổng (tài liệu) | (thông tin) |
+| `CMD [...]` | Lệnh chạy mặc định | **start container** |
+| `ENTRYPOINT [...]` | Lệnh chính cố định | start container |
+
+> 🔑 `RUN` chạy lúc **build** (tạo image), `CMD`/`ENTRYPOINT` chạy lúc **start** (chạy container). Đừng nhầm — đây là câu hỏi phỏng vấn kinh điển.
+
+#### 3. Build & tag
+
+```bash
+docker build -t my-app:1.0 .    # -t đặt tên:tag, dấu . = build context
+```
+
+#### 4. Layer caching — vì sao thứ tự dòng lệnh quan trọng
+
+Mỗi chỉ thị tạo 1 **layer**, Docker **nhớ (cache)** các layer không đổi. Mẹo vàng: chép file thư viện + cài **trước**, chép code **sau**:
+```dockerfile
+COPY package*.json ./     # đổi ít → cache lại được
+RUN npm ci
+COPY . .                  # code đổi liên tục → để cuối
+```
+Sai thứ tự = mỗi lần sửa 1 dòng code phải cài lại toàn bộ thư viện (chậm khủng khiếp).
+
+#### 5. `.dockerignore` & CMD vs ENTRYPOINT
+
+- **`.dockerignore`**: loại `.git`, `node_modules`, `.env` khỏi build context (như `.gitignore`).
+- **CMD vs ENTRYPOINT**: `ENTRYPOINT` = lệnh cố định luôn chạy; `CMD` = tham số mặc định, dễ ghi đè khi `docker run`.
+- **Tag & push**: `docker tag` đặt tên, `docker push` đẩy lên Docker Hub.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -897,11 +1059,54 @@ Mỗi chỉ thị tạo 1 "lớp" (layer) và Docker **nhớ lại (cache)** cá
 
 ### 🧪 Lab cơ bản
 
-1. Tạo app Node.js (hoặc Python Flask) đơn giản trả về `Hello DevOps`.
-2. Viết Dockerfile (FROM, WORKDIR, COPY, RUN npm install, CMD).
-3. Build image: `docker build -t my-app:1.0 .`
-4. Chạy container từ image vừa build và test trên trình duyệt.
-5. Tạo `.dockerignore` loại trừ `node_modules`, đẩy image lên Docker Hub.
+> Mục tiêu: đóng gói một app Node.js thành image và chạy nó. Các file dưới đây đầy đủ, copy-chạy được.
+
+**Bước 1 — Tạo app nhỏ.** Trong thư mục mới, tạo 3 file:
+
+`package.json`:
+```json
+{ "name": "my-app", "version": "1.0.0", "main": "server.js" }
+```
+`server.js`:
+```javascript
+const http = require('http');
+http.createServer((req, res) => res.end('Hello DevOps'))
+    .listen(3000, () => console.log('Chạy ở cổng 3000'));
+```
+`Dockerfile`:
+```dockerfile
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+EXPOSE 3000
+CMD ["node", "server.js"]
+```
+
+**Bước 2 — Tạo `.dockerignore`.**
+```bash
+printf "node_modules\n.git\n.env\n" > .dockerignore
+```
+
+**Bước 3 — Build image.**
+```bash
+docker build -t my-app:1.0 .
+```
+Bạn sẽ thấy dòng cuối `naming to docker.io/library/my-app:1.0` (build thành công).
+
+**Bước 4 — Chạy và test.**
+```bash
+docker run -d -p 3000:3000 --name app my-app:1.0
+curl localhost:3000        # in: Hello DevOps
+```
+
+**Bước 5 — (Tuỳ chọn) đẩy lên Docker Hub.**
+```bash
+docker login
+docker tag my-app:1.0 <dockerhub-user>/my-app:1.0
+docker push <dockerhub-user>/my-app:1.0
+```
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -937,32 +1142,101 @@ Mỗi chỉ thị tạo 1 "lớp" (layer) và Docker **nhớ lại (cache)** cá
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** viết app nhỏ → viết Dockerfile → build image → chạy & test → thêm `.dockerignore` → push.
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `FROM node:20` (image gốc) · `WORKDIR /app` (thư mục làm việc) · `COPY` (chép file) · `RUN` (chạy lệnh **lúc build**, vd cài dependency) · `CMD` (lệnh chạy **lúc container start**).
-- `docker build -t my-app:1.0 .` — `-t` đặt tên:tag, `.` = build context. *Kết quả:* `Successfully tagged my-app:1.0`.
-- `.dockerignore` — loại `.git`, `node_modules`, `.env` khỏi build context.
+**Bước 1 — Build image.**
+```bash
+docker build -t my-app:1.0 .
+docker images | grep my-app
+```
+✅ **Checkpoint:** build thành công, `docker images` thấy `my-app 1.0`.
+💡 Dấu `.` cuối lệnh là **build context** — thư mục Docker gửi cho daemon (nhớ có `.dockerignore` để không gửi rác).
 
-**🧪 Thử nghiệm:**
-- Đặt `COPY . .` TRƯỚC `RUN npm ci`, build; sửa 1 dòng code rồi build lại → cài lại toàn bộ dependency (chậm). Rồi đảo: `COPY package*.json` + `RUN npm ci` TRƯỚC `COPY . .` → build lại nhanh. **Bài học:** thứ tự layer quyết định cache.
-- `docker history my-app:1.0` — xem từng layer nặng bao nhiêu.
+**Bước 2 — Chạy & kiểm tra app.**
+```bash
+docker run -d -p 3000:3000 --name app my-app:1.0
+curl localhost:3000
+```
+✅ **Checkpoint:** in `Hello DevOps`.
+⚠️ Không thấy gì? `docker logs app` xem app có khởi động không.
 
-⚠️ **Dễ sai:** truyền secret qua `ARG`/`ENV` — nằm trong layer image, ai cũng đọc bằng `docker history`. Dùng BuildKit `--secret`.
+**Bước 3 — Trải nghiệm layer cache.**
+```bash
+docker build -t my-app:1.0 .     # sửa 1 dòng trong server.js rồi build lại
+```
+✅ **Checkpoint:** lần build lại, các layer `npm install` hiện `CACHED` (không cài lại) vì `package.json` không đổi → nhanh.
+💡 Đây là lý do phải `COPY package*.json` + `RUN npm install` TRƯỚC `COPY . .`.
 
-💡 **Hiểu sâu:** `RUN` chạy *khi build* (tạo layer); `CMD`/`ENTRYPOINT` chạy *khi start*. `ENTRYPOINT` cố định lệnh chính, `CMD` là tham số mặc định dễ ghi đè — kết hợp cho lệnh linh hoạt.
+**Bước 4 — Xem cấu tạo image.**
+```bash
+docker history my-app:1.0
+```
+✅ **Checkpoint:** thấy từng layer ứng với từng dòng Dockerfile + kích thước.
+
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Mỗi lần build đều cài lại npm | `COPY . .` đặt trước `RUN npm install` | Đưa `COPY package*.json` + `RUN` lên trước `COPY . .` |
+| Build gửi context rất lâu/nặng | Thiếu `.dockerignore` (gửi cả `.git`, `node_modules`) | Tạo `.dockerignore` |
+| `CMD` không chạy như mong đợi | Nhầm dạng shell vs exec | Dùng dạng JSON: `CMD ["node","server.js"]` |
+| App chạy nhưng `curl` không tới | Chưa `-p` map cổng, hoặc app nghe `127.0.0.1` | `-p 3000:3000`; app nên nghe `0.0.0.0` |
+| Secret lộ trong image | Truyền qua `ARG`/`ENV` | Dùng BuildKit `--secret`; không nhúng secret vào layer |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** phân biệt `RUN` (lúc build) và `CMD` (lúc chạy).
-- Vì sao nên `COPY package.json` + cài dependency **trước** khi `COPY` toàn bộ code? (cache).
-- Viết Dockerfile tối giản cho 1 app Python.
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. `RUN` và `CMD` khác nhau thế nào?</summary>
+
+> `RUN` chạy lúc **build** (tạo layer trong image, vd cài thư viện). `CMD` chạy lúc **start container** (lệnh mặc định khi container khởi động).
+</details>
+
+<details>
+<summary>2. Vì sao nên COPY package.json + cài dependency TRƯỚC khi COPY toàn bộ code?</summary>
+
+> Để tận dụng **layer cache**: code đổi liên tục nhưng dependency ít đổi. Đặt cài dependency trước → build lại chỉ tốn thời gian ở bước copy code, không cài lại thư viện.
+</details>
+
+<details>
+<summary>3. Viết Dockerfile tối giản cho app Python (Flask).</summary>
+
+> ```dockerfile
+> FROM python:3.12-slim
+> WORKDIR /app
+> COPY requirements.txt ./
+> RUN pip install -r requirements.txt
+> COPY . .
+> CMD ["python", "app.py"]
+> ```
+</details>
+
+<details>
+<summary>4. `.dockerignore` để làm gì?</summary>
+
+> Loại file không cần khỏi build context (`.git`, `node_modules`, `.env`) → build nhanh hơn, image gọn hơn, tránh lộ secret.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| `docker build -t myapp .` | `Successfully tagged myapp:latest` |
-| `docker images` | Hiện `myapp` |
-| Chạy app từ image | Container chạy, app phản hồi đúng |
+| `docker build -t my-app:1.0 .` | Build thành công, có tag |
+| `docker images` | Hiện `my-app` |
+| `curl localhost:3000` | `Hello DevOps` |
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Dockerfile** | Công thức để build image |
+| **Build context** | Thư mục gửi cho Docker khi build (dấu `.`) |
+| **Layer** | Một tầng của image (mỗi chỉ thị tạo 1 layer) |
+| **Cache** | Docker tái dùng layer không đổi để build nhanh |
+| **CMD / ENTRYPOINT** | Lệnh mặc định / lệnh chính cố định |
+| **Tag** | Nhãn phiên bản của image (`:1.0`) |
+| **`.dockerignore`** | Danh sách file bỏ khỏi build context |
 
 ✅ **Kết quả đạt được:** Tự build image từ Dockerfile, hiểu layer cache, đẩy image lên registry.
 
@@ -971,16 +1245,49 @@ Mỗi chỉ thị tạo 1 "lớp" (layer) và Docker **nhớ lại (cache)** cá
 ## Ngày 18 — Docker: Image tối ưu & Multi-stage Build
 
 > ⏱️ ~90 phút · Loại: Docker
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 17 (viết Dockerfile) → **Ngày 18 (làm image nhỏ, nhanh, an toàn bằng multi-stage)** → Ngày 19 (Volume & Network). Đây là bước từ "image chạy được" lên "image chuẩn production".
+>
+> ✅ **Chuẩn bị:** đã build được image ở Ngày 17. Cài `trivy` nếu muốn thử quét lỗ hổng (tuỳ chọn).
 
 ### 📘 Lý thuyết
 
-- **Vấn đề image quá nặng:** chứa cả công cụ build không cần khi chạy.
-- **Multi-stage build:** dùng nhiều `FROM`; stage build riêng, stage chạy riêng → image cuối nhẹ gọn.
-- **Base image nhỏ:** `alpine` (rất nhỏ), `slim` variants; cân nhắc bảo mật vs kích thước.
-- **Giảm số layer:** gộp lệnh `RUN` bằng `&&`, dọn cache apt trong cùng layer.
-- **Bảo mật image:** không chạy bằng root (`USER`), không nhúng secret, quét lỗ hổng (trivy/docker scout).
-- **Quản lý tag:** dùng tag rõ ràng (`1.0.2`) thay vì chỉ `latest`.
-- **`docker history` & `docker inspect`** để phân tích image.
+#### 1. Vấn đề: image dễ "béo phì"
+
+Để build app cần compiler, thư viện dev, công cụ... nhưng khi *chạy* thì không cần. Nhét hết vào image → nặng cả GB → chậm tải, nhiều lỗ hổng.
+
+#### 2. Multi-stage build — "nấu ở bếp lớn, dọn ra đĩa nhỏ"
+
+Dùng nhiều `FROM` trong 1 Dockerfile:
+- **Stage 1 (bếp):** image to, đủ công cụ → build ra sản phẩm.
+- **Stage 2 (đĩa):** image nhỏ → chỉ `COPY --from=build` sản phẩm sang, vứt hết công cụ build.
+
+Kết quả: image cuối nhỏ gọn (vd 1.2GB → 150MB).
+
+#### 3. Chọn base image nhỏ
+
+| Base | Kích thước | Ghi chú |
+|---|---|---|
+| `node:20` | ~1GB | Đầy đủ, nặng |
+| `node:20-slim` | ~200MB | Gọn hơn |
+| `node:20-alpine` | ~130MB | Rất nhỏ (Alpine Linux) |
+| `distroless` | Nhỏ nhất | Không có cả shell → an toàn nhất |
+
+#### 4. Vì sao image nhỏ quan trọng (không chỉ tiết kiệm chỗ)
+
+- Tải/khởi động nhanh hơn → **scale nhanh**.
+- **Ít gói = ít lỗ hổng** (bề mặt tấn công nhỏ).
+- Chạy bằng `USER` thường (không root) → bị hack cũng hạn chế thiệt hại.
+
+#### 5. Các kỹ thuật tối ưu & bảo mật khác
+
+- **Giảm layer:** gộp lệnh `RUN a && b && dọn-cache` trong 1 layer.
+- **`USER node`:** không chạy bằng root.
+- **Pin tag rõ ràng** (`1.0.2`) thay vì `latest` (latest thay đổi bất ngờ, không rollback chính xác được).
+- **Quét lỗ hổng:** `trivy image <img>` hoặc `docker scout`.
+- **Phân tích:** `docker history` (layer nào nặng), `docker inspect`.
+
+> 🔑 Image production lý tưởng **không có** compiler, `git`, hay cả shell nếu không cần. Mỗi thứ thừa là 1 rủi ro.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -1002,11 +1309,50 @@ Kết quả: image cuối nhỏ gọn (vd 1.2GB → 150MB), chạy nhanh, an to�
 
 ### 🧪 Lab cơ bản
 
-1. Viết multi-stage Dockerfile: stage 1 build, stage 2 chỉ copy artifact sang base nhỏ.
-2. So sánh kích thước image trước/sau tối ưu: `docker images`.
-3. Thêm chỉ thị `USER` để không chạy bằng root.
-4. Cài và chạy trivy quét image tìm lỗ hổng (hoặc docker scout).
-5. Dùng `docker history` xem các layer và kích thước từng layer.
+> Mục tiêu: thấy tận mắt image nhỏ đi nhờ multi-stage, và quét lỗ hổng.
+
+**Bước 1 — Build phiên bản "béo" (1 stage) để so sánh.** Dùng `Dockerfile` của Ngày 17 (FROM node:20 đầy đủ), build:
+```bash
+docker build -t my-app:fat -f Dockerfile .
+docker images my-app
+```
+Ghi lại cột SIZE (vd ~1GB).
+
+**Bước 2 — Viết multi-stage `Dockerfile.slim`.**
+```dockerfile
+# Stage build
+FROM node:20 AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+
+# Stage chạy — base nhỏ, user thường
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app .
+USER node
+EXPOSE 3000
+CMD ["node", "server.js"]
+```
+
+**Bước 3 — Build và so sánh kích thước.**
+```bash
+docker build -t my-app:slim -f Dockerfile.slim .
+docker images my-app
+```
+Bạn sẽ thấy `my-app:slim` **nhỏ hơn rõ rệt** so với `:fat`.
+
+**Bước 4 — Quét lỗ hổng (tuỳ chọn).**
+```bash
+trivy image my-app:slim        # bảng CVE theo mức độ
+```
+
+**Bước 5 — Xem layer nào nặng.**
+```bash
+docker history my-app:slim
+```
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -1050,34 +1396,94 @@ Kết quả: image cuối nhỏ gọn (vd 1.2GB → 150MB), chạy nhanh, an to�
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** viết multi-stage Dockerfile → so sánh kích thước → thêm `USER` + `HEALTHCHECK` → quét Trivy → xem layer.
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**.
 
-**Giải nghĩa & kết quả mong đợi:**
-- Multi-stage: `FROM node:20 AS build` (cài + build) rồi `FROM node:20-alpine` (chỉ `COPY --from=build` artifact). *Kết quả:* `docker images` thấy image cuối nhỏ hơn nhiều (vd 1.2GB → ~150MB).
-- `USER node` — chạy bằng user thường, không root. `HEALTHCHECK` — Docker tự kiểm tra container khỏe.
-- `trivy image my-app:1.0` — quét lỗ hổng (CVE). *Kết quả:* bảng CVE theo mức độ.
+**Bước 1 — So sánh fat vs slim.**
+```bash
+docker images my-app
+```
+✅ **Checkpoint:** `my-app:slim` nhỏ hơn `my-app:fat` rõ rệt (thường vài lần).
+💡 Stage build (compiler, dev deps) bị bỏ lại ở stage 1 → chỉ artifact + base nhỏ được giữ.
 
-**🧪 Thử nghiệm:**
-- Build 1 lần KHÔNG multi-stage, 1 lần CÓ, rồi `docker images` so sánh cột SIZE. **Bài học:** stage build (compiler, dev deps) bị bỏ lại → image chạy nhẹ hẳn.
-- `docker history --no-trunc my-app` — tìm layer phình to (thường do quên dọn cache hoặc copy nhầm `.git`).
+**Bước 2 — Xác nhận app vẫn chạy với image nhỏ.**
+```bash
+docker run -d -p 3001:3000 --name app-slim my-app:slim
+curl localhost:3001        # vẫn: Hello DevOps
+```
+✅ **Checkpoint:** app phản hồi y hệt bản fat, dù image nhỏ hơn nhiều.
 
-⚠️ **Dễ sai:** dùng `latest` ở production → "máy nào pull lúc nào ra bản đó", không rollback chính xác. Pin tag rõ ràng (SHA/semver).
+**Bước 3 — Kiểm chứng chạy bằng user thường.**
+```bash
+docker exec app-slim whoami     # in: node (không phải root)
+```
+✅ **Checkpoint:** in `node` — không chạy bằng root.
+💡 Bị hack container cũng khó leo quyền vì không phải root.
 
-💡 **Hiểu sâu:** image nhỏ = pull nhanh (scale nhanh) + bề mặt tấn công nhỏ (ít gói = ít CVE). Mức cao nhất: **distroless** (không có cả shell để khai thác).
+**Bước 4 — Tìm layer phình (nếu image vẫn to).**
+```bash
+docker history --no-trunc my-app:slim
+```
+✅ **Checkpoint:** đọc được layer nào nặng (thường do quên dọn cache hoặc copy nhầm `node_modules`/`.git`).
+
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Image slim vẫn to | `.dockerignore` thiếu / copy cả `.git`, dev deps | Bổ sung `.dockerignore`; chỉ `COPY --from=build` artifact cần |
+| App lỗi trên alpine mà chạy trên node:20 | Alpine thiếu thư viện hệ thống (glibc) | Cài gói còn thiếu, hoặc dùng `-slim` thay `-alpine` |
+| `permission denied` sau khi thêm `USER node` | File thuộc root, user node không ghi được | `COPY --chown=node:node` hoặc chỉnh quyền trước |
+| `latest` gây lỗi bất ngờ khi deploy | Image `latest` đã đổi | Pin tag semver/SHA rõ ràng |
+| trivy báo nhiều CVE | Base image cũ | Cập nhật base (`node:20-alpine` mới), rebuild |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** multi-stage build giúp giảm kích thước image bằng cách nào?
-- Vì sao không nên chạy container bằng user root?
-- Vì sao nên tránh dùng tag `latest` trong production?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Multi-stage build giảm kích thước image bằng cách nào?</summary>
+
+> Stage build chứa compiler/dev deps để tạo artifact; stage cuối chỉ `COPY --from=build` artifact sang base nhỏ, bỏ hết công cụ build → image cuối nhẹ.
+</details>
+
+<details>
+<summary>2. Vì sao không nên chạy container bằng root?</summary>
+
+> Nếu container bị khai thác, chạy bằng root cho kẻ tấn công nhiều quyền hơn (dễ leo thang, phá host). Dùng `USER` thường để giới hạn thiệt hại.
+</details>
+
+<details>
+<summary>3. Vì sao tránh tag `latest` ở production?</summary>
+
+> `latest` không cố định — mỗi lần pull có thể ra bản khác → không tái lập được, không rollback chính xác. Pin `1.0.2`/SHA.
+</details>
+
+<details>
+<summary>4. Distroless là gì và lợi ích?</summary>
+
+> Base image tối giản, không có shell/package manager → bề mặt tấn công gần như bằng 0, nhưng khó debug (không vào shell được).
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| `docker images` trước/sau | Image multi-stage nhỏ hơn rõ rệt |
-| Build multi-stage | Chỉ stage cuối được giữ, không có toolchain |
-| App vẫn chạy với image nhỏ | Phản hồi không đổi |
+| `docker images` fat vs slim | slim nhỏ hơn rõ rệt |
+| `curl` app slim | Phản hồi không đổi |
+| `docker exec ... whoami` | `node` (không phải root) |
 
-✅ **Kết quả đạt được:** Tối ưu image nhỏ gọn, bảo mật — kỹ năng Docker chuyên nghiệp.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Multi-stage build** | Build nhiều tầng, tầng cuối chỉ lấy artifact |
+| **`COPY --from`** | Chép file từ stage khác |
+| **Base image** | Image nền (alpine/slim/distroless) |
+| **Alpine** | Bản Linux siêu nhỏ hay dùng làm base |
+| **Distroless** | Image không có shell/OS thừa — an toàn nhất |
+| **CVE** | Lỗ hổng bảo mật đã được ghi nhận |
+| **`USER`** | Chỉ thị chạy container bằng user không-root |
+
+✅ **Kết quả đạt được:** Tối ưu image nhỏ gọn, bảo mật, chạy bằng user thường — kỹ năng Docker chuyên nghiệp.
 
 ---
 
