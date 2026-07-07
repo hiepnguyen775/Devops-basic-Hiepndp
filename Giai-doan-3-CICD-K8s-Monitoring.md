@@ -3462,16 +3462,42 @@ Nhớ file `.tfstate` (Ngày 29)? Để trên máy cá nhân thì cả team khô
 ## Ngày 49 — Bảo mật DevSecOps & Best Practices
 
 > ⏱️ ~90 phút · Loại: Security
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 48 (Terraform nâng cao) → **Ngày 49 (DevSecOps — nhét bảo mật vào mọi bước)** → Ngày 50 (Milestone GĐ3). Bảo mật không phải "làm cuối"; càng phát hiện sớm càng rẻ.
+
+> ✅ **Chuẩn bị:** pipeline CI (Ngày 32), cluster K8s. Cài `trivy`, `tfsec`, `gitleaks` để thực hành.
 
 ### 📘 Lý thuyết
 
-- **DevSecOps:** tích hợp bảo mật vào toàn bộ pipeline (**shift-left security**).
-- **Quét lỗ hổng:** image scanning (Trivy), dependency scanning (SCA), SAST (quét code).
-- **Secret management:** Vault, cloud Secrets Manager — không bao giờ hard-code secret.
-- **Least privilege:** IAM role tối thiểu, RBAC trong K8s.
-- **Supply chain security:** ký image (cosign), SBOM (danh mục thành phần).
-- **Network policy trong K8s:** kiểm soát luồng traffic giữa pod.
-- **Compliance & audit:** log mọi thay đổi, quét cấu hình sai (tfsec, kube-bench).
+#### 1. DevSecOps & Shift-left
+
+Tư duy cũ: làm xong hết mới kiểm tra bảo mật (cuối). Tư duy mới **"shift-left"**: kiểm tra ngay khi viết code/mở PR. Lỗ hổng phát hiện càng muộn càng **đắt** để sửa (gấp nghìn lần khi đã lên production).
+
+#### 2. Năm loại "quét" tự động trong pipeline
+
+| Loại | Quét gì | Công cụ |
+|---|---|---|
+| **SCA** | Thư viện/dependency có CVE | Trivy, Dependabot, Snyk |
+| **SAST** | Lỗ hổng trong code của bạn | Semgrep, CodeQL |
+| **Image scan** | Lỗ hổng trong image OS/lib | Trivy, Grype |
+| **IaC scan** | Cấu hình hạ tầng sai (S3 public...) | tfsec, checkov |
+| **Secret scan** | Secret lỡ commit | gitleaks, trufflehog |
+
+#### 3. Bảo vệ trong cluster
+
+- **NetworkPolicy**: quy định pod nào được nói chuyện với pod nào (vd chỉ backend gọi được DB). Nên **deny-by-default**.
+- **RBAC**: phân quyền tối thiểu cho từng tài khoản/service account — không cấp `cluster-admin` bừa.
+
+#### 4. Secret & Supply chain
+
+- **Secret management**: Vault / cloud Secrets Manager — không bao giờ hard-code.
+- **Supply chain**: ký image (**cosign**), **SBOM** (danh mục thành phần) — biết chính xác đang chạy gì; ghim version.
+
+#### 5. Compliance & audit
+
+Log mọi thay đổi, quét cấu hình sai định kỳ (`tfsec`, `kube-bench` — kiểm cluster theo CIS benchmark).
+
+> 🔑 Bảo mật là **nhiều lớp** (defense in depth): firewall → NetworkPolicy → RBAC → least privilege → quét → quản secret. Không lớp nào đủ một mình.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -3545,25 +3571,75 @@ Tư duy cũ: làm xong hết rồi mới kiểm tra bảo mật (cuối cùng). 
 
 💡 **Hiểu sâu:** 5 loại quét: SCA (dependency), SAST (code), Image scan, IaC scan (tfsec), Secret scan (gitleaks). Defense in depth: firewall → NetworkPolicy → RBAC → least privilege → scan → secret mgmt.
 
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| CI đỏ vì Trivy CVE | Image có lỗ hổng nghiêm trọng | Cập nhật base image/lib; nếu chấp nhận được → allowlist có kiểm soát |
+| NetworkPolicy chặn hết cả traffic đúng | deny-all mà chưa allow luồng cần | Thêm rule allow frontend→backend, backend→db |
+| RBAC `Forbidden` | Service account thiếu quyền | Cấp Role tối thiểu đủ dùng (không cluster-admin) |
+| gitleaks báo secret | Lỡ commit key | Gỡ + **xoay secret**; thêm `.gitignore`; dùng secret manager |
+| tfsec báo S3 public | Cấu hình IaC sai | Sửa manifest (block public access) |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** "shift-left security" nghĩa là gì?
-- Liệt kê 3 loại quét bảo mật trong pipeline.
-- RBAC và NetworkPolicy bảo vệ cluster thế nào?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. "Shift-left security" nghĩa là gì?</summary>
+
+> Đẩy kiểm tra bảo mật sớm về phía dev (lúc code/PR) thay vì cuối. Phát hiện sớm rẻ hơn nghìn lần so với lúc đã production.
+</details>
+
+<details>
+<summary>2. Liệt kê các loại quét bảo mật trong pipeline.</summary>
+
+> SCA (dependency), SAST (code), Image scan, IaC scan (tfsec), Secret scan (gitleaks).
+</details>
+
+<details>
+<summary>3. RBAC và NetworkPolicy bảo vệ cluster thế nào?</summary>
+
+> RBAC giới hạn *ai được làm gì* (quyền tối thiểu). NetworkPolicy giới hạn *pod nào nói chuyện với pod nào* (cô lập mạng, deny-by-default).
+</details>
+
+<details>
+<summary>4. Vì sao supply chain security quan trọng?</summary>
+
+> Tấn công qua dependency/image nhiễm độc ngày càng nhiều. Ghim version, quét, ký image (cosign), SBOM để biết chính xác đang chạy gì.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Quét lỗ hổng image | `trivy image myapp` → bảng CVE theo mức độ |
-| Không hard-code secret | Secret trong vault/secret manager, không trong code |
-| Quét secret trong repo | Công cụ scan báo sạch, không lộ key |
+| Quét lỗ hổng image | `trivy image myapp` → bảng CVE |
+| NetworkPolicy | Pod ngoài luồng bị chặn khi curl |
+| Quét secret | gitleaks báo sạch, không lộ key |
 
-✅ **Kết quả đạt được:** Tích hợp bảo mật vào pipeline và hạ tầng — tư duy DevSecOps.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **DevSecOps** | Nhúng bảo mật vào toàn pipeline |
+| **Shift-left** | Kiểm bảo mật sớm |
+| **SCA / SAST** | Quét dependency / quét code |
+| **NetworkPolicy** | Kiểm soát traffic giữa pod |
+| **RBAC** | Phân quyền theo vai trò |
+| **cosign / SBOM** | Ký image / danh mục thành phần |
+| **Defense in depth** | Phòng thủ nhiều lớp |
+
+✅ **Kết quả đạt được:** Tích hợp bảo mật vào pipeline và hạ tầng (shift-left, quét, NetworkPolicy, RBAC) — tư duy DevSecOps.
 
 ---
 
 ## Ngày 50 — MILESTONE: LAB tổng hợp Giai đoạn 3
 
 > ⏱️ ~150 phút · Loại: Milestone
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 31–49 (CI/CD, K8s, Monitoring, IaC, Security) → **Ngày 50 (ghép thành 1 vòng DevOps khép kín)** → Giai đoạn 4 (SRE + dự án tốt nghiệp). Đây là lúc mọi mắt xích nối lại thành hệ thống hoàn chỉnh.
+>
+> ✅ **Chuẩn bị:** app + CI/CD (Ngày 35), cluster K8s + Helm (Ngày 42), ArgoCD (Ngày 43), monitoring stack (Ngày 44–46). Ghép tất cả.
 
 ### 📘 Lý thuyết — Tổng kết
 
@@ -3638,15 +3714,51 @@ flowchart TD
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Tự chấm:** bạn vận hành được vòng đời DevOps hoàn chỉnh từ code đến giám sát chưa?
-- **Mở rộng:** thêm logging Loki vào hệ thống giám sát.
-- Chuẩn bị giai đoạn cuối: SRE, project tốt nghiệp và định hướng nghề.
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Mô tả vòng DevOps khép kín từ code đến giám sát.</summary>
+
+> push → CI (lint/test/scan) → build image (SHA) → cập nhật config repo → ArgoCD sync → K8s (probe/HPA) → Prometheus/Grafana/Loki giám sát → phát hiện vấn đề → cải tiến → lặp lại.
+</details>
+
+<details>
+<summary>2. Vì sao GitOps an toàn hơn CI push thẳng vào cluster?</summary>
+
+> Không CI nào giữ credential cluster; ArgoCD trong cluster tự kéo từ Git → không lộ chìa khoá, có dấu vết, rollback bằng git revert.
+</details>
+
+<details>
+<summary>3. Điều quan trọng nhất cần "ngấm" ở Giai đoạn 3 là gì?</summary>
+
+> Không phải nhớ từng công cụ, mà hiểu **chúng ghép vào nhau** thành 1 vòng tự động khép kín. Mỗi công cụ là 1 mắt xích.
+</details>
+
+<details>
+<summary>4. So sánh mức trưởng thành qua 3 giai đoạn.</summary>
+
+> GĐ1: gõ tay 1 server. GĐ2: đóng gói + lên cloud bằng code. GĐ3: tự động + tự phục hồi + tự giám sát ở quy mô lớn.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Pipeline + K8s + Monitoring liên hoàn | push → CI/CD → deploy K8s → metrics/log lên Grafana |
-| Thấy sức khỏe hệ thống | Dashboard phản ánh deploy mới theo thời gian thực |
+| Pipeline + K8s + Monitoring liên hoàn | push → CI/CD → deploy K8s → metric/log lên Grafana |
+| Thấy sức khoẻ hệ thống | Dashboard phản ánh deploy mới real-time |
 | Toàn bộ khai báo trong Git | Hạ tầng + app + pipeline đều version-controlled |
+
+### 📚 Thuật ngữ Anh–Việt (tổng hợp Giai đoạn 3)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **CI/CD** | Tự build-test-deploy |
+| **Kubernetes** | Điều phối container |
+| **GitOps** | Git là nguồn chân lý, tự đồng bộ |
+| **Helm** | Đóng gói app K8s |
+| **Observability** | Metric + Log + Trace |
+| **DevSecOps** | Bảo mật xuyên suốt pipeline |
+| **IaC** | Hạ tầng dưới dạng code |
 
 ✅ **Kết quả đạt được — MỐC 6:** Làm chủ toàn bộ stack DevOps hiện đại — sẵn sàng cho dự án tốt nghiệp.
 
