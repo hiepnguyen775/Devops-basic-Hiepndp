@@ -34,17 +34,54 @@
 ## Ngày 1 — DevOps & SysOps là gì? Tổng quan toàn ngành
 
 > ⏱️ ~90 phút · Loại: Khái niệm
+>
+> 🧭 **Bạn đang ở đâu:** **Ngày 1 (bức tranh toàn ngành + dựng môi trường)** → Ngày 2 (Linux cơ bản). Hôm nay chưa cần code nhiều — mục tiêu là *hiểu mình sắp học gì và vì sao*, đồng thời chuẩn bị "đồ nghề" (Git, GitHub, SSH) dùng suốt 60 ngày.
+>
+> ✅ **Chuẩn bị trước khi làm:** một máy tính có Internet + có thể cài phần mềm. Chưa cần Linux ngay hôm nay (từ Ngày 2 mới cần), nhưng nếu có sẵn máy/VM Linux thì càng tốt.
 
 ### 📘 Lý thuyết
 
-- **SysOps (System Operations):** vận hành, duy trì, giám sát hệ thống máy chủ — đảm bảo hệ thống chạy ổn định 24/7.
-- **DevOps = Development + Operations:** phá vỡ rào cản giữa lập trình viên (Dev) và vận hành (Ops), tự động hóa toàn bộ quy trình.
-- **Khác biệt cốt lõi:** SysOps thiên về vận hành thủ công/bán tự động; DevOps nhấn mạnh **tự động hóa (automation)**, CI/CD, Infrastructure as Code.
-- **Vấn đề DevOps giải quyết:** Dev muốn release nhanh, Ops muốn ổn định → mâu thuẫn kinh điển *"works on my machine"*.
-- **Vòng đời DevOps (8 bước):** `Plan → Code → Build → Test → Release → Deploy → Operate → Monitor` (vòng lặp vô tận ∞).
-- **CI/CD:** Continuous Integration (tích hợp liên tục) + Continuous Delivery/Deployment (chuyển giao/triển khai liên tục).
-- **Bộ công cụ DevOps phổ biến:** Git, Docker, Kubernetes, Terraform, Ansible, Jenkins, GitHub Actions, Prometheus, Grafana.
-- **Lộ trình nghề nghiệp:** Linux Admin → SysOps → DevOps Engineer → SRE (Site Reliability Engineer) / Cloud Architect / Platform Engineer.
+#### 1. SysOps và DevOps — hai vai, một dòng chảy
+
+| | **SysOps** (System Operations) | **DevOps** (Development + Operations) |
+|---|---|---|
+| Làm gì | Vận hành, duy trì, giám sát máy chủ để hệ thống chạy ổn định 24/7 | SysOps + **tự động hóa mọi thứ bằng code** (CI/CD, IaC) |
+| Cách làm | Nhiều thao tác tay / bán tự động (SSH vào từng máy, gõ lệnh) | Viết code để máy tự làm (1 file tạo 10 server) |
+| Ví dụ | Cài nginx, xem log, khởi động lại dịch vụ khi lỗi | Push code → pipeline tự build, test, deploy |
+
+> DevOps **không thay thế** SysOps — nó *đứng trên nền* SysOps. Bạn phải vững vận hành thủ công (Giai đoạn 1) trước khi tự động hoá nó (Giai đoạn 2–4).
+
+#### 2. Vấn đề DevOps sinh ra để giải quyết
+
+Kịch bản kinh điển: lập trình viên (**Dev**) viết code chạy ngon trên máy mình, "ném" cho bộ phận vận hành (**Ops**) đem lên server → **lỗi**. Hai bên đổ lỗi nhau: *"Works on my machine!"* (máy tôi chạy mà!). Nguyên nhân sâu xa: Dev muốn **release nhanh**, Ops muốn **ổn định** → mâu thuẫn lợi ích. DevOps xoá bức tường này bằng: **cùng một quy trình tự động + cùng chịu trách nhiệm** từ lúc viết code đến lúc chạy thật.
+
+#### 3. Vòng đời DevOps — 8 bước lặp vô tận (∞)
+
+```
+      ┌────────────────────────────────────────────┐
+      ▼                                            │
+   Plan → Code → Build → Test → Release → Deploy → Operate → Monitor
+   (lên   (viết) (đóng   (kiểm  (phát    (đưa lên  (vận    (giám sát)
+    KH)          gói)    thử)   hành)    server)   hành)        │
+      ▲                                                        │
+      └────────────────  Monitor học được → Plan lại  ─────────┘
+```
+
+Mỗi vòng lặp là một lần cải tiến. **CI/CD chính là "cái máy" tự động chạy dây chuyền này** thay cho làm tay.
+
+#### 4. CI/CD nói cho thật đơn giản
+
+| | Viết tắt | Nghĩa | Bạn làm gì | Máy làm gì |
+|---|---|---|---|---|
+| **CI** | Continuous Integration | Tích hợp liên tục | `git push` | Tự **build + test + lint** code ngay, báo lỗi sớm |
+| **CD** | Continuous Delivery/Deployment | Chuyển giao/Triển khai liên tục | (không làm gì thêm) | Tự **đưa bản đã test lên server** |
+
+→ Bạn chỉ `git push`, phần còn lại máy lo. Đó là đích đến của cả khoá học này.
+
+#### 5. Bộ công cụ & lộ trình nghề
+
+- **Bộ công cụ phổ biến (sẽ học dần):** Git, Docker, Kubernetes, Terraform, Ansible, GitHub Actions/Jenkins, Prometheus, Grafana.
+- **Lộ trình nghề:** Linux Admin → **SysOps** → **DevOps Engineer** → **SRE** (Site Reliability Engineer) / Cloud Architect / Platform Engineer. Khoá 60 ngày này đưa bạn đi hết chặng SysOps → DevOps → chạm ngõ SRE.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -67,14 +104,24 @@ Ngày xưa, lập trình viên (Dev) viết code xong "ném" cho bộ phận v�
 
 ### 🧪 Lab cơ bản
 
-1. Tạo tài khoản GitHub miễn phí tại [github.com](https://github.com).
-2. Tải & cài Git từ [git-scm.com/downloads](https://git-scm.com/downloads), kiểm tra:
-   ```bash
-   git --version          # mong đợi: git version 2.x.x
-   ```
-3. Vẽ sơ đồ vòng đời DevOps 8 bước ra giấy, ghi chú từng giai đoạn làm gì.
-4. Đọc 1 bài về DevOps culture (Google: *"Netflix DevOps culture"* hoặc *"Spotify engineering culture"*).
-5. Tạo file kế hoạch học tập 60 ngày bằng Notion / Obsidian / file `.md` để theo dõi tiến độ.
+> Mục tiêu: cài Git, tạo GitHub, và nắm vòng đời DevOps. Không cần Linux hôm nay.
+
+**Bước 1 — Tạo tài khoản GitHub** miễn phí tại [github.com](https://github.com) (nhớ username — đây là "địa chỉ" portfolio của bạn).
+
+**Bước 2 — Cài Git và kiểm tra.**
+```bash
+# Linux (Ubuntu/Debian): sudo apt update && sudo apt install -y git
+# Linux (Fedora/RHEL):   sudo dnf install -y git
+# (Windows: tải tại git-scm.com/downloads)
+git --version
+```
+Bạn sẽ thấy: `git version 2.x.x`.
+
+**Bước 3 — Vẽ vòng đời DevOps 8 bước** ra giấy, ghi cạnh mỗi bước "bước này làm gì" (xem lại mục Lý thuyết #3).
+
+**Bước 4 — Đọc 1 bài về văn hoá DevOps** (Google: *"Netflix DevOps culture"* hoặc *"Spotify engineering culture"*) — hiểu DevOps là *văn hoá*, không chỉ công cụ.
+
+**Bước 5 — Tạo file kế hoạch học 60 ngày** (Notion / Obsidian / file `.md`) dạng checklist để tự theo dõi tiến độ.
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -97,63 +144,172 @@ Ngày xưa, lập trình viên (Dev) viết code xong "ném" cho bộ phận v�
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-> Đọc khi làm để hiểu *vì sao*, không chỉ chép theo.
+> Làm **tuần tự từng bước**. Sau mỗi bước, đối chiếu với "Bạn sẽ thấy" và dừng ở dòng ✅ **Checkpoint** trước khi đi tiếp. Phần này hoàn tất "đồ nghề" Git/GitHub/SSH dùng suốt khoá.
 
-**Trình tự nên làm:** cài Git → khai báo định danh (`git config`) → tạo SSH key → gắn key lên GitHub → test kết nối. Mỗi bước xong hãy *thấy kết quả* rồi mới đi tiếp.
+**Bước 1 — Xác nhận Git đã cài.**
+```bash
+git --version
+```
+Bạn sẽ thấy: `git version 2.43.0` (số có thể khác).
+✅ **Checkpoint:** có dòng `git version 2.x.x`.
+⚠️ Nếu báo `command not found` → chưa cài: `sudo apt install -y git` (Ubuntu/Debian) hoặc `sudo dnf install -y git` (Fedora/RHEL).
 
-**Giải nghĩa & kết quả mong đợi:**
-- `git --version` — kiểm tra Git đã cài chưa. *Kết quả:* `git version 2.x.x`. Nếu "command not found" → chưa cài (Ubuntu/Debian: `sudo apt install -y git`; Fedora/RHEL: `sudo dnf install -y git`).
-- `git config --global user.name/.email` — gắn tên + email vào MỌI commit. **Vì sao `--global`:** áp dụng cho mọi repo trên máy (lưu ở `~/.gitconfig`), khỏi khai lại. *Kết quả:* `git config --global --list` in đúng tên/email.
-- `git config --global pull.rebase true` — khi `git pull` thì rebase thay vì merge. **Vì sao:** lịch sử thẳng, không rác "Merge branch...".
-- `ssh-keygen -t ed25519 -C "email"` — tạo *cặp* khóa: `id_ed25519` (private — GIỮ KÍN) + `id_ed25519.pub` (public — đem chia sẻ). **Vì sao ed25519:** ngắn, nhanh, an toàn tương đương RSA dài. *Kết quả:* 2 file trong `~/.ssh/`.
-- `ssh -T git@github.com` — test danh tính SSH với GitHub (không mở shell). *Kết quả:* `Hi <user>! You've successfully authenticated...`.
+**Bước 2 — Khai báo định danh** (gắn tên + email vào MỌI commit).
+```bash
+git config --global user.name "Tên Bạn"
+git config --global user.email "ban@example.com"
+git config --global init.defaultBranch main
+git config --global pull.rebase true
+git config --global --list
+```
+Bạn sẽ thấy các dòng vừa đặt được in ra.
+✅ **Checkpoint:** `--list` in đúng `user.name` và `user.email` của bạn.
+💡 *Vì sao `--global`:* áp dụng cho mọi repo trên máy (lưu ở `~/.gitconfig`), khỏi khai lại từng dự án. `pull.rebase true` giúp lịch sử thẳng, không rác "Merge branch...".
 
-**🧪 Thử nghiệm (tự khám phá):**
-- `cat ~/.ssh/id_ed25519.pub` (public — OK để copy) rồi nhìn `cat ~/.ssh/id_ed25519` (private). **Bài học:** chỉ copy file `.pub`; private không bao giờ rời máy.
-- `git config --global --list` — thấy mọi cấu hình vừa đặt nằm gọn một chỗ.
+**Bước 3 — Tạo cặp khoá SSH** (dùng để `git push` không cần gõ mật khẩu, và cho cả Ngày 8).
+```bash
+ssh-keygen -t ed25519 -C "ban@example.com"
+# Nhấn Enter 3 lần để dùng đường dẫn mặc định + không đặt passphrase (lab)
+ls ~/.ssh/
+```
+Bạn sẽ thấy 2 file: `id_ed25519` (private — **GIỮ KÍN**) và `id_ed25519.pub` (public — đem chia sẻ).
+✅ **Checkpoint:** có đủ 2 file trong `~/.ssh/`.
+💡 *Vì sao ed25519:* ngắn, nhanh, an toàn tương đương RSA loại dài.
 
-⚠️ **Dễ sai:** dán nhầm **private key** lên GitHub (phải là file `.pub`). Lộ private key = phải tạo lại key.
+**Bước 4 — Gắn public key lên GitHub.**
+```bash
+cat ~/.ssh/id_ed25519.pub    # copy TOÀN BỘ dòng bắt đầu bằng "ssh-ed25519 ..."
+```
+Vào GitHub → **Settings → SSH and GPG keys → New SSH key** → dán nội dung vừa copy → Save.
+✅ **Checkpoint:** khoá xuất hiện trong danh sách SSH keys trên GitHub.
+⚠️ **Chỉ dán file `.pub`** (public). Tuyệt đối không dán `id_ed25519` (private).
 
-💡 **Hiểu sâu:** SSH key dùng mã hóa bất đối xứng — server giữ public key, chỉ ai có private key tương ứng mới chứng minh được danh tính. Bạn dùng lại nguyên lý này ở Ngày 8 và mọi lần `git push`.
+**Bước 5 — Test kết nối.**
+```bash
+ssh -T git@github.com
+# Lần đầu hỏi "Are you sure...?" → gõ: yes
+```
+Bạn sẽ thấy: `Hi <username>! You've successfully authenticated, but GitHub does not provide shell access.`
+✅ **Checkpoint:** có dòng `Hi <username>! You've successfully authenticated`.
+
+### 🐛 Gỡ lỗi nhanh
+
+> Khi lệnh Git/SSH không chạy, đây là các lỗi hay gặp nhất ở ngày đầu và cách xử lý.
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| `git: command not found` | Git chưa được cài | `sudo apt install -y git` / `sudo dnf install -y git` |
+| `ssh -T` báo `Permission denied (publickey)` | Chưa gắn public key lên GitHub, hoặc gắn nhầm file | Copy lại `id_ed25519.pub` (đúng file `.pub`) và thêm vào GitHub |
+| `Could not open a connection to your authentication agent` | ssh-agent chưa chạy | `eval "$(ssh-agent -s)"` rồi `ssh-add ~/.ssh/id_ed25519` |
+| `git push` vẫn hỏi username/password | Repo dùng URL `https://` thay vì SSH | Đổi remote sang SSH: `git remote set-url origin git@github.com:user/repo.git` |
+| Commit hiện sai tên/email | Chưa `git config` hoặc gõ sai | Chạy lại Bước 2, kiểm tra bằng `git config --global --list` |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Câu hỏi:** Khác biệt cốt lõi giữa SysOps và DevOps? (gợi ý: mức độ tự động hóa)
-- Liệt kê 8 bước vòng đời DevOps theo thứ tự, **không nhìn tài liệu**.
-- Tự giải thích CI và CD khác nhau ở điểm nào.
+**✍️ Tự kiểm tra (nghĩ câu trả lời rồi mới bấm xem đáp án):**
+
+<details>
+<summary>1. Khác biệt cốt lõi giữa SysOps và DevOps là gì?</summary>
+
+> **Mức độ tự động hoá.** SysOps thiên về thao tác tay/bán tự động; DevOps tự động hoá mọi thứ bằng code (CI/CD, IaC). DevOps đứng trên nền SysOps.
+</details>
+
+<details>
+<summary>2. Liệt kê 8 bước vòng đời DevOps theo thứ tự (không nhìn tài liệu).</summary>
+
+> Plan → Code → Build → Test → Release → Deploy → Operate → Monitor → (lặp lại Plan).
+</details>
+
+<details>
+<summary>3. CI và CD khác nhau ở điểm nào?</summary>
+
+> **CI** = mỗi lần push, máy tự build + test + lint (bắt lỗi sớm). **CD** = sau khi test đạt, máy tự đưa lên server. CI lo "code có ổn không", CD lo "đưa lên đâu".
+</details>
+
+<details>
+<summary>4. Vì sao chỉ được dán file `.pub` lên GitHub, không dán file kia?</summary>
+
+> `.pub` là public key (chia sẻ được). File `id_ed25519` là private key — bí mật, lộ ra là ai cũng giả danh được bạn, phải tạo lại khoá.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Chạy `git --version` | `git version 2.x.x` |
+| `git --version` | `git version 2.x.x` |
 | Truy cập `github.com/<username>` | Trang profile mở được |
 | `ssh -T git@github.com` | `Hi <user>! You've successfully authenticated...` |
 
-✅ **Kết quả đạt được:** Hiểu bức tranh tổng thể SysOps/DevOps, có GitHub + SSH key, cài Git thành công, có kế hoạch học.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **DevOps** | Văn hoá + thực hành tự động hoá toàn bộ vòng đời phần mềm |
+| **CI/CD** | Tích hợp liên tục / Chuyển giao–Triển khai liên tục (tự build-test-deploy) |
+| **Pipeline** | Dây chuyền tự động chạy các bước build/test/deploy |
+| **Repository (repo)** | Kho chứa mã nguồn (kèm lịch sử thay đổi) |
+| **SSH key** | Cặp khoá (private + public) để xác thực an toàn không cần mật khẩu |
+| **Automation** | Tự động hoá — để máy làm việc lặp lại thay người |
+| **Works on my machine** | Câu nói kinh điển khi code chạy ở máy Dev nhưng lỗi trên server |
+
+✅ **Kết quả đạt được:** Hiểu bức tranh tổng thể SysOps/DevOps & vòng đời 8 bước, cài Git thành công, có GitHub + SSH key kết nối được, và có kế hoạch học 60 ngày.
 
 ---
 
 ## Ngày 2 — Linux cơ bản: Điều hướng & Quản lý file
 
 > ⏱️ ~90 phút (30 cài đặt + 60 luyện tập) · Loại: Linux
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 1 (tổng quan) → **Ngày 2 (gõ lệnh Linux đầu tiên: đi lại & quản lý file)** → Ngày 3 (tiến trình & phần mềm). Đây là nền của MỌI ngày sau — mọi thứ trong DevOps đều quy về "thao tác với file trên Linux".
+>
+> ✅ **Chuẩn bị trước khi làm:** một môi trường Linux. Ưu tiên máy/VM Ubuntu hoặc Fedora thật; nếu đang trên Windows có thể dùng WSL2 (`wsl --install` trong PowerShell) như phương án tạm.
 
 ### 📘 Lý thuyết
 
-- **Linux là gì:** HĐH mã nguồn mở, chạy ~90% server toàn cầu, nền tảng của cloud.
-- **Cấu trúc thư mục (FHS):**
-  | Đường dẫn | Vai trò |
-  |---|---|
-  | `/` | root — gốc của toàn hệ thống |
-  | `/home` | file của user |
-  | `/etc` | file cấu hình |
-  | `/var` | log, dữ liệu biến đổi (database, cache) |
-  | `/tmp` | file tạm (xóa khi reboot) |
-  | `/usr` | chương trình, thư viện |
-  | `/opt` | phần mềm bên thứ ba |
-- **Lệnh điều hướng:** `pwd` (vị trí hiện tại), `ls` (liệt kê), `ls -la` (chi tiết + file ẩn), `cd` (chuyển thư mục), `cd ..` (lên 1 cấp), `cd ~` (về home), `cd -` (về thư mục trước đó).
-- **Quản lý thư mục/file:** `mkdir`, `mkdir -p a/b/c` (tạo lồng nhau), `touch` (tạo file rỗng), `rmdir` (xóa thư mục rỗng).
-- **Sao chép & di chuyển:** `cp nguồn đích`, `cp -r` (cả thư mục), `mv` (di chuyển/đổi tên), `rm` (xóa), `rm -rf` (xóa đệ quy — ⚠️ cẩn thận, không có thùng rác!).
-- **Xem nội dung:** `cat` (in cả file), `less` (xem từng trang, `q` để thoát), `head -n 10`, `tail -n 10`, `tail -f` (theo dõi log real-time).
-- **Đường dẫn:** tuyệt đối (`/home/user/file`) vs tương đối (`./file`, `../file`).
+#### 1. Linux là gì và vì sao bắt buộc học
+
+Linux là hệ điều hành **mã nguồn mở**, chạy ~90% server toàn cầu và là nền tảng của toàn bộ cloud + container. Khác Windows ở chỗ điều khiển chính bằng **gõ lệnh** (command line) thay vì bấm chuột — nghe khó hơn, nhưng chính vì ra lệnh bằng chữ nên ta **viết sẵn lệnh thành script cho máy tự chạy** = gốc rễ của tự động hoá.
+
+#### 2. Cây thư mục Linux (FHS) — một cây duy nhất, gốc là `/`
+
+Windows chia ổ rời `C:`, `D:`. Linux gom **tất cả vào MỘT cây**, gốc là `/` ("root"). Các nhánh quan trọng:
+
+| Đường dẫn | Vai trò | Ví như trên Windows |
+|---|---|---|
+| `/` | root — gốc toàn hệ thống | (không có khái niệm tương đương) |
+| `/home` | file của user | `C:\Users` |
+| `/etc` | file cấu hình hệ thống (dạng text) | Registry / Settings |
+| `/var` | log + dữ liệu biến đổi (database, cache) | — |
+| `/tmp` | file tạm (xoá khi reboot) | `%TEMP%` |
+| `/usr` | chương trình, thư viện | `C:\Program Files` |
+| `/opt` | phần mềm bên thứ ba | — |
+
+> 🔑 SysOps điều tra sự cố hay vào `/var/log` (log) và `/etc` (cấu hình) đầu tiên.
+
+#### 3. Nhóm lệnh #1 — Đi lại (di chuyển giữa thư mục)
+
+| Lệnh | Làm gì | Ví dụ |
+|---|---|---|
+| `pwd` | In thư mục đang đứng (*print working directory*) | → `/home/ban` |
+| `ls` / `ls -la` | Liệt kê / liệt kê chi tiết + file ẩn | `ls -la /etc` |
+| `cd <thư_mục>` | Chuyển vào thư mục | `cd /var/log` |
+| `cd ..` / `cd ~` / `cd -` | Lên 1 cấp / về home / về chỗ trước đó | |
+
+#### 4. Nhóm lệnh #2 — Tạo / xoá
+
+- `mkdir <tên>` tạo thư mục; `mkdir -p a/b/c` tạo cả cây lồng nhau (không lỗi nếu đã có).
+- `touch <file>` tạo file rỗng (hoặc cập nhật thời gian sửa).
+- `rmdir` xoá thư mục rỗng; `rm <file>` xoá file; `rm -rf <thư_mục>` xoá đệ quy — ⚠️ **Linux không có Thùng rác, xoá là mất vĩnh viễn**.
+
+#### 5. Nhóm lệnh #3 — Sao chép / di chuyển / xem nội dung
+
+- `cp nguồn đích` (giữ gốc), `cp -r` cho cả thư mục; `mv` di chuyển **hoặc** đổi tên (mất gốc).
+- `cat` in cả file; `less` xem từng trang (`q` để thoát); `head -n 10` / `tail -n 10` xem đầu/cuối; `tail -f` theo dõi log **real-time** (rất hay dùng khi debug).
+
+#### 6. Đường dẫn tuyệt đối vs tương đối
+
+- **Tuyệt đối** `/home/ban/file` = địa chỉ đầy đủ, đi từ đâu cũng tới.
+- **Tương đối** `./file`, `../file` = tính từ chỗ đang đứng. `.` = thư mục hiện tại, `..` = lùi 1 cấp.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -181,17 +337,38 @@ Windows chia ổ rời `C:`, `D:`. Linux gom **tất cả vào MỘT cây**, g�
 
 ### 🧪 Lab cơ bản
 
-1. Cài Ubuntu trên VirtualBox HOẶC WSL2 trên Windows (PowerShell: `wsl --install`).
-2. Luyện điều hướng:
-   ```bash
-   pwd; ls; cd /home; ls -la; cd ~; pwd
-   ```
-3. Tạo cấu trúc thư mục một lệnh:
-   ```bash
-   mkdir -p ~/devops-lab/{scripts,configs,logs,backups}
-   ```
-4. Tạo file bằng nano: `nano ~/devops-lab/ngay2.txt` — viết vài dòng, lưu `Ctrl+O`, thoát `Ctrl+X`.
-5. Thực hành `cp` và `mv` qua lại giữa các thư mục.
+> Mục tiêu: đi lại thành thạo + tạo/sửa/sao chép file. Gõ tay từng lệnh, đừng copy cả cụm.
+
+**Bước 1 — Vào môi trường Linux** (VM Ubuntu/Fedora, hoặc WSL2: `wsl --install` trong PowerShell).
+
+**Bước 2 — Luyện điều hướng và quan sát mình đang ở đâu.**
+```bash
+pwd            # đang ở đâu?
+ls             # có gì quanh đây?
+cd /home; ls -la
+cd ~; pwd      # về home
+```
+Bạn sẽ thấy `pwd` cuối in ra `/home/<user>`.
+
+**Bước 3 — Tạo cây thư mục lab bằng 1 lệnh.**
+```bash
+mkdir -p ~/devops-lab/{scripts,configs,logs,backups}
+ls ~/devops-lab
+```
+Bạn sẽ thấy: `backups  configs  logs  scripts`.
+
+**Bước 4 — Tạo & sửa file bằng nano.**
+```bash
+nano ~/devops-lab/ngay2.txt
+```
+Viết vài dòng → lưu `Ctrl+O` `Enter` → thoát `Ctrl+X`. Kiểm tra: `cat ~/devops-lab/ngay2.txt` in đúng nội dung vừa gõ.
+
+**Bước 5 — Thực hành `cp` và `mv`.**
+```bash
+cp ~/devops-lab/ngay2.txt ~/devops-lab/backups/
+mv ~/devops-lab/ngay2.txt ~/devops-lab/configs/ngay2-doi-ten.txt
+ls -R ~/devops-lab      # -R = liệt kê đệ quy, xem toàn cây
+```
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -239,55 +416,168 @@ find . -name "*.sh" -exec chmod +x {} \;
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-> Đọc khi làm để hiểu *vì sao* gõ từng lệnh — không chỉ chép theo.
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**. Mục tiêu: *biết mình đang ở đâu* và *thấy kết quả* trước khi làm bước sau — thói quen sống còn khi sau này thao tác trên server thật.
 
-**Trình tự nên làm:** vào môi trường Linux → tập điều hướng (`pwd`/`ls`/`cd`) → tạo cây thư mục → tạo/sửa file → sao chép & di chuyển. Làm xong mỗi bước *nhìn kết quả* rồi mới sang bước sau.
+**Bước 1 — Luôn biết mình đang đứng đâu.**
+```bash
+pwd
+```
+Bạn sẽ thấy: `/home/<user>`.
+✅ **Checkpoint:** ra đúng đường dẫn home của bạn.
+💡 *Vì sao quan trọng:* trước khi chạy lệnh xoá/sửa, luôn `pwd` để chắc mình không đứng nhầm chỗ.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `pwd` *(print working directory)* — in thư mục hiện tại. *Kết quả:* `/home/<user>`. **Vì sao cần:** luôn biết "đang đứng ở đâu" trước khi chạy lệnh xóa/sửa.
-- `ls -la` — `-a` gồm file ẩn (bắt đầu bằng `.`), `-l` dạng chi tiết (quyền/chủ/kích thước/ngày). *Kết quả:* mỗi dòng `drwxr-xr-x ... tên`. **Vì sao `-la`:** SysOps cần thấy file ẩn (`.ssh`, `.bashrc`) + cột quyền.
-- `mkdir -p ~/devops-lab/{scripts,configs,logs,backups}` — `-p` tạo cả cha (không lỗi nếu đã có); `{a,b,c}` là *brace expansion*. *Kết quả:* `ls ~/devops-lab` → `backups configs logs scripts`. **Vì sao gọn:** 1 lệnh thay 4.
-- `cp` (giữ gốc) vs `mv` (mất gốc). **Ý nghĩa:** chọn nhầm = mất file gốc.
-- `alias rm='rm -i'` (nâng cao) — `rm` hỏi trước khi xóa. **Vì sao:** Linux *không có Thùng rác*, xóa là mất.
-- `rsync -avh --progress nguồn/ đích/` — `-a` giữ quyền/thời gian, `-v` chi tiết, `-h` đơn vị dễ đọc, `--progress` thanh tiến trình. **Vì sao thay `cp -r`:** chỉ copy phần khác biệt, tiếp tục được khi đứt.
+**Bước 2 — Nhìn kỹ bằng `ls -la`.**
+```bash
+ls -la ~
+```
+Bạn sẽ thấy mỗi dòng dạng `drwxr-xr-x ... .bashrc`.
+✅ **Checkpoint:** thấy được các file ẩn bắt đầu bằng `.` (như `.bashrc`, `.ssh`).
+💡 `-a` = hiện file ẩn, `-l` = chi tiết (quyền/chủ/kích thước/ngày). SysOps cần cả hai.
 
-**🧪 Thử nghiệm (tự khám phá):**
-- `rsync -avh nguồn/ d1/` rồi `rsync -avh nguồn d2/` (một có `/`, một không), so sánh `ls d1 d2`. **Bài học:** `/` cuối = copy *nội dung*; không `/` = copy *cả thư mục*.
-- `touch ~/.an` rồi `ls ~` và `ls -a ~`. **Bài học:** file bắt đầu bằng `.` bị `ls` thường giấu.
+**Bước 3 — Tạo cây thư mục 1 lệnh.**
+```bash
+mkdir -p ~/devops-lab/{scripts,configs,logs,backups}
+ls ~/devops-lab
+```
+✅ **Checkpoint:** in ra `backups configs logs scripts`.
+💡 `{a,b,c}` là *brace expansion* — **shell** bung nó thành 4 tên *trước khi* `mkdir` chạy. Hiểu "ai xử lý cái gì" giúp debug khi lệnh không như ý.
 
-⚠️ **Dễ sai:** quen tay `rm -rf` — không có hoàn tác. Luôn `ls` đường dẫn trước khi xóa.
+**Bước 4 — Phân biệt `cp` và `mv` bằng trải nghiệm.**
+```bash
+touch ~/devops-lab/a.txt
+cp ~/devops-lab/a.txt ~/devops-lab/backups/    # a.txt VẪN còn ở chỗ cũ
+mv ~/devops-lab/a.txt ~/devops-lab/logs/       # a.txt BIẾN MẤT khỏi chỗ cũ
+ls ~/devops-lab ~/devops-lab/backups ~/devops-lab/logs
+```
+✅ **Checkpoint:** `a.txt` còn trong `backups/` (do cp) và trong `logs/` (do mv), nhưng KHÔNG còn ở `~/devops-lab`.
+💡 `cp` giữ gốc, `mv` mất gốc — chọn nhầm là mất file.
 
-💡 **Hiểu sâu:** `{a,b,c}` do **shell (bash)** bung ra *trước khi* `mkdir` chạy — `mkdir` chỉ nhận 4 tên đã bung. Hiểu "ai xử lý cái gì" giúp debug khi lệnh không như ý.
+**Bước 5 — (Nâng cao) so sánh `cp` với `rsync`.**
+```bash
+rsync -avh --progress ~/devops-lab/ ~/devops-lab-copy/
+```
+✅ **Checkpoint:** thấy thanh tiến trình + danh sách file được copy.
+💡 `-a` giữ quyền/thời gian, `-v` chi tiết, `-h` đơn vị dễ đọc. `rsync` chỉ copy phần khác biệt và tiếp tục được khi đứt mạng — chuẩn khi copy dữ liệu lớn trên server.
+
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| `No such file or directory` | Gõ sai đường dẫn, hoặc đang đứng nhầm thư mục | `pwd` kiểm tra vị trí; `ls` xem tên file thật |
+| `Permission denied` | Không đủ quyền với file/thư mục đó | Xem quyền `ls -l`; cần quyền cao thì thêm `sudo` (học kỹ Ngày 4) |
+| `mkdir: cannot create ... File exists` | Thư mục đã tồn tại | Thêm `-p`: `mkdir -p` không báo lỗi nếu đã có |
+| Lỡ tay `rm` mất file | Linux không có Thùng rác | Không khôi phục được → **luôn `ls` đường dẫn trước khi `rm`**; đặt `alias rm='rm -i'` |
+| `rm -rf $DIR/` xoá nhầm cả `/` | `$DIR` rỗng → thành `rm -rf /` | Luôn `echo "$DIR"` kiểm tra trước; quote biến `"$DIR"` |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** tạo thư mục `project/`, bên trong tạo 3 file, copy 1 file sang `backups/`, đổi tên 1 file.
-- Phân biệt `rm` và `rm -rf` — khi nào dùng cái nào, rủi ro của `rm -rf /`.
-- Giải thích đường dẫn tuyệt đối vs tương đối qua ví dụ.
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Tạo thư mục `project/`, trong đó 3 file, copy 1 file sang `backups/`, đổi tên 1 file. Viết các lệnh.</summary>
+
+> `mkdir -p ~/project` → `touch ~/project/{a,b,c}.txt` → `cp ~/project/a.txt ~/devops-lab/backups/` → `mv ~/project/b.txt ~/project/b-moi.txt`.
+</details>
+
+<details>
+<summary>2. `rm` và `rm -rf` khác gì? Vì sao `rm -rf /` cực nguy hiểm?</summary>
+
+> `rm` xoá file; `rm -rf` xoá **đệ quy** cả thư mục và mọi thứ bên trong, không hỏi. `rm -rf /` = xoá toàn bộ hệ thống từ gốc. Linux không có hoàn tác.
+</details>
+
+<details>
+<summary>3. Đường dẫn tuyệt đối vs tương đối — cho ví dụ.</summary>
+
+> Tuyệt đối bắt đầu bằng `/` (vd `/home/ban/a.txt`), đi từ đâu cũng tới. Tương đối tính từ chỗ đang đứng (vd `./a.txt`, `../a.txt`).
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
 | `pwd` | `/home/<user>` |
-| `ls ~/devops-lab` | `scripts configs logs backups` |
+| `ls ~/devops-lab` | `backups configs logs scripts` |
 | `cat ~/devops-lab/ngay2.txt` | In đúng nội dung đã viết |
 
-✅ **Kết quả đạt được:** Chạy được lệnh Linux cơ bản, có môi trường thực hành, hiểu cây thư mục Linux.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Directory** | Thư mục |
+| **Path** (absolute/relative) | Đường dẫn (tuyệt đối/tương đối) |
+| **Root** (`/`) | Gốc của cây thư mục Linux |
+| **FHS** | Filesystem Hierarchy Standard — chuẩn bố trí thư mục Linux |
+| **Recursive** (`-r`, `-R`) | Đệ quy — áp dụng cho cả thư mục con |
+| **Brace expansion** `{a,b,c}` | Shell bung thành nhiều tên trước khi chạy lệnh |
+| **Hidden file** | File ẩn (tên bắt đầu bằng `.`) |
+
+✅ **Kết quả đạt được:** Chạy được lệnh Linux cơ bản, có môi trường thực hành, hiểu cây thư mục Linux và phân biệt cp/mv, đường dẫn tuyệt đối/tương đối.
 
 ---
 
 ## Ngày 3 — Linux: Quản lý tiến trình & phần mềm
 
 > ⏱️ ~90 phút · Loại: Linux
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 2 (file & thư mục) → **Ngày 3 (tiến trình đang chạy + cài phần mềm + dịch vụ systemd)** → Ngày 4 (user & phân quyền). Hôm nay bạn học cách *nhìn máy đang làm gì* và *điều khiển dịch vụ* — kỹ năng dùng mỗi ngày khi vận hành server.
+>
+> ✅ **Chuẩn bị:** môi trường Linux như Ngày 2, có quyền `sudo` để cài phần mềm.
 
 ### 📘 Lý thuyết
 
-- **Tiến trình (process):** mỗi chương trình đang chạy có 1 **PID** (Process ID) riêng.
-- **Xem process:** `ps aux` (tất cả), `top` (real-time, `q` thoát), `htop` (đẹp hơn — `sudo apt install htop`).
-- **Quản lý process:** `kill PID` (gửi tín hiệu dừng — TERM), `kill -9 PID` (ép buộc — KILL), `jobs`, `bg` (chạy nền), `fg` (đưa về trước), `Ctrl+Z` (tạm dừng), `Ctrl+C` (hủy).
-- **Package manager APT (Ubuntu/Debian):** `sudo apt update` (cập nhật danh sách), `sudo apt upgrade`, `sudo apt install <gói>`, `sudo apt remove <gói>`, `sudo apt autoremove`.
-- **Biến môi trường:** `echo $PATH`, `export MYVAR='giá trị'`, `env` (xem tất cả), `unset MYVAR`.
-- **Systemd & dịch vụ:** `systemctl status/start/stop/restart/enable <dịch vụ>`; `journalctl -u <dịch vụ>` để xem log.
-- **Theo dõi tài nguyên:** `free -h` (RAM), `df -h` (đĩa), `du -sh <thư mục>` (dung lượng), `uptime` (tải hệ thống).
+#### 1. Tiến trình (process) & PID
+
+Mỗi chương trình đang chạy là một **tiến trình (process)**, có số định danh riêng gọi là **PID** (Process ID) — như số căn cước. Trên Windows bạn mở Task Manager; trên Linux dùng lệnh:
+
+| Lệnh | Làm gì |
+|---|---|
+| `ps aux` | Liệt kê **tất cả** tiến trình (kèm chủ, %CPU, %MEM, PID) |
+| `top` | Xem real-time, cập nhật liên tục (`q` để thoát) |
+| `htop` | Như top nhưng đẹp/dễ dùng hơn (`sudo apt install htop`) |
+
+#### 2. Điều khiển tiến trình — `kill` là "gửi tín hiệu", không phải "giết"
+
+| Lệnh / phím | Ý nghĩa |
+|---|---|
+| `kill <PID>` | Gửi tín hiệu **TERM (15)** = "dừng lịch sự, dọn dẹp rồi tắt" |
+| `kill -9 <PID>` | Gửi **KILL (9)** = "tắt ngay lập tức", ép buộc — có thể mất dữ liệu. Chỉ dùng khi TERM không ăn thua |
+| `Ctrl+C` | Huỷ tiến trình đang chạy ở tiền cảnh |
+| `Ctrl+Z` / `bg` / `fg` | Tạm dừng / cho chạy nền / đưa về tiền cảnh |
+| `jobs` | Liệt kê job nền của phiên hiện tại |
+
+#### 3. Package manager — "App Store" của Linux
+
+Thay vì tải file `.exe`, Linux có kho phần mềm trung tâm. Ubuntu/Debian dùng `apt`, Fedora/RHEL dùng `dnf`:
+
+| Việc | Ubuntu/Debian (`apt`) | Fedora/RHEL (`dnf`) |
+|---|---|---|
+| Cập nhật **danh sách** phần mềm | `sudo apt update` | (dnf tự cập nhật) |
+| Nâng cấp phần mềm đã cài | `sudo apt upgrade` | `sudo dnf upgrade` |
+| Cài / gỡ | `sudo apt install <gói>` / `remove` | `sudo dnf install <gói>` / `remove` |
+
+> ⚠️ `apt update` chỉ cập nhật *danh sách* (chưa cài gì), `apt upgrade` mới thực sự *nâng cấp*. Đừng nhầm.
+
+#### 4. Biến môi trường
+
+Là các "biến" hệ thống mọi chương trình đọc được: `echo $PATH` (danh sách nơi tìm lệnh), `export MYVAR='giá trị'` (đặt biến), `env` (xem tất cả), `unset MYVAR` (xoá). `$PATH` giải thích vì sao gõ `ls` là chạy được mà không cần đường dẫn đầy đủ.
+
+#### 5. systemd — "người quản lý dịch vụ" của Linux
+
+Dịch vụ chạy nền liên tục (nginx, database...) gọi là *service*. `systemctl` điều khiển chúng:
+
+| Lệnh | Làm gì |
+|---|---|
+| `systemctl status <dv>` | Xem trạng thái (đang chạy? PID? 3 dòng log cuối) |
+| `systemctl start/stop/restart <dv>` | Chạy ngay / dừng / khởi động lại |
+| `systemctl enable <dv>` | **Tự bật khi máy khởi động lại** (không chạy ngay) |
+| `systemctl enable --now <dv>` | Vừa chạy ngay vừa enable (chuẩn) |
+| `journalctl -u <dv>` | Đọc log của dịch vụ |
+
+> 🔑 `start` = chạy **bây giờ**; `enable` = nhớ bật **mỗi lần khởi động**. Quên `enable` là lỗi kinh điển khiến dịch vụ "biến mất" sau reboot.
+
+#### 6. Theo dõi tài nguyên
+
+`free -h` (RAM), `df -h` (đĩa còn trống), `du -sh <thư_mục>` (thư mục nặng bao nhiêu), `uptime` (tải hệ thống + máy chạy bao lâu). `-h` = *human-readable* (hiện MB/GB thay vì byte).
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -308,23 +598,43 @@ Dịch vụ chạy nền liên tục (nginx, database...) gọi là *service*. `
 
 ### 🧪 Lab cơ bản
 
-1. Cài và chạy htop:
-   ```bash
-   sudo apt update && sudo apt install -y htop && htop
-   ```
-2. Chạy lệnh nền và quản lý:
-   ```bash
-   sleep 300 &
-   jobs
-   ps aux | grep sleep
-   kill %1                 # hoặc kill <PID>
-   ```
-3. Tạo biến môi trường:
-   ```bash
-   export MY_NAME='DevOps'; echo $MY_NAME
-   ```
-4. Kiểm tra tài nguyên: `free -h`, `df -h`, `uptime` — ghi lại kết quả.
-5. Cài nginx: `sudo apt install -y nginx`, rồi `systemctl status nginx`.
+> Mục tiêu: xem/điều khiển tiến trình, cài phần mềm, và quản lý dịch vụ bằng systemd.
+
+**Bước 1 — Cài & mở htop.**
+```bash
+sudo apt update && sudo apt install -y htop    # Fedora: sudo dnf install -y htop
+htop                                           # xem bảng tiến trình, nhấn q để thoát
+```
+Bạn sẽ thấy một bảng màu liệt kê tiến trình, %CPU, %MEM.
+
+**Bước 2 — Chạy tiến trình nền và điều khiển nó.**
+```bash
+sleep 300 &            # chạy "ngủ 300s" ở nền
+jobs                   # thấy [1]+ Running sleep 300 &
+ps aux | grep sleep    # tìm PID của nó
+kill %1                # dừng job số 1 (hoặc kill <PID>)
+jobs                   # job đã biến mất
+```
+
+**Bước 3 — Tạo biến môi trường.**
+```bash
+export MY_NAME='DevOps'
+echo $MY_NAME          # in: DevOps
+```
+
+**Bước 4 — Kiểm tra tài nguyên** (ghi lại kết quả để so sánh về sau).
+```bash
+free -h                # RAM
+df -h                  # đĩa còn trống
+uptime                 # tải hệ thống + thời gian chạy
+```
+
+**Bước 5 — Cài & kiểm tra một dịch vụ thật (nginx).**
+```bash
+sudo apt install -y nginx           # Fedora: sudo dnf install -y nginx
+systemctl status nginx              # xem trạng thái
+```
+Bạn sẽ thấy dòng `Active: active (running)`.
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -398,37 +708,110 @@ journalctl -u myapp -f                # xem log app (systemd tự gom log!)
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** cài & mở htop → chạy tiến trình nền và quản lý → đặt biến môi trường → xem tài nguyên → cài & kiểm tra dịch vụ (nginx) bằng systemctl.
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `sudo apt install -y htop` (Fedora: `sudo dnf install -y htop`) — `-y` tự đồng ý. *Kết quả:* gõ `htop` mở bảng tiến trình màu, `q` để thoát.
-- `sleep 300 &` — chạy "ngủ 300s" ở **nền** (`&`). `jobs` liệt kê job nền; `ps aux | grep sleep` tìm PID. **Vì sao `&`:** giải phóng terminal để làm việc khác.
-- `kill %1` (theo job) hoặc `kill <PID>` — gửi tín hiệu **TERM** (lịch sự, cho tiến trình tự dọn dẹp). *Kết quả:* `jobs` không còn job đó.
-- `free -h` / `df -h` / `uptime` — `-h` = đơn vị dễ đọc (MB/GB). *Kết quả:* RAM trống / đĩa trống / load average.
-- `systemctl status nginx` — trạng thái dịch vụ. *Kết quả:* `active (running)`. `start` chạy ngay, `enable` bật tự khởi động khi reboot, `enable --now` = cả hai.
-- `journalctl -u nginx` — đọc log dịch vụ. **Vì sao không đoán mò:** log nói chính xác vì sao dịch vụ lỗi.
+**Bước 1 — Chạy tiến trình nền rồi dừng nó an toàn.**
+```bash
+sleep 300 &
+ps aux | grep sleep     # tìm dòng có "sleep 300", cột thứ 2 là PID
+kill %1                 # dừng job số 1 (TERM — lịch sự)
+```
+✅ **Checkpoint:** `jobs` không còn hiện job `sleep`.
+💡 `|` (pipe) nối output lệnh này thành input lệnh kia: `ps aux | grep sleep` = "liệt kê mọi tiến trình" → "lọc dòng có chữ sleep". Đây là triết lý Unix: ghép công cụ nhỏ làm việc lớn.
 
-**🧪 Thử nghiệm:**
-- `systemctl is-enabled nginx` sau khi chỉ `start` (chưa `enable`). **Bài học:** `start` KHÔNG tự lên sau reboot — phải `enable`. Lỗi #1 của người mới.
-- `ps aux --sort=-%mem | head -5` — 5 tiến trình ngốn RAM nhất (kỹ năng điều tra "máy chậm").
+**Bước 2 — Cài nginx và xem trạng thái.**
+```bash
+sudo apt install -y nginx
+systemctl status nginx
+```
+Bạn sẽ thấy: `Active: active (running)`.
+✅ **Checkpoint:** dòng `Active:` là `active (running)`.
 
-⚠️ **Dễ sai:** dùng `kill -9` (SIGKILL) ngay — *ép chết* không cho dọn dẹp, dễ hỏng dữ liệu. Chỉ dùng khi `kill` thường không ăn thua.
+**Bước 3 — Hiểu `start` vs `enable` (lỗi #1 của người mới).**
+```bash
+systemctl is-enabled nginx     # nginx đã enable chưa?
+sudo systemctl enable --now nginx
+systemctl is-enabled nginx     # giờ phải là: enabled
+```
+✅ **Checkpoint:** `is-enabled` trả về `enabled`.
+💡 Nếu chỉ `start` mà quên `enable`, dịch vụ sẽ KHÔNG tự lên sau khi reboot server.
 
-💡 **Hiểu sâu:** `|` (pipe) nối output lệnh này thành input lệnh kia: `ps aux | grep sleep` = "liệt kê mọi tiến trình" → "lọc dòng có chữ sleep". Triết lý Unix: ghép công cụ nhỏ làm việc lớn.
+**Bước 4 — Đọc log dịch vụ (đừng đoán mò).**
+```bash
+journalctl -u nginx --since "10 min ago" --no-pager
+```
+✅ **Checkpoint:** thấy các dòng log của nginx (thời gian + thông điệp).
+💡 Khi dịch vụ lỗi, `journalctl -u <dv>` cho biết *chính xác* vì sao — nhanh hơn đoán rất nhiều.
+
+**Bước 5 — Tìm tiến trình ngốn tài nguyên (điều tra "máy chậm").**
+```bash
+ps aux --sort=-%mem | head -5    # 5 tiến trình ngốn RAM nhất
+ps aux --sort=-%cpu | head -5    # 5 tiến trình ngốn CPU nhất
+```
+✅ **Checkpoint:** ra danh sách 5 dòng, sắp theo mức tiêu thụ giảm dần.
+
+### 🐛 Gỡ lỗi nhanh
+
+**🔧 Bộ 3 lệnh điều tra dịch vụ:** `systemctl status <dv>` (tổng quan + 3 log cuối) → `journalctl -u <dv>` (log đầy đủ) → `systemctl restart <dv>` (thử khởi động lại).
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Dịch vụ `failed` / không lên | Lỗi cấu hình, cổng bị chiếm, thiếu quyền | `journalctl -u <dv>` đọc lý do; sửa rồi `systemctl restart` |
+| Dịch vụ mất sau khi reboot | Chỉ `start`, quên `enable` | `sudo systemctl enable <dv>` |
+| `apt` báo `Could not get lock` | Có tiến trình apt khác đang chạy | Chờ nó xong, hoặc kiểm tra `ps aux \| grep apt` |
+| `kill <PID>` không tắt được | Tiến trình treo cứng, không nhận TERM | Bất đắc dĩ mới `kill -9 <PID>` (ép buộc, có thể mất dữ liệu) |
+| Máy chậm bất thường | 1 tiến trình ngốn CPU/RAM | `ps aux --sort=-%cpu \| head` tìm thủ phạm |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** tìm PID của nginx và viết lệnh dừng nó an toàn (không dùng `-9`).
-- Phân biệt `apt update` và `apt upgrade`.
-- Giải thích `kill` (TERM, cho dọn dẹp) vs `kill -9` (KILL, ép buộc — mất dữ liệu chưa lưu).
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Tìm PID của nginx và viết lệnh dừng nó an toàn (không dùng -9).</summary>
+
+> `ps aux | grep nginx` (lấy PID ở cột 2) rồi `kill <PID>`, hoặc chuẩn hơn: `sudo systemctl stop nginx`.
+</details>
+
+<details>
+<summary>2. Phân biệt `apt update` và `apt upgrade`.</summary>
+
+> `apt update` cập nhật *danh sách* gói (chưa cài/nâng gì). `apt upgrade` mới thực sự *nâng cấp* các gói đã cài lên bản mới.
+</details>
+
+<details>
+<summary>3. `kill` và `kill -9` khác gì?</summary>
+
+> `kill` gửi TERM (15) — lịch sự, cho tiến trình dọn dẹp rồi tắt. `kill -9` gửi KILL (9) — ép tắt ngay, không cho dọn dẹp, có thể mất dữ liệu chưa lưu. Chỉ dùng -9 khi TERM không ăn thua.
+</details>
+
+<details>
+<summary>4. `start` và `enable` khác nhau thế nào?</summary>
+
+> `start` = chạy ngay bây giờ. `enable` = tự bật mỗi khi máy khởi động. Muốn cả hai: `enable --now`.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
 | `htop` | Hiện danh sách process, %CPU, %MEM |
 | `ps aux \| grep nginx` → `kill <PID>` | Tiến trình dừng, không lỗi |
 | `systemctl status nginx` | `active (running)` |
+| `systemctl is-enabled nginx` (sau enable) | `enabled` |
 
-✅ **Kết quả đạt được:** Quản lý được tiến trình, cài/gỡ phần mềm, hiểu systemd và biến môi trường.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Process / PID** | Tiến trình / số định danh tiến trình |
+| **Signal** (TERM/KILL) | Tín hiệu gửi cho tiến trình (dừng lịch sự / ép tắt) |
+| **Package manager** | Trình quản lý gói phần mềm (`apt`, `dnf`) |
+| **Service / daemon** | Dịch vụ chạy nền liên tục (nginx, database...) |
+| **systemd / systemctl** | Hệ quản lý dịch vụ của Linux / lệnh điều khiển nó |
+| **Environment variable** | Biến môi trường (vd `$PATH`) |
+| **Foreground / Background** | Tiền cảnh / chạy nền (`&`) |
+
+✅ **Kết quả đạt được:** Quản lý được tiến trình, cài/gỡ phần mềm, hiểu systemd (start vs enable), biến môi trường và biết điều tra tài nguyên hệ thống.
 
 ---
 
