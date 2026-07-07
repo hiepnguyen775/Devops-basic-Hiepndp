@@ -2633,16 +2633,54 @@ uptime; nproc
 ## Ngày 11 — Lưu trữ, backup & khôi phục
 
 > ⏱️ ~90 phút · Loại: SysOps
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 10 (log & giám sát) → **Ngày 11 (backup & khôi phục — bảo hiểm dữ liệu)** → Ngày 12 (Milestone tổng hợp GĐ1). Đây là kỹ năng "cứu mạng": đĩa hỏng/xoá nhầm/ransomware — có backup tốt là còn đường về.
+>
+> ✅ **Chuẩn bị:** máy Linux có thư mục `~/devops-lab` để backup. Ôn lại `tar` và `cron` (Ngày 6).
 
 ### 📘 Lý thuyết
 
-- **Phân vùng & filesystem:** ext4, xfs; `lsblk` (xem ổ đĩa), `fdisk -l`, `mount`/`umount`.
-- **Quản lý dung lượng:** `df -h` (tổng quan), `du -sh *` (theo thư mục), tìm file lớn bằng `du + sort`.
-- **Nguyên tắc backup 3-2-1:** 3 bản sao · 2 loại lưu trữ khác nhau · 1 bản off-site (ngoài cơ sở).
-- **Công cụ nén:** `tar -czf` (nén), `tar -xzf` (giải nén), `gzip`, `zip`/`unzip`.
-- **rsync backup gia tăng:** `rsync -avz --delete nguồn/ đích/` (chỉ copy phần thay đổi).
-- **Cron + backup:** lập lịch backup tự động định kỳ.
-- **Khôi phục:** kiểm tra tính toàn vẹn, thực hành restore — **backup không test = không có backup**.
+#### 1. Xem & quản lý dung lượng lưu trữ
+
+| Lệnh | Làm gì |
+|---|---|
+| `lsblk` | Xem ổ đĩa & phân vùng dạng cây |
+| `df -h` | Dung lượng còn trống theo phân vùng |
+| `du -sh *` | Từng thư mục nặng bao nhiêu |
+| `du -ah /var \| sort -rh \| head` | Top file/thư mục lớn nhất |
+
+Filesystem phổ biến: **ext4**, **xfs**. `mount`/`umount` gắn/tháo ổ.
+
+#### 2. Nguyên tắc 3-2-1 — chuẩn vàng của backup
+
+| Số | Ý nghĩa |
+|---|---|
+| **3** | Có 3 bản sao dữ liệu |
+| **2** | Trên 2 loại lưu trữ khác nhau (vd đĩa + cloud) |
+| **1** | Ít nhất 1 bản **off-site** (ngoài cơ sở — phòng cháy/mất cả toà nhà) |
+
+#### 3. Công cụ backup
+
+- **`tar`**: `tar -czf backup.tar.gz thư-mục/` (nén: `c`=create, `z`=gzip, `f`=file); `tar -xzf` (giải nén).
+- **`rsync`**: `rsync -avz --delete nguồn/ đích/` — chỉ copy phần **thay đổi** → backup định kỳ rất nhanh. ⚠️ `--delete` xoá ở đích những gì đã mất ở nguồn — sai chiều là mất dữ liệu.
+- **`sha256sum`**: tạo "chữ ký số" để kiểm tra bản backup có hỏng không.
+
+#### 4. Backup database — KHÔNG copy file thẳng
+
+Database đang chạy mà copy file `.db` thẳng → ra bản **hỏng/không nhất quán**. Phải dùng công cụ chuyên dụng:
+```bash
+pg_dump -U postgres mydb | gzip > mydb.sql.gz                    # PostgreSQL
+mysqldump --single-transaction -u root -p mydb | gzip > mydb.sql.gz   # MySQL
+```
+
+#### 5. RPO & RTO — 2 con số định hình chiến lược
+
+| | Nghĩa | Quyết định |
+|---|---|---|
+| **RPO** (Recovery Point Objective) | Chấp nhận mất tối đa bao nhiêu *dữ liệu* | Backup *bao lâu một lần* |
+| **RTO** (Recovery Time Objective) | Khôi phục xong trong *bao lâu* | *Cách* phục hồi (snapshot nhanh vs archive chậm) |
+
+> 🔑 Sự thật phũ phàng: **"backup chưa từng test restore = KHÔNG có backup"**. Phải test khôi phục định kỳ, đến lúc cần mới biết file hỏng thì đã muộn.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -2667,14 +2705,44 @@ uptime; nproc
 
 ### 🧪 Lab cơ bản
 
-1. Xem ổ đĩa & phân vùng: `lsblk` và `df -h`.
-2. Tìm 10 file/thư mục lớn nhất trong `/var`:
-   ```bash
-   sudo du -ah /var | sort -rh | head -n 10
-   ```
-3. Nén thư mục lab: `tar -czf backup-$(date +%F).tar.gz ~/devops-lab`.
-4. rsync backup gia tăng giữa 2 thư mục, sửa 1 file rồi chạy lại → thấy chỉ sync phần đổi.
-5. Thực hành restore: giải nén ra thư mục mới và kiểm tra dữ liệu nguyên vẹn.
+> Mục tiêu: tạo backup, backup gia tăng bằng rsync, và **test restore** (bước quan trọng nhất).
+
+**Bước 1 — Xem ổ đĩa và tìm nơi ngốn dung lượng.**
+```bash
+lsblk
+df -h
+sudo du -ah /var | sort -rh | head -n 10     # 10 thứ lớn nhất trong /var
+```
+
+**Bước 2 — Nén thư mục lab thành backup.**
+```bash
+cd ~
+tar -czf backup-$(date +%F).tar.gz devops-lab
+ls -lh backup-*.tar.gz
+```
+Bạn sẽ thấy file `backup-2026-....tar.gz` với kích thước hiển thị.
+
+**Bước 3 — Backup gia tăng bằng rsync.**
+```bash
+rsync -av ~/devops-lab/ ~/backup-rsync/       # lần 1: copy hết
+echo "sua doi" >> ~/devops-lab/scripts/hello.sh
+rsync -av ~/devops-lab/ ~/backup-rsync/       # lần 2: CHỈ sync file vừa đổi
+```
+Lần 2 chỉ liệt kê 1 file thay đổi — đó là sức mạnh của backup gia tăng.
+
+**Bước 4 — TEST RESTORE (đừng bỏ qua!).**
+```bash
+mkdir -p /tmp/restore-test
+tar -xzf ~/backup-$(date +%F).tar.gz -C /tmp/restore-test
+diff -r ~/devops-lab /tmp/restore-test/devops-lab
+```
+Nếu `diff` không in gì → dữ liệu khôi phục **giống hệt** bản gốc. ✅
+
+**Bước 5 — Tạo chữ ký kiểm tra toàn vẹn.**
+```bash
+sha256sum ~/backup-$(date +%F).tar.gz > ~/backup.sha256
+sha256sum -c ~/backup.sha256          # in: OK
+```
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -2736,42 +2804,108 @@ restic restore latest --target /tmp/restore  # khôi phục
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** xem ổ đĩa/phân vùng → tìm thư mục ngốn dung lượng → nén backup → backup gia tăng bằng rsync → **test restore**.
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**. Bước quan trọng nhất là **test restore**.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `lsblk` / `df -h` — xem ổ đĩa, phân vùng, dung lượng. *Kết quả:* cây ổ đĩa + % đã dùng.
-- `sudo du -ah /var | sort -rh | head -n 10` — `du` đo dung lượng, `sort -rh` sắp xếp giảm dần theo đơn vị, `head` lấy 10 dòng đầu. *Kết quả:* 10 thư mục/file lớn nhất.
-- `tar -czf backup-$(date +%F).tar.gz ~/devops-lab` — nén thư mục thành 1 file có ngày trong tên.
-- `rsync -avz --delete nguồn/ đích/` — đồng bộ; `--delete` xóa ở đích những gì đã mất ở nguồn. **⚠️ cẩn thận `--delete`:** sai chiều = xóa nhầm.
-- `sha256sum file > file.sha256` rồi `sha256sum -c file.sha256` — tạo & kiểm "chữ ký" để biết bản backup không hỏng.
+**Bước 1 — Tạo backup nén.**
+```bash
+tar -czf backup-$(date +%F).tar.gz devops-lab
+tar -tzf backup-$(date +%F).tar.gz | head    # liệt kê nội dung mà không giải nén
+```
+✅ **Checkpoint:** file `.tar.gz` tạo ra; `-tzf` liệt kê được file bên trong.
+💡 `tar -tzf` kiểm tra archive đọc được không — cách nhanh phát hiện file backup hỏng.
 
-**🧪 Thử nghiệm:**
-- `tar -czf b.tar.gz ~/devops-lab` → xóa thư mục gốc → `tar -xzf b.tar.gz` ra chỗ khác → `diff` so sánh. **Bài học:** *backup chưa test restore = backup giả*.
-- Sửa 1 file rồi chạy lại `rsync` — thấy nó chỉ đồng bộ phần thay đổi. **Bài học:** vì sao rsync hiệu quả cho backup định kỳ.
+**Bước 2 — Backup gia tăng.**
+```bash
+rsync -av ~/devops-lab/ ~/backup-rsync/     # lần 1
+touch ~/devops-lab/moi.txt
+rsync -av ~/devops-lab/ ~/backup-rsync/     # lần 2 chỉ sync moi.txt
+```
+✅ **Checkpoint:** lần 2 chỉ liệt kê `moi.txt`.
 
-⚠️ **Dễ sai:** copy file database đang chạy (vd file `.db`) = backup *không nhất quán*. DB phải dùng `pg_dump`/`mysqldump` (xem 💡 Bổ sung).
+**Bước 3 — Test restore và so sánh.**
+```bash
+mkdir -p /tmp/rt && tar -xzf backup-$(date +%F).tar.gz -C /tmp/rt
+diff -r ~/devops-lab /tmp/rt/devops-lab && echo "RESTORE OK"
+```
+✅ **Checkpoint:** in `RESTORE OK` (diff không thấy khác biệt).
+💡 Đây là bước phân biệt "có backup" với "tưởng là có backup".
 
-💡 **Hiểu sâu:** nguyên tắc **3-2-1**: 3 bản sao · 2 loại lưu trữ khác nhau · 1 bản off-site. Hai con số định hình chiến lược: **RPO** (mất tối đa bao nhiêu dữ liệu → quyết tần suất backup) và **RTO** (khôi phục trong bao lâu → quyết cách phục hồi).
+**Bước 4 — Kiểm tra toàn vẹn bằng checksum.**
+```bash
+sha256sum backup-$(date +%F).tar.gz > b.sha256
+sha256sum -c b.sha256
+```
+✅ **Checkpoint:** in `... : OK`.
+
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| `tar: ... Cannot open: No such file` | Sai đường dẫn nguồn | `pwd`/`ls` kiểm tra vị trí & tên |
+| Restore ra dữ liệu DB hỏng | Đã copy file DB đang chạy | Backup DB bằng `pg_dump`/`mysqldump --single-transaction` |
+| `rsync --delete` xoá nhầm | Sai chiều nguồn/đích | Kiểm kỹ thứ tự `nguồn/ đích/`; chạy thử với `--dry-run` trước |
+| `sha256sum -c` báo `FAILED` | File backup bị hỏng/đổi | Backup không dùng được — tạo lại; kiểm ổ đĩa |
+| Đĩa đầy khi backup | Backup cũ không được dọn | Retention: `find <dir> -name 'backup-*' -mtime +7 -delete` |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** giải thích nguyên tắc backup 3-2-1.
-- Vì sao "backup chưa test restore" là rủi ro lớn? (đến lúc cần mới biết file hỏng/thiếu).
-- Viết lệnh tar nén `configs/` → `configs.tar.gz`. → `tar -czf configs.tar.gz configs/`
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Giải thích nguyên tắc backup 3-2-1.</summary>
+
+> 3 bản sao dữ liệu, trên 2 loại lưu trữ khác nhau, ít nhất 1 bản off-site (ngoài cơ sở).
+</details>
+
+<details>
+<summary>2. Vì sao "backup chưa test restore" là rủi ro lớn?</summary>
+
+> Đến lúc cần khôi phục mới phát hiện file backup hỏng/thiếu/không giải nén được thì đã mất dữ liệu. Phải test restore định kỳ.
+</details>
+
+<details>
+<summary>3. Viết lệnh tar nén thư mục `configs/` thành `configs.tar.gz`.</summary>
+
+> `tar -czf configs.tar.gz configs/`
+</details>
+
+<details>
+<summary>4. Vì sao không backup database bằng cách copy file thẳng?</summary>
+
+> DB đang ghi → file copy ra ở trạng thái nửa vời, không nhất quán, restore lỗi. Dùng `pg_dump`/`mysqldump` để có ảnh chụp nhất quán.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Tạo backup nén | `data-backup.tar.gz` trong `~/backups` |
-| `tar -xzf ...` | File gốc trở lại đầy đủ |
-| `crontab -l` | Có dòng `@daily` / `0 2 * * *` |
+| Tạo backup nén | File `backup-YYYY-MM-DD.tar.gz` |
+| `diff -r` sau restore | Không có khác biệt (RESTORE OK) |
+| `sha256sum -c` | `... : OK` |
 
-✅ **Kết quả đạt được:** Quản lý lưu trữ, backup tự động và khôi phục — trách nhiệm cốt lõi của SysOps.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Backup / Restore** | Sao lưu / khôi phục |
+| **3-2-1 rule** | 3 bản, 2 loại lưu trữ, 1 off-site |
+| **Incremental backup** | Backup gia tăng (chỉ phần thay đổi) |
+| **RPO / RTO** | Mất tối đa bao nhiêu dữ liệu / khôi phục trong bao lâu |
+| **Checksum** (`sha256sum`) | Chữ ký kiểm tra toàn vẹn file |
+| **Snapshot** | Ảnh chụp tức thời của dữ liệu/hệ thống |
+| **Off-site** | Bản lưu ở địa điểm khác |
+
+✅ **Kết quả đạt được:** Quản lý lưu trữ, backup gia tăng, kiểm tra toàn vẹn và **test restore** — trách nhiệm cốt lõi của SysOps.
 
 ---
 
 ## Ngày 12 — MILESTONE: LAB tổng hợp Giai đoạn 1
 
 > ⏱️ ~120 phút · Loại: Milestone (ghép toàn bộ kiến thức Ngày 1–11)
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 1–11 (từng mảnh kỹ năng) → **Ngày 12 (ghép tất cả thành 1 sản phẩm thật)** → Giai đoạn 2 (Git & Docker). Đây là ngày bạn *chứng minh* mình làm được việc từ đầu đến cuối, không chỉ biết lệnh rời rạc.
+>
+> ✅ **Chuẩn bị:** một VM Ubuntu "trắng" (mới cài) để chạy `server-setup.sh` từ đầu; tài khoản GitHub để đẩy repo. Ôn nhanh: script an toàn (Ngày 5–6), user/quyền (Ngày 4), firewall (Ngày 9), backup (Ngày 11).
 
 ### 📘 Lý thuyết — Tổng kết
 
@@ -2871,9 +3005,33 @@ flowchart TD
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Tự chấm:** bạn có thể tự setup 1 server Ubuntu từ đầu mà không cần tra cứu không?
-- Giải thích lại quy trình hardening SSH cho 1 server mới.
-- **Mở rộng:** thêm tính năng gửi cảnh báo (in ra màn hình) khi disk >85% vào health-check.
+**✍️ Tự kiểm tra (tổng hợp cả Giai đoạn 1):**
+
+<details>
+<summary>1. "Idempotent" nghĩa là gì và vì sao script setup cần nó?</summary>
+
+> Chạy nhiều lần vẫn an toàn, ra cùng kết quả. Cần vì bạn sẽ chạy lại script khi bổ sung/khắc phục — nó phải không báo lỗi và không phá thứ đã đúng. Đây là nền tảng tư duy của IaC (Terraform/Ansible).
+</details>
+
+<details>
+<summary>2. Kể quy trình hardening SSH cho một server mới.</summary>
+
+> Tạo user không-root + SSH key → tắt `PermitRootLogin` và `PasswordAuthentication` trong sshd_config → `sshd -t` test → reload → bật UFW (mở 22 trước) + fail2ban. Giữ 1 phiên SSH mở khi sửa.
+</details>
+
+<details>
+<summary>3. Checklist "một server đã sẵn sàng" gồm những gì?</summary>
+
+> User không-root + SSH key; firewall deny-by-default; dịch vụ `enable --now`; fail2ban; cập nhật tự động; không secret trong git; backup + test restore; health-check + log.
+</details>
+
+<details>
+<summary>4. Bước nhảy tư duy lớn nhất của Giai đoạn 1 là gì?</summary>
+
+> Từ "gõ lệnh thủ công" → "mô tả cả server bằng 1 script chạy lại được". Đó chính là hạt giống của DevOps / Infrastructure as Code.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
@@ -2881,6 +3039,18 @@ flowchart TD
 | `curl localhost` | Trang `Welcome to nginx!` |
 | Repo trên GitHub | `github.com/<user>/sysops-foundation` có script + README |
 | Chạy script **lần 2** | Không lỗi (idempotent), in "đã tồn tại, bỏ qua" |
+
+### 📚 Thuật ngữ Anh–Việt (tổng hợp Giai đoạn 1)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Idempotent** | Chạy lại nhiều lần vẫn cho cùng kết quả, không lỗi |
+| **Provisioning** | Dựng & cấu hình server từ trạng thái trắng |
+| **Hardening** | Siết cấu hình cho an toàn |
+| **Automation** | Tự động hoá bằng script/cron |
+| **Infrastructure as Code** | Mô tả hạ tầng bằng file/code (hạt giống từ script hôm nay) |
+| **Least privilege** | Cấp quyền tối thiểu đủ dùng |
+| **Milestone** | Mốc tổng hợp, ghép nhiều kỹ năng thành sản phẩm |
 
 ✅ **Kết quả đạt được — MỐC 1 HOÀN THÀNH:** Làm chủ nền tảng Linux/SysOps, có repo automation đầu tiên, biết biến server trắng thành server vận hành chuẩn.
 
