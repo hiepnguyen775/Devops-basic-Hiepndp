@@ -2135,17 +2135,56 @@ ssh -v user@host
 ## Ngày 9 — Tường lửa, bảo mật & hardening
 
 > ⏱️ ~90 phút · Loại: Security
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 8 (SSH) → **Ngày 9 (khoá cửa server: firewall, fail2ban, secret)** → Ngày 10 (log & giám sát). Server vừa lên mạng là bị bot cả thế giới dò ngay — hôm nay bạn học cách phòng thủ nhiều lớp.
+>
+> ✅ **Chuẩn bị:** VM/máy lab Linux có `sudo`. ⚠️ Nếu thực hành trên server từ xa qua SSH, **mở cổng 22 TRƯỚC** khi bật firewall và giữ 1 phiên SSH đang mở — kẻo tự khoá mình ngoài server.
 
 ### 📘 Lý thuyết
 
-- **Tường lửa UFW:** `sudo ufw enable`, `ufw allow 22`, `ufw allow 80/tcp`, `ufw status`, `ufw deny`.
-- **Least privilege:** chỉ mở cổng cần thiết, chỉ cấp quyền tối thiểu.
-- **Cập nhật bảo mật:** `sudo apt update && sudo apt upgrade` thường xuyên; `unattended-upgrades` cho tự động.
-- **Fail2ban:** chặn IP brute-force SSH tự động (`sudo apt install fail2ban`).
-- **Quản lý secret:** **KHÔNG** hard-code mật khẩu trong code; dùng biến môi trường, file `.env` (thêm vào `.gitignore`).
-- **SSH hardening:** `PermitRootLogin no`, `PasswordAuthentication no`, đổi Port.
-- **Quét & kiểm tra:** kiểm tra cổng mở bằng `ss`, xem log đăng nhập `/var/log/auth.log`.
-- **Nguyên tắc CIA:** Confidentiality (bảo mật), Integrity (toàn vẹn), Availability (sẵn sàng).
+#### 1. Nguyên tắc nền: CIA & Least Privilege
+
+- **CIA:** Confidentiality (bí mật — ai được đọc), Integrity (toàn vẹn — dữ liệu không bị sửa lén), Availability (sẵn sàng — dịch vụ luôn chạy). Mọi biện pháp bảo mật đều nhằm bảo vệ 1 trong 3.
+- **Least Privilege** (đặc quyền tối thiểu): chỉ mở/cấp đúng cái cần, không hơn. Áp cho cổng, quyền file, quyền user — mọi thứ.
+
+#### 2. Tường lửa UFW — người gác cổng
+
+Triết lý đúng: **"đóng hết, chỉ mở cái cần"** (deny-by-default).
+
+| Lệnh | Làm gì |
+|---|---|
+| `sudo ufw default deny incoming` | Chặn mọi kết nối vào (mặc định) |
+| `sudo ufw allow 22` / `allow 80/tcp` | Mở cổng SSH / web |
+| `sudo ufw limit 22/tcp` | Rate-limit cổng 22 (chống brute-force) |
+| `sudo ufw enable` / `status verbose` | Bật / xem trạng thái + rule |
+
+#### 3. Phòng thủ nhiều lớp (defense in depth)
+
+Không lớp nào đủ một mình — xếp chồng nhiều lớp:
+
+| Lớp | Công cụ | Chặn gì |
+|---|---|---|
+| 1. Firewall | UFW | Cổng không cần |
+| 2. Chống brute-force | fail2ban | IP đoán mật khẩu sai nhiều lần |
+| 3. SSH cứng | sshd_config | Login root, login bằng mật khẩu |
+| 4. Vá lỗ hổng | unattended-upgrades | Lỗ hổng phần mềm cũ |
+
+#### 4. fail2ban — tự chặn kẻ dò mật khẩu
+
+`sudo apt install -y fail2ban`. Nó đọc log đăng nhập, thấy 1 IP sai mật khẩu quá số lần cho phép → tự chặn IP đó một khoảng thời gian. Xem: `sudo fail2ban-client status sshd`.
+
+#### 5. SSH hardening
+
+Sửa `/etc/ssh/sshd_config`:
+```
+PermitRootLogin no            # cấm đăng nhập thẳng bằng root
+PasswordAuthentication no     # chỉ cho phép key, cấm mật khẩu
+```
+Sau khi sửa: `sudo sshd -t` (test cú pháp) → `sudo systemctl reload ssh`.
+
+#### 6. Quản lý secret — quy tắc sống còn
+
+**KHÔNG BAO GIỜ** viết mật khẩu/API key thẳng trong code rồi đẩy lên Git — lịch sử Git lưu **vĩnh viễn**, xoá sau vẫn còn. Để secret trong file `.env` và thêm `.env` vào `.gitignore`. (Production dùng Vault/SOPS — đào sâu Ngày 49.)
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -2169,14 +2208,41 @@ Không lớp nào đủ một mình; nhiều lớp cộng lại mới chắc.
 
 ### 🧪 Lab cơ bản
 
-1. Bật UFW chỉ mở SSH + HTTP:
-   ```bash
-   sudo ufw allow 22; sudo ufw allow 80; sudo ufw enable
-   ```
-2. Kiểm tra: `sudo ufw status verbose`.
-3. Cài fail2ban: `sudo apt install -y fail2ban`, kiểm tra `systemctl status fail2ban`.
-4. Tạo file `.env` chứa `API_KEY=xxx` và `.gitignore` loại trừ nó.
-5. Xem log đăng nhập gần đây: `sudo tail -n 20 /var/log/auth.log`.
+> Mục tiêu: bật firewall an toàn, cài fail2ban, và chặn lộ secret. ⚠️ Mở cổng 22 TRƯỚC khi enable.
+
+**Bước 1 — Mở cổng cần rồi mới bật UFW.**
+```bash
+sudo ufw allow 22            # SSH trước tiên!
+sudo ufw allow 80
+sudo ufw enable              # gõ y khi được hỏi
+```
+Bạn sẽ thấy: `Firewall is active and enabled on system startup`.
+
+**Bước 2 — Kiểm tra trạng thái.**
+```bash
+sudo ufw status verbose
+```
+Bạn sẽ thấy `Status: active` và các rule `22 ALLOW`, `80 ALLOW`.
+
+**Bước 3 — Cài fail2ban.**
+```bash
+sudo apt install -y fail2ban
+sudo systemctl status fail2ban    # thấy active (running)
+```
+
+**Bước 4 — Chặn lộ secret bằng `.gitignore`.**
+```bash
+cd ~/devops-lab
+echo "API_KEY=sieu-bi-mat-123" > .env
+echo ".env" >> .gitignore
+git status                        # .env KHÔNG xuất hiện trong danh sách
+```
+
+**Bước 5 — Xem ai đang cố đăng nhập server.**
+```bash
+sudo tail -n 20 /var/log/auth.log      # hoặc: journalctl -u ssh -n 20
+```
+Trên server thật, bạn sẽ thấy rất nhiều dòng `Failed password` từ IP lạ — đó là bot đang dò.
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -2228,52 +2294,150 @@ Không lớp nào đủ một mình; nhiều lớp cộng lại mới chắc.
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** bật UFW chỉ mở cổng cần → kiểm tra trạng thái → cài fail2ban → tạo `.env` + `.gitignore` → xem log đăng nhập.
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**. ⚠️ Đọc kỹ cảnh báo firewall trước khi enable.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `sudo ufw allow 22` / `allow 80` rồi `sudo ufw enable` — mở cổng cần *trước khi* bật, kẻo khóa luôn SSH của mình. *Kết quả:* `sudo ufw status` → `Status: active` + danh sách rule.
-- `sudo ufw default deny incoming` — chặn tất cả vào, chỉ mở cái cho phép (deny-by-default). **Vì sao:** least privilege, an toàn hơn "mở hết rồi chặn dần".
-- `sudo ufw limit 22/tcp` — giới hạn tốc độ kết nối SSH (chống brute-force).
-- `sudo apt install -y fail2ban` — tự chặn IP đoán mật khẩu sai nhiều lần. *Kết quả:* `sudo fail2ban-client status sshd` hiện jail đang chạy.
-- `.env` chứa secret + `.gitignore` loại trừ `.env`. **Vì sao:** secret không bao giờ lên Git.
+**Bước 1 — Mở SSH TRƯỚC, rồi mới bật firewall.**
+```bash
+sudo ufw allow 22
+sudo ufw enable
+sudo ufw status verbose
+```
+✅ **Checkpoint:** `Status: active` và có rule `22 ALLOW`.
+⚠️ **Lỗi tự khoá mình:** `ufw enable` khi chưa `allow 22` (qua SSH từ xa) = mất luôn kết nối. Luôn mở 22 trước + giữ 1 phiên SSH đang mở.
 
-**🧪 Thử nghiệm:**
-- `sudo tail -n 20 /var/log/auth.log` (hoặc `journalctl -u ssh`) — xem các lần đăng nhập/thất bại gần đây. **Bài học:** server thật bị quét SSH liên tục.
-- Thêm `.env` vào `.gitignore` rồi `git status` — `.env` biến mất khỏi danh sách. **Bài học:** cơ chế chặn lộ secret.
+**Bước 2 — Siết theo deny-by-default (nâng cao).**
+```bash
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw limit 22/tcp            # rate-limit chống brute-force
+```
+✅ **Checkpoint:** `status verbose` hiện `Default: deny (incoming), allow (outgoing)`.
 
-⚠️ **Dễ sai:** `sudo ufw enable` khi CHƯA `allow 22` qua SSH từ xa = tự khóa mình ngoài server. Luôn mở SSH trước, và giữ 1 phiên đang mở khi đổi firewall.
+**Bước 3 — Kiểm chứng fail2ban đang canh SSH.**
+```bash
+sudo fail2ban-client status sshd
+```
+✅ **Checkpoint:** hiện jail `sshd` với số lần fail và IP bị chặn (nếu có).
 
-💡 **Hiểu sâu:** bảo mật là *nhiều lớp* (defense in depth): firewall (UFW) → chặn brute-force (fail2ban) → SSH chỉ-key (Ngày 8) → quản secret. Không lớp nào đủ một mình.
+**Bước 4 — Kiểm chứng `.env` đã được Git bỏ qua.**
+```bash
+git status
+```
+✅ **Checkpoint:** `.env` KHÔNG nằm trong danh sách file được theo dõi.
+💡 Secret lỡ commit là lộ **vĩnh viễn** trong lịch sử Git — phòng từ đầu bằng `.gitignore`.
+
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Mất SSH sau `ufw enable` | Chưa `allow 22` | (Cần console/VM) `sudo ufw allow 22`; lần sau mở cổng trước |
+| Sửa sshd_config xong mất SSH | Sai cú pháp / cấm nhầm | Dùng phiên đang mở: `sudo sshd -t` tìm lỗi, sửa, `reload` |
+| fail2ban không chặn gì | Chưa bật jail sshd | Tạo `/etc/fail2ban/jail.local` với `[sshd] enabled=true` |
+| Lỡ commit secret lên Git | `.gitignore` thêm sau khi đã commit | Gỡ khỏi tracking: `git rm --cached .env`; **xoay (đổi) secret ngay** |
+| `ufw status` báo inactive | Chưa `enable` | `sudo ufw enable` |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** viết lệnh UFW mở cổng 443 và chặn cổng 23. → `sudo ufw allow 443` / `sudo ufw deny 23`
-- Vì sao tuyệt đối không commit `.env` lên Git? (lộ secret vĩnh viễn trong lịch sử git, dù xóa sau).
-- Giải thích least privilege qua ví dụ thực tế.
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Viết lệnh UFW mở cổng 443 và chặn cổng 23.</summary>
+
+> `sudo ufw allow 443` và `sudo ufw deny 23`.
+</details>
+
+<details>
+<summary>2. Vì sao tuyệt đối không commit `.env` lên Git?</summary>
+
+> Lịch sử Git lưu vĩnh viễn — dù xoá file ở commit sau, secret vẫn còn trong lịch sử và ai clone repo cũng lấy được. Lộ 1 lần là phải đổi secret.
+</details>
+
+<details>
+<summary>3. Giải thích "least privilege" qua ví dụ.</summary>
+
+> Chỉ cấp đúng quyền cần: firewall chỉ mở 22/80/443 (không mở hết), user app chạy không-root, sudo giới hạn vài lệnh. Càng ít quyền dư, thiệt hại khi bị chiếm càng nhỏ.
+</details>
+
+<details>
+<summary>4. Kể tên 4 lớp phòng thủ nhiều lớp cho một server.</summary>
+
+> Firewall (UFW) → fail2ban → SSH chỉ dùng key (tắt root & password) → cập nhật bảo mật tự động.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| `sudo ufw status` | `Status: active` |
-| Quy tắc | `22/tcp ALLOW`, `80/tcp ALLOW` |
-| `ssh root@host` | **Bị từ chối** |
+| `sudo ufw status` | `Status: active`, `22 ALLOW`, `80 ALLOW` |
+| `sudo fail2ban-client status sshd` | Jail sshd đang chạy |
+| `ssh root@host` (sau hardening) | **Bị từ chối** |
 
-✅ **Kết quả đạt được:** Cấu hình tường lửa, hardening SSH, quản lý secret an toàn — tư duy bảo mật của SysOps.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Firewall** | Tường lửa — kiểm soát cổng vào/ra |
+| **Deny-by-default** | Chặn hết, chỉ mở cái cần |
+| **fail2ban** | Tự chặn IP dò mật khẩu |
+| **Hardening** | Làm cứng — siết cấu hình cho an toàn |
+| **Secret** | Bí mật (mật khẩu, API key, token) |
+| **Defense in depth** | Phòng thủ nhiều lớp |
+| **CIA** | Confidentiality/Integrity/Availability |
+
+✅ **Kết quả đạt được:** Cấu hình tường lửa deny-by-default, hardening SSH, dùng fail2ban và quản lý secret an toàn — tư duy bảo mật của SysOps.
 
 ---
 
 ## Ngày 10 — Quản lý log & giám sát hệ thống
 
 > ⏱️ ~90 phút · Loại: SysOps
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 9 (bảo mật) → **Ngày 10 (đọc log & giám sát sức khoẻ máy)** → Ngày 11 (backup & khôi phục). Khi server có vấn đề, log là nơi đầu tiên bạn nhìn — hôm nay bạn học "đọc hộp đen" thay vì đoán mò.
+>
+> ✅ **Chuẩn bị:** VM/máy Linux có systemd (`journalctl`), tốt nhất có nginx đã cài từ Ngày 3 để có log thật để xem.
 
 ### 📘 Lý thuyết
 
-- **Log hệ thống** nằm ở `/var/log/`: `syslog`, `auth.log`, `kern.log`; dịch vụ thường có thư mục riêng.
-- **journalctl (systemd):** `journalctl -u nginx`, `journalctl -f` (theo dõi), `journalctl --since '1 hour ago'`, `journalctl -p err` (chỉ lỗi).
-- **Phân tích log:** `grep` tìm lỗi, `awk` lọc cột, `tail -f` theo dõi real-time.
-- **logrotate:** tự động xoay/nén log cũ để tránh đầy đĩa (`/etc/logrotate.d/`).
-- **Giám sát tài nguyên:** `vmstat`, `iostat`, `sar` (gói `sysstat`); `top`/`htop` real-time.
-- **Kiểm tra sức khỏe:** dung lượng đĩa (`df`), inode (`df -i`), RAM (`free`), tải CPU (`uptime`, load average).
-- **3 trụ cột observability:** metric · log · trace (học sâu giai đoạn sau).
+#### 1. Log nằm ở đâu
+
+| Nguồn | Nơi xem |
+|---|---|
+| Log truyền thống | `/var/log/` — `syslog` (hệ thống), `auth.log` (đăng nhập), `kern.log` (kernel) |
+| Log dịch vụ (systemd) | `journalctl` (journald tự gom log mọi dịch vụ) |
+
+#### 2. `journalctl` — công cụ đọc log của systemd
+
+| Lệnh | Làm gì |
+|---|---|
+| `journalctl -u nginx` | Log của dịch vụ nginx |
+| `journalctl -f` | Theo dõi real-time (cuộn liên tục) |
+| `journalctl --since "1 hour ago"` | Lọc theo thời gian |
+| `journalctl -p err` | Chỉ mức lỗi trở lên |
+| `journalctl -u nginx -p warning..err` | Lọc cả dịch vụ + khoảng mức độ |
+
+#### 3. Phân tích log bằng công cụ text (ôn Ngày 6)
+
+`grep -i error file` (tìm lỗi, không phân biệt hoa/thường), `grep -B2 -A2` (xem 2 dòng trước/sau để có ngữ cảnh), `tail -f` (theo dõi real-time), `awk` (lọc cột).
+
+#### 4. Load average — 3 con số trong `uptime`
+
+Là mức tải trung bình trong **1 / 5 / 15 phút**. **Mẹo đọc:** chia cho số nhân CPU (`nproc`).
+- Load `4.0` trên máy **4 nhân** = bận 100% (bình thường).
+- Load `4.0` trên máy **2 nhân** = **quá tải** (việc xếp hàng chờ).
+
+#### 5. Metric vs Log — hai thứ khác nhau
+
+| | Metric | Log |
+|---|---|---|
+| Là gì | Con số đo theo thời gian (CPU 70%, RAM 2GB) | Dòng văn bản sự kiện |
+| Trả lời | *"Có gì đó sai không?"* | *"Sai cái gì cụ thể?"* |
+
+Cùng **Trace**, đây là **3 trụ cột observability** — bạn sẽ tự động hoá bằng Prometheus/Grafana/Loki ở Giai đoạn 3.
+
+#### 6. logrotate & kiểm tra sức khoẻ
+
+- **logrotate** tự động xoay/nén log cũ để **tránh đầy đĩa → server chết** (cấu hình ở `/etc/logrotate.d/`).
+- Kiểm tra nhanh sức khoẻ: `df -h` (đĩa), `df -i` (inode), `free -h` (RAM), `uptime` (load).
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -2296,11 +2460,45 @@ Cùng *Trace*, đây là **3 trụ cột observability** bạn sẽ tự động
 
 ### 🧪 Lab cơ bản
 
-1. Theo dõi log nginx real-time: `sudo journalctl -u nginx -f`.
-2. Tìm tất cả dòng `error` (không phân biệt hoa thường) trong syslog: `grep -i error /var/log/syslog`.
-3. Viết script báo cáo sức khỏe: in CPU load, RAM, disk vào 1 file report.
-4. Xem load average và giải thích 3 con số (1, 5, 15 phút) trong `uptime`.
-5. Cron hóa script báo cáo chạy mỗi giờ, ghi vào `~/devops-lab/logs/health.log`.
+> Mục tiêu: đọc log có trọng tâm và viết script báo cáo sức khoẻ máy.
+
+**Bước 1 — Theo dõi log real-time.**
+```bash
+sudo journalctl -u nginx -f
+```
+Màn hình cuộn khi có log mới. Mở tab khác chạy `curl localhost` để thấy log xuất hiện. `Ctrl+C` để dừng.
+
+**Bước 2 — Tìm lỗi trong syslog.**
+```bash
+grep -i error /var/log/syslog | tail -20
+```
+Bạn sẽ thấy các dòng chứa "error/Error/ERROR" (nếu có).
+
+**Bước 3 — Đọc load average đúng cách.**
+```bash
+uptime          # 3 số load: 1, 5, 15 phút
+nproc           # số nhân CPU
+```
+So sánh load với số nhân để biết máy có quá tải không.
+
+**Bước 4 — Script báo cáo sức khoẻ `health.sh`** (file đầy đủ):
+```bash
+#!/bin/bash
+echo "=== Health $(date '+%F %T') ==="
+echo "Load:  $(uptime | awk -F'load average:' '{print $2}')"
+echo "RAM:   $(free -h | awk 'NR==2{print $3\"/\"$2}')"
+echo "Disk:  $(df -h / | awk 'NR==2{print $5}')"
+systemctl is-active --quiet nginx && echo "nginx: UP" || echo "nginx: DOWN"
+```
+```bash
+chmod +x health.sh && ./health.sh
+```
+
+**Bước 5 — Hẹn giờ chạy mỗi giờ.**
+```bash
+crontab -e
+# 0 * * * * /home/<user>/devops-lab/scripts/health.sh >> /home/<user>/devops-lab/logs/health.log 2>&1
+```
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -2339,35 +2537,96 @@ Cùng *Trace*, đây là **3 trụ cột observability** bạn sẽ tự động
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** theo dõi log real-time → lọc log tìm lỗi → viết script báo cáo sức khỏe → đọc load average → hẹn giờ chạy báo cáo.
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `journalctl -u nginx -f` — `-u` lọc theo dịch vụ, `-f` (follow) theo dõi real-time. *Kết quả:* màn hình cuộn khi có log mới (Ctrl+C để dừng).
-- `journalctl --since "1 hour ago"` / `-p err` — lọc theo thời gian / mức độ (chỉ lỗi). **Vì sao:** server tạo hàng nghìn dòng, phải lọc đúng cái cần.
-- `grep -i error /var/log/syslog` — `-i` không phân biệt hoa/thường. *Kết quả:* các dòng chứa "error/Error/ERROR".
-- `free -h` / `df -h` / `uptime` — RAM / đĩa / load. *Kết quả:* `uptime` cho 3 số load (1, 5, 15 phút).
+**Bước 1 — Lọc log có trọng tâm (không đọc hết hàng nghìn dòng).**
+```bash
+journalctl -u ssh --since "30 min ago" --no-pager
+journalctl -p err --since "today" --no-pager
+```
+✅ **Checkpoint:** ra đúng log ssh gần đây / chỉ các dòng lỗi.
+💡 Server tạo hàng nghìn dòng log — biết lọc theo dịch vụ (`-u`), thời gian (`--since`), mức độ (`-p`) là chìa khoá.
 
-**🧪 Thử nghiệm:**
-- `uptime` rồi `nproc` (số core). **Bài học:** load `4.0` trên 4 core = đầy 100% (bình thường); trên 2 core = quá tải. Phải chia cho số core mới hiểu đúng.
-- `journalctl -p warning..err --since "10 min ago"` — lọc khoảng mức độ. **Bài học:** điều tra có trọng tâm thay vì đọc hết.
+**Bước 2 — Xem log kèm ngữ cảnh.**
+```bash
+grep -i -B2 -A2 "error" /var/log/syslog | tail -30
+```
+✅ **Checkpoint:** mỗi dòng lỗi kèm 2 dòng trước/sau.
+💡 `-B2 -A2` cho thấy chuyện gì xảy ra *quanh* lỗi — quan trọng để hiểu nguyên nhân.
 
-⚠️ **Dễ sai:** để log phình mãi → đầy đĩa → server chết. `logrotate` tự xoay/nén log cũ; `journalctl --vacuum-size=200M` dọn journald.
+**Bước 3 — Đọc load average đúng.**
+```bash
+uptime; nproc
+```
+✅ **Checkpoint:** biết so load với số nhân (load 2.0 / 4 nhân = nhàn; / 1 nhân = quá tải gấp đôi).
 
-💡 **Hiểu sâu:** phân biệt **metric** (số đo theo thời gian, vd CPU%) và **log** (sự kiện văn bản). Đây là 2 trong "3 trụ cột observability" (metric/log/trace) bạn sẽ tự động hóa ở Giai đoạn 3.
+**Bước 4 — Chạy health-check.**
+```bash
+./health.sh
+```
+✅ **Checkpoint:** in ra Load / RAM / Disk% và trạng thái nginx UP/DOWN.
+
+### 🐛 Gỡ lỗi nhanh
+
+**🔧 Phản xạ khi "server có vấn đề":** đọc log TRƯỚC (`journalctl -u <dv> -p err`), rồi mới đoán. `df -h` (đĩa đầy?), `free -h` (hết RAM?), `uptime` (quá tải?).
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Đĩa đầy 100% | Log phình to không xoay | `du -sh /var/log/*` tìm file to; bật logrotate; `journalctl --vacuum-size=200M` |
+| Máy chậm, load cao | Tiến trình ngốn CPU | `ps aux --sort=-%cpu \| head`; xem log dịch vụ đó |
+| Hết RAM, app bị kill | OOM (out of memory) | `grep -i "out of memory" /var/log/syslog`; thêm RAM/giảm tải |
+| `journalctl` không có log dịch vụ | Sai tên unit | `systemctl list-units \| grep <tên>` để tìm tên đúng |
+| Log không có gì bất thường mà vẫn lỗi | Nhìn nhầm mức/nguồn | Thử `-p warning`, hoặc xem log app riêng trong `/var/log/<app>/` |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** viết lệnh journalctl xem log ssh trong 30 phút qua. → `journalctl -u ssh --since "30 min ago"`
-- logrotate giải quyết vấn đề gì? (log đầy đĩa → server chết).
-- Phân biệt metric (số liệu đo theo thời gian, vd CPU%) và log (sự kiện văn bản).
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Viết lệnh journalctl xem log ssh trong 30 phút qua.</summary>
+
+> `journalctl -u ssh --since "30 min ago"`
+</details>
+
+<details>
+<summary>2. logrotate giải quyết vấn đề gì?</summary>
+
+> Log phình mãi làm đầy đĩa → server chết. logrotate tự xoay (đổi file mới) + nén + xoá log cũ theo lịch.
+</details>
+
+<details>
+<summary>3. Metric và Log khác nhau thế nào?</summary>
+
+> Metric = con số đo theo thời gian (CPU%, RAM), trả lời "có sai không?". Log = dòng sự kiện văn bản, trả lời "sai cái gì?".
+</details>
+
+<details>
+<summary>4. Load average 6.0 trên máy 4 nhân nghĩa là gì?</summary>
+
+> Quá tải: cần "6 nhân" nhưng chỉ có 4 → việc phải xếp hàng chờ. Chia load cho nproc để đánh giá.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| `tail -f /var/log/syslog` | Cuộn liên tục |
+| `journalctl -u nginx -f` | Cuộn liên tục khi có log mới |
 | `journalctl -p err` | Hiện các dòng error |
-| Chạy health-check | In CPU/RAM/Disk %, trạng thái dịch vụ |
+| Chạy `health.sh` | In CPU/RAM/Disk %, trạng thái dịch vụ |
 
-✅ **Kết quả đạt được:** Đọc/phân tích log, giám sát tài nguyên, tự động hóa báo cáo sức khỏe.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Log** | Nhật ký sự kiện của chương trình/hệ thống |
+| **journald / journalctl** | Hệ log của systemd / lệnh đọc nó |
+| **Load average** | Tải trung bình 1/5/15 phút |
+| **logrotate** | Tự xoay/nén/xoá log cũ |
+| **Metric / Trace** | Số đo theo thời gian / dấu vết một request |
+| **Observability** | Khả năng quan sát hệ thống (metric+log+trace) |
+| **OOM** | Out Of Memory — hết RAM, tiến trình bị kill |
+
+✅ **Kết quả đạt được:** Đọc/lọc log có trọng tâm, giám sát tài nguyên, đọc đúng load average và tự động hoá báo cáo sức khoẻ.
 
 ---
 
