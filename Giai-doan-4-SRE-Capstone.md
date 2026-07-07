@@ -29,16 +29,48 @@
 ## Ngày 51 — Site Reliability Engineering (SRE) — Nguyên lý
 
 > ⏱️ ~90 phút · Loại: SRE
+>
+> 🧭 **Bạn đang ở đâu:** Giai đoạn 3 (DevOps stack hiện đại) → **Ngày 51 (SRE — đo độ tin cậy bằng con số)** → Ngày 52 (HA & DR). Đây là chặng cuối: nâng tư duy từ "chạy được" lên "tin cậy ở quy mô lớn, đo được".
+>
+> ✅ **Chuẩn bị:** đã có app + monitoring (Grafana/Prometheus — Ngày 44–45) để đo SLI thật.
 
 ### 📘 Lý thuyết
 
-- **SRE:** áp dụng tư duy kỹ thuật phần mềm vào vận hành để hệ thống tin cậy ở quy mô lớn (Google khởi xướng).
-- **SLI (Service Level Indicator):** chỉ số đo lường (độ trễ, tỉ lệ lỗi, availability).
-- **SLO (Service Level Objective):** mục tiêu cho SLI (vd 99.9% uptime).
-- **SLA (Service Level Agreement):** cam kết với khách hàng (có hậu quả nếu vi phạm).
-- **Error budget:** phần "được phép lỗi" (100% − SLO); cân bằng giữa tốc độ phát hành và ổn định.
-- **Toil:** công việc thủ công lặp lại — mục tiêu SRE là tự động hóa để giảm toil.
-- **Postmortem không đổ lỗi (blameless):** học từ sự cố, tập trung vào hệ thống thay vì con người.
+#### 1. SRE là gì — "DevOps phiên bản Google, đo bằng con số"
+
+Cách Google vận hành hệ thống tin cậy ở quy mô khổng lồ. Thay vì nói chung "phải ổn định", SRE **đo độ tin cậy bằng số** và ra quyết định dựa trên số đó. Câu nói kinh điển: *"SRE implements DevOps"* — DevOps là triết lý, SRE là cách triển khai cụ thể.
+
+#### 2. SLI / SLO / SLA — 3 từ dễ lẫn
+
+| | Là gì | Ví dụ |
+|---|---|---|
+| **SLI** | Chỉ số **đo thực tế** | "99.95% request thành công tháng này" |
+| **SLO** | **Mục tiêu nội bộ** tự đặt | "≥ 99.9%" |
+| **SLA** | **Cam kết với khách** (có hậu quả) | "≥ 99.5%, không đạt → hoàn tiền" |
+
+SLO luôn **chặt hơn** SLA (đệm an toàn để không vi phạm cam kết).
+
+#### 3. Error Budget — ý tưởng thiên tài
+
+`Error budget = 100% − SLO`. SLO 99.9% → được "lỗi" 0.1% ≈ **43 phút/tháng**.
+
+| SLO | Down cho phép/tháng |
+|---|---|
+| 99% | ~7 giờ |
+| 99.9% | ~43 phút |
+| 99.99% | ~4.3 phút |
+
+Còn budget → thoải mái ra tính năng mới; cạn budget → dừng, tập trung sửa ổn định. Hết cãi cảm tính Dev vs Ops — quyết bằng số. Mỗi "số 9" thêm vào đắt gấp ~10 lần.
+
+#### 4. Toil — kẻ thù của SRE
+
+**Toil** = công việc thủ công, lặp lại, không tạo giá trị lâu dài (restart tay, deploy tay...). Mục tiêu SRE: **tự động hoá để giảm toil**.
+
+#### 5. Postmortem blameless (không đổ lỗi)
+
+Sau sự cố, viết postmortem tập trung vào **hệ thống** ("vì sao 1 lỗi gõ nhầm gây sập?" → thiếu kiểm tra tự động), KHÔNG đổ lỗi cá nhân. Đổ lỗi → người ta giấu sự cố → không học được. Con người luôn mắc lỗi; hệ thống tốt phải chịu được lỗi.
+
+> 🔑 Đừng theo đuổi **100% uptime** — cực đắt và bất khả thi. Error budget thừa nhận "lỗi là bình thường" và biến nó thành công cụ quản lý bằng dữ liệu.
 
 **Sơ đồ — SLI → SLO → SLA & Error Budget:**
 ```mermaid
@@ -116,35 +148,109 @@ SRE (Site Reliability Engineering) là cách Google vận hành hệ thống tin
 
 💡 **Hiểu sâu:** SLO chặt hơn SLA (đệm an toàn). Error budget = công cụ ra quyết định bằng **dữ liệu**: còn budget → ra feature; cạn → tập trung ổn định. "SRE implements DevOps."
 
+### 🐛 Gỡ lỗi nhanh (SRE mindset)
+
+| Tình huống | Sai lầm hay gặp | Cách đúng |
+|---|---|---|
+| Đặt mục tiêu tin cậy | SLO = 100% | Đặt SLO thực tế (99.9%), giữ error budget |
+| Sự cố xảy ra | Đổ lỗi người gõ nhầm | Postmortem blameless — sửa hệ thống |
+| Đo SLO | Dùng metric máy (CPU%) | Dùng SLI người dùng cảm nhận (latency, tỉ lệ lỗi) |
+| Ra tính năng liên tục dù hay lỗi | Bỏ qua error budget | Cạn budget → đóng băng feature, sửa ổn định |
+| Việc tay lặp lại nhiều | Chấp nhận "phải thế" | Nhận diện toil → tự động hoá |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** phân biệt SLI, SLO, SLA.
-- Error budget giúp cân bằng điều gì?
-- Vì sao postmortem nên "blameless"?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Phân biệt SLI, SLO, SLA.</summary>
+
+> SLI = chỉ số đo thực tế. SLO = mục tiêu nội bộ. SLA = cam kết với khách (có hậu quả). SLO chặt hơn SLA.
+</details>
+
+<details>
+<summary>2. Error budget giúp cân bằng điều gì?</summary>
+
+> Cân bằng tốc độ ra tính năng vs độ ổn định — bằng dữ liệu. Còn budget thì ra feature; cạn thì tập trung sửa.
+</details>
+
+<details>
+<summary>3. Vì sao postmortem nên blameless?</summary>
+
+> Đổ lỗi cá nhân → người ta giấu sự cố → không học. Tập trung sửa hệ thống để lỗi tương tự không tái diễn.
+</details>
+
+<details>
+<summary>4. SLO 99.99% cho phép down bao nhiêu mỗi tháng?</summary>
+
+> ~4.3 phút/tháng. (Mỗi "số 9" thêm vào đắt gấp ~10 lần.)
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Định nghĩa SLI/SLO | Vd: SLO 99.9% uptime, latency < 200ms |
-| Tính error budget | Ra % ngân sách lỗi còn lại trong tháng |
-| Phân biệt SRE vs DevOps | Giải thích rõ ràng, có ví dụ |
+| Định nghĩa SLI/SLO | Vd SLO 99.9% uptime, latency < 200ms |
+| Tính error budget | Ra số phút down cho phép/tháng |
+| Postmortem mẫu | Timeline → tác động → nguyên nhân gốc → hành động |
 
-✅ **Kết quả đạt được:** Hiểu tư duy SRE: đo lường độ tin cậy, error budget, giảm toil.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **SRE** | Kỹ thuật độ tin cậy hệ thống |
+| **SLI / SLO / SLA** | Chỉ số đo / mục tiêu / cam kết |
+| **Error budget** | Ngân sách lỗi (100% − SLO) |
+| **Toil** | Việc tay lặp lại, cần tự động hoá |
+| **Postmortem** | Báo cáo phân tích sự cố |
+| **Blameless** | Không đổ lỗi cá nhân |
+| **Availability** | Tỉ lệ thời gian hệ thống hoạt động |
+
+✅ **Kết quả đạt được:** Hiểu tư duy SRE — đo lường độ tin cậy, error budget, giảm toil, postmortem blameless.
 
 ---
 
 ## Ngày 52 — High Availability, Scaling & Disaster Recovery
 
 > ⏱️ ~90 phút · Loại: SRE
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 51 (SRE nguyên lý) → **Ngày 52 (thiết kế hệ thống chịu lỗi: HA, scaling, DR)** → Ngày 53 (FinOps). Triết lý: *"Everything fails, all the time"* — thiết kế giả định mọi thứ SẼ hỏng.
+>
+> ✅ **Chuẩn bị:** cluster K8s (HPA, multi-replica từ Ngày 41), hiểu backup (Ngày 11).
 
 ### 📘 Lý thuyết
 
-- **High Availability (HA):** loại bỏ điểm lỗi đơn (SPOF), dự phòng đa vùng/đa node.
-- **Load balancing:** phân phối traffic; sticky session vs stateless.
-- **Scaling:** vertical (mạnh hơn) vs horizontal (nhiều hơn); auto-scaling theo tải.
-- **Database HA:** replication (master-replica), failover tự động.
-- **Disaster Recovery (DR):** RTO (thời gian phục hồi), RPO (mất dữ liệu tối đa chấp nhận).
-- **Chiến lược DR:** backup-restore, pilot light, warm standby, multi-site.
-- **Chaos engineering:** chủ động gây lỗi để kiểm tra khả năng chịu lỗi.
+#### 1. High Availability (HA) — "không có điểm chết duy nhất"
+
+**SPOF** (Single Point of Failure) = thành phần mà chết là cả hệ thống chết (chỉ 1 server, 1 DB). HA = loại bỏ SPOF bằng **dự phòng**: nhiều bản sao, nhiều node, nhiều vùng. Mất 1, cái khác gánh tiếp.
+
+#### 2. Scaling
+
+| Kiểu | Cách | Ghi chú |
+|---|---|---|
+| **Vertical** | Máy mạnh hơn (thêm CPU/RAM) | Có trần, phải restart |
+| **Horizontal** | Thêm bản sao | K8s giỏi việc này (HPA) — ưu tiên |
+
+**Stateless là chìa khoá** để scale ngang: app không lưu trạng thái cục bộ (session ra Redis/DB) → thêm/bớt pod thoải mái.
+
+#### 3. Database HA
+
+Replication (primary–replica) + **failover tự động** khi primary chết. DB thường là SPOF khó nhất → cần thiết kế kỹ.
+
+#### 4. Disaster Recovery (DR) — RTO & RPO
+
+| | Nhìn về | Quyết định |
+|---|---|---|
+| **RPO** | Quá khứ: mất tối đa bao nhiêu **dữ liệu** | Tần suất backup |
+| **RTO** | Tương lai: khôi phục xong trong **bao lâu** | Kiến trúc phục hồi |
+
+Các mức DR (đắt dần): **backup-restore** (giờ) → **pilot light** → **warm standby** → **multi-site active-active** (~giây).
+
+#### 5. Chaos engineering — chủ động phá để kiểm tra
+
+Chủ động xoá pod/ngắt mạng *khi đang theo dõi* để xem hệ thống có tự phục hồi không. *"Chưa test failover = không có failover"* — đừng đợi sự cố thật.
+
+> 🔑 Triết lý Amazon: *"Everything fails, all the time."* Thiết kế **giả định nó sẽ hỏng** thay vì hy vọng không hỏng. HA không miễn phí — cân bằng với SLO (đừng multi-region cho app nội bộ 10 người).
 
 **Sơ đồ — HA (nhiều replica + DB replication) & DR (backup off-site):**
 ```mermaid
@@ -230,19 +336,65 @@ Nghe ngược đời nhưng rất khôn: chủ động xóa pod/ngắt mạng *k
 
 💡 **Hiểu sâu:** *"Everything fails, all the time"* (Amazon) — thiết kế giả định mọi thứ SẼ hỏng. RPO nhìn quá khứ (mất bao nhiêu dữ liệu → tần suất backup); RTO nhìn tương lai (phục hồi bao lâu → kiến trúc).
 
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Mất 1 node → cả app sập | Còn SPOF | Đa replica + đa node; DB replication |
+| Scale ngang nhưng session mất | App stateful | Đưa session ra Redis/DB (stateless) |
+| DR "có kế hoạch" nhưng thất bại thật | Chưa DR drill | Diễn tập khôi phục định kỳ, đo RTO/RPO thật |
+| Failover DB không tự chạy | Chưa cấu hình failover | Dùng managed DB / cấu hình replica + auto-failover |
+| Chaos test làm sập thật | Chưa có dự phòng đủ | Sửa SPOF trước; chaos trong môi trường kiểm soát |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** phân biệt RTO và RPO.
-- SPOF là gì và cách loại bỏ?
-- Chaos engineering kiểm tra điều gì?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Phân biệt RTO và RPO.</summary>
+
+> RPO = mất tối đa bao nhiêu **dữ liệu** (→ tần suất backup). RTO = khôi phục xong trong **bao lâu** (→ kiến trúc phục hồi).
+</details>
+
+<details>
+<summary>2. SPOF là gì và cách loại bỏ?</summary>
+
+> Single Point of Failure — thành phần chết là cả hệ thống chết. Loại bỏ bằng dự phòng: nhiều replica/node/vùng, DB replication.
+</details>
+
+<details>
+<summary>3. Chaos engineering kiểm tra điều gì?</summary>
+
+> Khả năng tự phục hồi khi có lỗi (pod chết, mạng đứt) — chủ động phá khi đang theo dõi để phát hiện điểm yếu trước khi sự cố thật xảy ra.
+</details>
+
+<details>
+<summary>4. Vì sao "stateless" giúp scale?</summary>
+
+> App không lưu trạng thái cục bộ → thêm/bớt bản sao tuỳ ý, pod chết không mất gì. Session để ra Redis/DB.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Triển khai nhiều bản sao (HA) | Tắt 1 instance, dịch vụ vẫn phục vụ |
-| Kiểm thử scaling | Tăng tải → hệ thống tự mở rộng, không sập |
-| Lập kế hoạch DR | Viết được RTO/RPO và quy trình khôi phục |
+| Đa replica (HA) | Xoá 1 pod, dịch vụ vẫn phục vụ (0 request lỗi) |
+| Scaling | Tăng tải → HPA tự mở rộng, không sập |
+| DR plan | Viết được RTO/RPO + quy trình khôi phục |
 
-✅ **Kết quả đạt được:** Thiết kế hệ thống có sẵn sàng cao, có khả năng phục hồi sau thảm họa.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **HA (High Availability)** | Sẵn sàng cao, không SPOF |
+| **SPOF** | Điểm lỗi đơn |
+| **Horizontal / Vertical scaling** | Thêm bản sao / máy mạnh hơn |
+| **Replication / Failover** | Nhân bản / chuyển đổi khi lỗi |
+| **RTO / RPO** | Thời gian phục hồi / dữ liệu mất tối đa |
+| **Disaster Recovery** | Khôi phục sau thảm hoạ |
+| **Chaos engineering** | Chủ động gây lỗi để kiểm tra |
+
+✅ **Kết quả đạt được:** Thiết kế hệ thống sẵn sàng cao (không SPOF), scale được và có khả năng phục hồi sau thảm hoạ.
 
 ---
 
