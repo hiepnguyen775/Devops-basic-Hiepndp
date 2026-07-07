@@ -1549,16 +1549,40 @@ Quy tắc: `get` để *thấy triệu chứng* → `describe` để *biết vì
 ## Ngày 38 — Kubernetes: Service & Networking
 
 > ⏱️ ~90 phút · Loại: Kubernetes
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 37 (chạy app bằng Deployment) → **Ngày 38 (cho app có địa chỉ ổn định + nhận request từ ngoài)** → Ngày 39 (ConfigMap/Secret/Storage). Pod đổi IP liên tục — Service giải bài toán "làm sao gọi nhau ổn định".
+>
+> ✅ **Chuẩn bị:** cluster local + đã có 1 Deployment chạy (Ngày 37). Bật ingress addon: `minikube addons enable ingress`.
 
 ### 📘 Lý thuyết
 
-- **Vấn đề:** pod có IP thay đổi liên tục → cần cách truy cập ổn định = **Service**.
-- **Loại Service:** ClusterIP (nội bộ, mặc định), NodePort (mở cổng trên node), LoadBalancer (cloud), ExternalName.
-- **Service dùng label selector** để định tuyến traffic tới đúng pod.
-- **DNS nội bộ:** pod gọi service qua tên (`service-name.namespace.svc.cluster.local`).
-- **Ingress:** định tuyến HTTP/HTTPS từ ngoài vào nhiều service (như reverse proxy cấp cluster).
-- **Ingress Controller:** nginx-ingress, traefik — cần cài để Ingress hoạt động.
-- **Port:** `port` (service), `targetPort` (container), `nodePort` (trên node).
+#### 1. Vấn đề: pod có IP "sớm nắng chiều mưa"
+
+Pod chết & tạo lại liên tục, mỗi lần 1 IP mới. Làm sao các thành phần gọi nhau ổn định? → **Service** cho một **tên + IP ổn định** cho 1 nhóm pod, và tự **chia tải**.
+
+#### 2. Ba loại Service — chọn đúng
+
+| Loại | Phạm vi | Dùng khi |
+|---|---|---|
+| **ClusterIP** (mặc định) | Nội bộ cluster | Hầu hết (backend, db) — an toàn |
+| **NodePort** | Mở cổng trên node | Test nhanh dev — không dùng production |
+| **LoadBalancer** | IP công khai từ cloud | Mỗi service 1 IP (tốn) |
+
+#### 3. Service tìm pod bằng label selector
+
+Service định tuyến tới các pod có nhãn khớp `selector`. Nếu selector sai (không khớp label pod) → Service không có endpoint → không tới pod nào.
+
+#### 4. DNS nội bộ — phép màu microservice
+
+Pod gọi service qua **tên**: `db-svc:5432` (đầy đủ: `service.namespace.svc.cluster.local`). K8s tự phân giải tên → IP pod hiện tại, kể cả khi pod đổi IP.
+
+#### 5. Ingress — 1 cửa vào cho nhiều service
+
+Thay vì mỗi service 1 LoadBalancer (tốn), **Ingress** là 1 điểm vào duy nhất, định tuyến theo host/path: `/` → frontend, `/api` → backend.
+- Cần **Ingress Controller** (nginx-ingress, traefik) để hoạt động — thường chính là **nginx** (kiến thức Ngày 23 dùng lại).
+- **Port:** `port` (của service), `targetPort` (cổng container), `nodePort` (cổng trên node).
+
+> 🔑 Chuẩn production: **ClusterIP + 1 Ingress** cho nhiều service (không NodePort/LoadBalancer tràn lan). TLS qua Ingress + cert-manager (Let's Encrypt tự động).
 
 **Sơ đồ — Ingress định tuyến → Service → Pod:**
 ```mermaid
@@ -1654,35 +1678,112 @@ Thay vì mỗi service 1 LoadBalancer (tốn), **Ingress** là 1 cửa vào duy 
 
 💡 **Hiểu sâu:** pod đổi IP liên tục → không gọi trực tiếp được. Service cho **tên DNS ổn định** (`db-svc:5432`); K8s tự phân giải tên → IP pod hiện tại. Nền tảng microservice.
 
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Service không tới pod nào | Selector không khớp label pod | `kubectl get endpoints <svc>` (rỗng?); sửa selector = label pod |
+| Ingress trả 404 | Path/host sai, hoặc chưa có controller | Kiểm rule Ingress; `minikube addons enable ingress` |
+| `curl db-svc` không phân giải | Sai tên/namespace | Dùng đúng `svc.namespace`; kiểm `kubectl get svc` |
+| NodePort không vào được | Cổng ngoài dải/SG chặn | `minikube service <svc>`; kiểm firewall |
+| Ingress 503 | Backend service không có pod healthy | Kiểm Deployment/pod của service |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** phân biệt ClusterIP, NodePort, LoadBalancer.
-- Service giải quyết vấn đề gì của IP pod?
-- Ingress khác Service LoadBalancer thế nào?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Phân biệt ClusterIP, NodePort, LoadBalancer.</summary>
+
+> ClusterIP: nội bộ cluster (mặc định). NodePort: mở cổng trên node (test dev). LoadBalancer: IP công khai từ cloud (mỗi service 1 cái, tốn).
+</details>
+
+<details>
+<summary>2. Service giải quyết vấn đề gì của IP pod?</summary>
+
+> Pod đổi IP liên tục; Service cho một tên/IP **ổn định** trỏ tới nhóm pod đang sống + chia tải, nên các thành phần gọi nhau ổn định.
+</details>
+
+<details>
+<summary>3. Ingress khác Service LoadBalancer thế nào?</summary>
+
+> LoadBalancer: mỗi service 1 IP ngoài (tốn). Ingress: 1 điểm vào + định tuyến host/path cho nhiều service (tiết kiệm) → chuẩn production.
+</details>
+
+<details>
+<summary>4. Service không có endpoint thì nguyên nhân thường là gì?</summary>
+
+> `selector` của Service không khớp `labels` của pod → không "gom" được pod nào. Sửa cho nhãn khớp.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Tạo Service expose app | `kubectl get svc` hiện ClusterIP/NodePort |
-| Truy cập app qua Service | `curl`/port-forward trả về app |
-| Load balancing giữa pod | Request phân phối tới các pod khác nhau |
+| Tạo Service | `kubectl get svc` hiện ClusterIP |
+| `kubectl get endpoints <svc>` | Có IP các pod (không rỗng) |
+| Truy cập qua Ingress/port-forward | App phản hồi |
 
-✅ **Kết quả đạt được:** Kết nối và expose ứng dụng trong K8s qua Service và Ingress.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Service** | Địa chỉ/DNS ổn định cho nhóm pod |
+| **ClusterIP / NodePort / LoadBalancer** | 3 loại Service |
+| **Endpoint** | Danh sách IP pod mà Service trỏ tới |
+| **Ingress** | 1 cửa vào định tuyến host/path |
+| **Ingress Controller** | Bộ chạy Ingress (nginx/traefik) |
+| **targetPort** | Cổng container mà Service trỏ tới |
+| **cert-manager** | Tự cấp/gia hạn TLS trong K8s |
+
+✅ **Kết quả đạt được:** Kết nối & expose ứng dụng trong K8s qua Service (ClusterIP) và Ingress.
 
 ---
 
 ## Ngày 39 — Kubernetes: ConfigMap, Secret & Storage
 
 > ⏱️ ~90 phút · Loại: Kubernetes
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 38 (Service) → **Ngày 39 (tách cấu hình/secret khỏi image + lưu trữ bền vững)** → Ngày 40 (Milestone deploy full-stack). Đây là mảnh để app có config linh hoạt và database giữ được dữ liệu.
+>
+> ✅ **Chuẩn bị:** cluster local + đã quen Deployment/Service (Ngày 37–38).
 
 ### 📘 Lý thuyết
 
-- **ConfigMap:** lưu cấu hình **không nhạy cảm** (biến môi trường, file config) tách khỏi image.
-- **Secret:** lưu thông tin **nhạy cảm** (mật khẩu, token) — mã hóa base64 (⚠️ base64 KHÔNG phải mã hóa, cần thêm biện pháp thật).
-- **Inject vào pod:** qua biến môi trường (`env`/`envFrom`) hoặc mount thành file (volume).
-- **Volume trong K8s:** `emptyDir`, `hostPath`; PersistentVolume (PV) + PersistentVolumeClaim (PVC) cho lưu trữ bền vững.
-- **StorageClass:** cấp phát storage động.
-- **StatefulSet:** cho ứng dụng có trạng thái (database) cần danh tính và storage ổn định.
-- **Namespace:** phân vùng logic cluster (dev, prod) để tổ chức và phân quyền.
+#### 1. ConfigMap vs Secret — tách cấu hình khỏi image
+
+| | ConfigMap | Secret |
+|---|---|---|
+| Lưu gì | Cấu hình **không nhạy cảm** (URL, feature flag) | Thông tin **nhạy cảm** (mật khẩu, token) |
+| Mã hoá | Không | Chỉ **base64** (⚠️ KHÔNG phải mã hoá — ai đọc được là giải ra) |
+
+> ⚠️ K8s Secret chỉ base64-encode. An toàn thật cần: RBAC chặt + encryption-at-rest cho etcd + công cụ ngoài (Vault/Sealed Secrets).
+
+#### 2. Đưa config/secret vào pod
+
+- Qua **biến môi trường**: `env` / `envFrom`.
+- Mount thành **file** (volume) — hợp cho file config.
+
+Tách config khỏi image nghĩa là: đổi cấu hình không cần build lại image.
+
+#### 3. Lưu trữ trong K8s
+
+| Loại | Đặc điểm |
+|---|---|
+| **emptyDir** | Tạm, mất khi pod xoá |
+| **hostPath** | Gắn thư mục node (ít dùng production) |
+| **PV + PVC** | Lưu trữ **bền vững**: PVC "xin" dung lượng, PV "cấp" |
+| **StorageClass** | Cấp phát storage động (tự tạo PV khi có PVC) |
+
+#### 4. StatefulSet — cho ứng dụng có trạng thái
+
+Database cần **danh tính + storage ổn định** cho mỗi pod → dùng **StatefulSet** (không phải Deployment). Mỗi pod có tên cố định (`db-0`, `db-1`) và PVC riêng.
+
+#### 5. Namespace — phân vùng cluster
+
+Chia cluster thành vùng logic (`dev`, `prod`) để tổ chức + phân quyền (RBAC). `kubectl ... -n <namespace>`.
+
+> 🔑 Đừng nhét cấu hình/secret cứng vào image — tách ra ConfigMap/Secret để đổi mà không build lại, và để mỗi môi trường (dev/prod) dùng giá trị khác nhau.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -1746,19 +1847,65 @@ Nó chỉ *mã hóa base64* (đổi qua lại, ai cũng giải: `echo ... | base
 
 💡 **Hiểu sâu:** stateless (web) → Deployment; stateful (database, cần danh tính + storage) → StatefulSet + PVC. Namespace để cô lập logic (dev/prod) + phân quyền RBAC.
 
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Pod không thấy biến từ ConfigMap | Chưa `envFrom`/`env` đúng, hoặc CM sai namespace | Kiểm `kubectl get cm -n <ns>`; sửa tham chiếu |
+| Đổi ConfigMap mà pod không cập nhật | Pod đọc env lúc start | Restart pod (`kubectl rollout restart`) |
+| Pod `Pending` vì PVC | Không có PV/StorageClass phù hợp | `kubectl get pvc` (Pending?); cấu hình StorageClass |
+| Database mất dữ liệu | Dùng Deployment thay StatefulSet, hoặc emptyDir | Dùng StatefulSet + PVC |
+| Tưởng Secret an toàn | Base64 ≠ mã hoá | RBAC + encryption-at-rest + Vault/Sealed Secrets |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** khi nào dùng ConfigMap, khi nào dùng Secret?
-- PVC và PV quan hệ thế nào?
-- Namespace dùng để làm gì?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Khi nào dùng ConfigMap, khi nào Secret?</summary>
+
+> ConfigMap cho cấu hình không nhạy cảm (URL, log level). Secret cho nhạy cảm (mật khẩu, token). Cùng cách dùng, khác ở ý định + cách xử lý.
+</details>
+
+<details>
+<summary>2. PVC và PV quan hệ thế nào?</summary>
+
+> PVC là "đơn xin dung lượng" của pod; PV là ổ đĩa thật cấp cho đơn đó. StorageClass tự tạo PV khi có PVC (cấp phát động).
+</details>
+
+<details>
+<summary>3. Namespace dùng để làm gì?</summary>
+
+> Chia cluster thành vùng logic (dev/prod) để tổ chức + phân quyền RBAC + giới hạn tài nguyên. Không phải cô lập mạng (cần NetworkPolicy).
+</details>
+
+<details>
+<summary>4. Vì sao K8s Secret không thực sự an toàn?</summary>
+
+> Nó chỉ base64-encode (`base64 -d` là ra plaintext). Cần thêm RBAC chặt + encryption-at-rest cho etcd + Vault/Sealed Secrets.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Tạo ConfigMap và Secret | `kubectl get configmap,secret` liệt kê đúng |
-| Pod có config từ env | `kubectl exec` → biến môi trường có giá trị mong đợi |
-| Gắn PersistentVolume | Dữ liệu còn sau khi pod bị xóa và tạo lại |
+| Tạo ConfigMap & Secret | `kubectl get configmap,secret` liệt kê đúng |
+| Pod có config từ env | `kubectl exec ... env` thấy biến |
+| Gắn PVC | Dữ liệu còn sau khi pod bị xoá & tạo lại |
 
-✅ **Kết quả đạt được:** Quản lý cấu hình, secret và lưu trữ bền vững trong Kubernetes.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **ConfigMap** | Lưu cấu hình không nhạy cảm |
+| **Secret** | Lưu thông tin nhạy cảm (base64) |
+| **PV / PVC** | Ổ đĩa thật / đơn xin dung lượng |
+| **StorageClass** | Cấp phát storage động |
+| **StatefulSet** | Cho app có trạng thái (database) |
+| **Namespace** | Vùng logic của cluster |
+| **RBAC** | Phân quyền theo vai trò |
+
+✅ **Kết quả đạt được:** Quản lý cấu hình, secret và lưu trữ bền vững (PVC/StatefulSet) trong Kubernetes.
 
 ---
 
