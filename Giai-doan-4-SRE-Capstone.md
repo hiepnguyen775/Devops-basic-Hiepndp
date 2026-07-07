@@ -903,6 +903,10 @@ Là con đường chuẩn, dễ đi nhất, có rào chắn an toàn sẵn. Vd: 
 ## Ngày 56 — Dự án tốt nghiệp — Phần 1: Thiết kế & Hạ tầng
 
 > ⏱️ ~150 phút · Loại: Capstone
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 51–55 (SRE + xu hướng) → **Ngày 56 (bắt đầu dự án tốt nghiệp: thiết kế + hạ tầng)** → Ngày 57 (Container & CI/CD). 4 ngày tới bạn ghép TẤT CẢ đã học thành 1 sản phẩm portfolio.
+>
+> ✅ **Chuẩn bị:** Terraform + tài khoản cloud (hoặc VM cho k3s / Minikube local). Có thể dùng bộ khung [`capstone-cloudnote/`](../capstone-cloudnote/) làm điểm khởi đầu.
 
 ### 📘 Lý thuyết
 
@@ -969,23 +973,63 @@ Mỗi quyết định lớn ("vì sao chọn k3s thay vì EKS?", "vì sao Postgr
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- Hạ tầng có được tạo hoàn toàn bằng code (IaC) không?
-- Sơ đồ kiến trúc đã rõ ràng và đầy đủ chưa?
-- Cấu trúc repo có chuyên nghiệp, dễ hiểu không?
+**✅ Checklist tự chấm Phần 1:**
+
+<details>
+<summary>1. Hạ tầng có được tạo HOÀN TOÀN bằng code (IaC) không?</summary>
+
+> Có: `terraform apply` dựng cluster/VM + networking + registry, không click tay. `destroy` rồi `apply` lại dựng lại được.
+</details>
+
+<details>
+<summary>2. Sơ đồ kiến trúc đã rõ chưa?</summary>
+
+> Có diagram thể hiện luồng: code → CI → registry → K8s → monitoring; các tầng app + hạ tầng + dữ liệu.
+</details>
+
+<details>
+<summary>3. ADR đã ghi các quyết định lớn chưa?</summary>
+
+> `/docs/adr/` ghi "vì sao chọn k3s/EKS", "vì sao Postgres"... — chuẩn bị cho câu hỏi phỏng vấn.
+</details>
+
+<details>
+<summary>4. Vì sao chọn app 3 tầng đơn giản là đủ?</summary>
+
+> Người phỏng vấn quan tâm pipeline + hạ tầng + monitoring, không phải app cầu kỳ. App đơn giản để tập trung thể hiện kỹ năng DevOps.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Có sơ đồ kiến trúc dự án | Diagram thể hiện app, hạ tầng, luồng dữ liệu |
-| Hạ tầng dựng bằng IaC | `terraform apply` tạo nền tảng, không thao tác tay |
-| Repo dự án khởi tạo | Cấu trúc thư mục rõ ràng + README ban đầu |
+| Sơ đồ kiến trúc | Diagram thể hiện app, hạ tầng, luồng dữ liệu |
+| Hạ tầng bằng IaC | `terraform apply` tạo nền tảng, không tay |
+| Repo khởi tạo | Cấu trúc rõ ràng + README + ADR |
 
-✅ **Kết quả đạt được:** Khởi động dự án tốt nghiệp: kiến trúc rõ ràng + hạ tầng bằng IaC.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Capstone** | Dự án tốt nghiệp tổng hợp |
+| **ADR** | Architecture Decision Record — ghi quyết định kiến trúc |
+| **Monorepo** | 1 repo chứa toàn bộ dự án |
+| **Remote state** | State Terraform trên backend chung |
+| **k3s** | Bản K8s nhẹ (chạy trên VM nhỏ) |
+| **Portfolio** | Bộ sản phẩm để xin việc |
+| **End-to-end** | Trọn quy trình từ đầu đến cuối |
+
+✅ **Kết quả đạt được:** Khởi động dự án tốt nghiệp — kiến trúc rõ ràng + hạ tầng bằng IaC + ADR.
 
 ---
 
 ## Ngày 57 — Dự án tốt nghiệp — Phần 2: Container & CI/CD
 
 > ⏱️ ~150 phút · Loại: Capstone
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 56 (thiết kế + hạ tầng) → **Ngày 57 (đóng gói app + pipeline CI/CD hoàn chỉnh)** → Ngày 58 (Monitoring & Reliability). Đây là phần "ăn điểm" nhất khi phỏng vấn.
+>
+> ✅ **Chuẩn bị:** hạ tầng từ Ngày 56 chạy được. Ôn Docker multi-stage (Ngày 18) + CI/CD (Ngày 31–35) + DevSecOps (Ngày 49).
 
 ### 📘 Lý thuyết
 
@@ -1052,17 +1096,53 @@ Một pipeline chạy được là *bằng chứng sống* bạn hiểu DevOps t
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- Pipeline chạy hoàn toàn tự động từ commit đến deploy chưa?
-- Image đã được quét bảo mật và tối ưu kích thước chưa?
-- Secret có được quản lý an toàn không?
+**✅ Checklist tự chấm Phần 2:**
+
+<details>
+<summary>1. Pipeline chạy hoàn toàn tự động từ commit đến deploy chưa?</summary>
+
+> Sửa code → push → CI (lint/test/scan) → build image (SHA) → CD deploy lên K8s → app cập nhật, không thao tác tay.
+</details>
+
+<details>
+<summary>2. Image đã quét bảo mật và tối ưu chưa?</summary>
+
+> Multi-stage, base nhỏ, `USER` thường, HEALTHCHECK, tag SHA; có bước Trivy scan chặn CVE nghiêm trọng.
+</details>
+
+<details>
+<summary>3. Secret được quản lý an toàn chưa?</summary>
+
+> Qua GitHub Secrets/Environments (không hard-code); production có approval.
+</details>
+
+<details>
+<summary>4. Mỗi stage của pipeline "kể" năng lực gì?</summary>
+
+> lint/test (chất lượng), scan (bảo mật/DevSecOps), multi-stage build (Docker), tag SHA (truy vết), deploy K8s/GitOps (orchestration).
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| App được container hóa | `docker build` + chạy local thành công |
-| Pipeline CI/CD hoạt động | push → tự build, test, deploy, badge xanh |
-| App chạy trên K8s/cloud | Truy cập được URL công khai của dự án |
+| App container hoá | `docker build` + chạy local OK |
+| Pipeline CI/CD | push → build/test/deploy, badge xanh |
+| App chạy trên K8s | Truy cập URL công khai của dự án |
 
-✅ **Kết quả đạt được:** Dự án có CI/CD đầy đủ: code tự động lên K8s qua pipeline an toàn.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Multi-stage build** | Build image nhiều tầng, tầng cuối nhẹ |
+| **Trivy** | Quét lỗ hổng image/dependency |
+| **Helm chart** | Gói app K8s |
+| **GitOps / ArgoCD** | Deploy pull-based từ Git |
+| **Immutable tag (SHA)** | Tag bất biến truy vết |
+| **Approval** | Bước duyệt trước khi deploy production |
+| **Status badge** | Huy hiệu trạng thái CI |
+
+✅ **Kết quả đạt được:** Dự án có CI/CD đầy đủ — code tự động lên K8s qua pipeline an toàn, có quét bảo mật.
 
 ---
 
