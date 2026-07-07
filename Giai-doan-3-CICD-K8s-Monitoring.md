@@ -2394,16 +2394,47 @@ Một khuôn, nhiều môi trường.
 ## Ngày 43 — GitOps: ArgoCD & Triển khai khai báo
 
 > ⏱️ ~90 phút · Loại: GitOps
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 42 (Helm) → **Ngày 43 (GitOps — Git là nguồn chân lý, ArgoCD tự đồng bộ)** → Ngày 44 (Monitoring). Đây là phương pháp triển khai hiện đại nhất, an toàn hơn CI/CD push-based.
+>
+> ✅ **Chuẩn bị:** cluster local + 1 repo Git chứa manifest K8s. Cài ArgoCD vào cluster (theo docs).
 
 ### 📘 Lý thuyết
 
-- **GitOps:** Git là **nguồn chân lý duy nhất**; trạng thái cluster luôn đồng bộ với repo.
-- **Nguyên tắc:** mọi thay đổi qua Git (PR) → tool tự đồng bộ vào cluster.
-- **ArgoCD:** công cụ GitOps phổ biến, liên tục so sánh repo với cluster và tự sync.
-- **Lợi ích:** audit (lịch sử Git), rollback dễ, không cần cấp quyền cluster cho CI.
-- **Pull-based vs push-based deployment.**
-- **Application CRD trong ArgoCD:** trỏ tới repo + path + cluster đích.
-- **Drift detection:** phát hiện khi cluster lệch khỏi Git và tự sửa.
+#### 1. GitOps là gì — "Git là nguồn chân lý duy nhất"
+
+Trạng thái cluster K8s phải **luôn khớp đúng những gì ghi trong Git**. Muốn đổi gì → sửa file trong Git (qua PR) → công cụ tự đồng bộ vào cluster. Không ai `kubectl` sửa tay trực tiếp nữa.
+
+#### 2. ArgoCD — "người gác" sống trong cluster
+
+ArgoCD liên tục so sánh "Git nói gì" với "cluster đang thế nào":
+- Sửa file trong Git → ArgoCD tự **kéo về** và áp dụng.
+- Ai lỡ sửa tay trên cluster (**drift**) → ArgoCD phát hiện và kéo về đúng Git (**self-heal**).
+
+#### 3. Push vs Pull — khác biệt cốt lõi
+
+| | CI/CD truyền thống (push) | GitOps (pull) |
+|---|---|---|
+| Ai deploy | CI có credential cluster, đẩy lên | ArgoCD **trong** cluster tự kéo từ Git |
+| Bảo mật | CI cần quyền cluster (rủi ro) | Cluster không lộ credential ra ngoài |
+| Drift | Không tự phát hiện | Tự phát hiện + sửa |
+| Rollback | Re-run pipeline | `git revert` → tự sync |
+
+#### 4. Application CRD & auto-sync
+
+- **Application**: đối tượng ArgoCD trỏ tới repo + path + cluster đích.
+- **Auto-sync + self-heal:**
+  ```yaml
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+  ```
+- **App of Apps**: 1 Application quản nhiều app con.
+
+#### 5. Chuẩn GitOps: tách repo code & repo config
+
+Repo `app` chứa code + CI build image; repo `config` chứa manifest/Helm → ArgoCD theo dõi repo config. CI chỉ cập nhật image tag trong repo config, **không** có quyền vào cluster.
+
+> 🔑 Với GitOps, **rollback = `git revert`**, và mọi thay đổi production đều có dấu vết trong lịch sử Git (ai, lúc nào, vì sao) — audit miễn phí.
 
 **Sơ đồ — luồng GitOps (pull-based, tự đồng bộ):**
 ```mermaid
@@ -2484,17 +2515,63 @@ ArgoCD liên tục so sánh "Git nói gì" với "cluster đang thế nào":
 
 💡 **Hiểu sâu:** GitOps = **pull** (agent trong cluster tự kéo) vs CI/CD truyền thống = **push** (CI có credential đẩy vào). Pull an toàn hơn (không lộ credential cluster) + tự sửa drift.
 
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| App `OutOfSync` mãi | Cluster lệch Git / sync policy manual | Bấm Sync; bật `automated`; kiểm manifest |
+| Thay đổi tay "biến mất" | Self-heal kéo về Git | Đúng thiết kế — mọi thay đổi PHẢI qua Git |
+| ArgoCD không thấy repo | Sai URL/credential repo | Thêm repo trong Settings; kiểm quyền |
+| App `Healthy` nhưng chưa `Synced` | Có commit mới chưa sync | Chờ auto-sync / bấm Sync |
+| Rollback không tự chạy | Chưa revert trên repo config | `git revert` commit lỗi → ArgoCD tự sync về |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** GitOps khác CI/CD truyền thống ở điểm nào?
-- Vì sao Git là "nguồn chân lý" giúp rollback dễ?
-- Drift detection làm gì?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. GitOps khác CI/CD truyền thống ở điểm nào?</summary>
+
+> GitOps là **pull** (agent trong cluster tự kéo từ Git); CI/CD truyền thống là **push** (CI có credential đẩy vào). Pull an toàn hơn + tự phát hiện/sửa drift.
+</details>
+
+<details>
+<summary>2. Vì sao Git là "nguồn chân lý" giúp rollback dễ?</summary>
+
+> Mọi trạng thái mong muốn nằm trong Git. Rollback = `git revert` commit → ArgoCD tự đồng bộ về. Có lịch sử đầy đủ để audit.
+</details>
+
+<details>
+<summary>3. Drift detection làm gì?</summary>
+
+> Phát hiện khi cluster lệch khỏi Git (ai đó sửa tay) → báo OutOfSync và (nếu bật self-heal) kéo về đúng Git.
+</details>
+
+<details>
+<summary>4. Vì sao GitOps an toàn hơn cho quyền cluster?</summary>
+
+> CI không cần credential vào cluster; chỉ ArgoCD (trong cluster) tự kéo từ Git → không lộ chìa khoá cluster ra pipeline bên ngoài.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| ArgoCD đồng bộ từ Git | UI ArgoCD hiện app Synced + Healthy |
-| Sửa manifest trên Git | ArgoCD tự phát hiện và đồng bộ thay đổi |
-| Tự phục hồi khi lệch | Đổi thủ công trên cụm → ArgoCD kéo về đúng Git |
+| ArgoCD đồng bộ từ Git | UI hiện app `Synced` + `Healthy` |
+| Sửa manifest trên Git | ArgoCD tự phát hiện & đồng bộ |
+| Sửa tay trên cụm | Báo OutOfSync, self-heal kéo về Git |
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **GitOps** | Git là nguồn chân lý, tự đồng bộ vào cluster |
+| **ArgoCD** | Công cụ GitOps chạy trong cluster |
+| **Pull-based** | Cluster tự kéo cấu hình (vs push) |
+| **Drift** | Cluster lệch khỏi Git |
+| **Self-heal** | Tự kéo về đúng Git |
+| **Application (CRD)** | Đối tượng ArgoCD trỏ repo→cluster |
+| **App of Apps** | 1 app quản nhiều app con |
 
 ✅ **Kết quả đạt được:** Áp dụng GitOps với ArgoCD — phương pháp triển khai hiện đại nhất.
 
@@ -2503,16 +2580,46 @@ ArgoCD liên tục so sánh "Git nói gì" với "cluster đang thế nào":
 ## Ngày 44 — Monitoring: Prometheus & Metrics
 
 > ⏱️ ~90 phút · Loại: Monitoring
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 43 (GitOps) → **Ngày 44 (Prometheus — thu thập số đo hệ thống)** → Ngày 45 (Grafana vẽ dashboard). Đây là trụ cột "Metrics" của observability — biết hệ thống có đang khoẻ không.
+>
+> ✅ **Chuẩn bị:** cluster local (hoặc Docker Compose). Cài stack bằng Helm: `helm install monitoring prometheus-community/kube-prometheus-stack`.
 
 ### 📘 Lý thuyết
 
-- **3 trụ cột observability:** Metrics (số đo), Logs (nhật ký), Traces (dấu vết request).
-- **Prometheus:** hệ thống thu thập & lưu metric dạng time-series, **kéo (pull)** metric từ target.
-- **Exporter:** node-exporter (metric hệ thống), cAdvisor (container), app tự expose `/metrics`.
-- **PromQL:** ngôn ngữ truy vấn metric (`rate`, `sum`, `avg`...).
-- **Alerting:** Alertmanager gửi cảnh báo khi metric vượt ngưỡng.
-- **Khái niệm:** counter, gauge, histogram, summary.
-- **Service discovery:** Prometheus tự tìm target trong K8s.
+#### 1. 3 trụ cột observability
+
+| Trụ cột | Trả lời | Công cụ |
+|---|---|---|
+| **Metrics** (số đo) | "Có gì đó sai không?" | Prometheus |
+| **Logs** (nhật ký) | "Sai cái gì cụ thể?" | Loki (Ngày 46) |
+| **Traces** (dấu vết) | "Sai ở đâu trong chuỗi service?" | Jaeger/Tempo |
+
+#### 2. Prometheus — "máy thu thập số đo" (pull model)
+
+Prometheus **chủ động đi hỏi** (pull/scrape) từng dịch vụ qua `/metrics`, thay vì chờ chúng gửi tới. Lợi: dịch vụ chết → scrape fail → biết ngay là "down"; dễ debug (mở `/metrics` xem trực tiếp).
+
+#### 3. Exporter — nguồn metric
+
+- **node-exporter**: metric hệ thống (CPU/RAM/disk).
+- **cAdvisor**: metric container.
+- **App tự expose `/metrics`**: metric nghiệp vụ (request/s, latency, lỗi).
+
+#### 4. 4 loại metric
+
+| Loại | Ý nghĩa | Ví dụ |
+|---|---|---|
+| **Counter** | Chỉ tăng | Tổng số request → dùng với `rate()` |
+| **Gauge** | Lên xuống | RAM đang dùng, nhiệt độ |
+| **Histogram** | Phân phối theo bucket | Tính p95/p99 latency |
+| **Summary** | Tương tự histogram (quantile phía client) | |
+
+#### 5. PromQL & Alerting
+
+- **PromQL**: `rate(http_requests_total[5m])` = "số request/giây trong 5 phút qua". Counter phải dùng `rate()` mới có nghĩa.
+- **Alertmanager**: gửi cảnh báo khi metric vượt ngưỡng (Slack/Email).
+
+> 🔑 Đừng alert mọi dao động nhỏ → **"alert fatigue"** (nhiều quá hoá nhờn, người ta tắt cả cái thật). Alert dựa trên thứ người dùng *thực sự cảm nhận* (golden signals — Ngày 45).
 
 **Sơ đồ — luồng observability (metric + log → Grafana → alert):**
 ```mermaid
@@ -2605,17 +2712,63 @@ Chuyên lưu metric theo thời gian. Điểm đặc biệt: Prometheus **chủ 
 
 💡 **Hiểu sâu:** 4 loại metric: Counter (chỉ tăng — tổng request), Gauge (lên xuống — RAM), Histogram (phân phối — tính p95), Summary. 3 trụ cột observability: metric + log + trace.
 
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Target `DOWN` trong Prometheus | App không expose `/metrics` / sai port | Kiểm `/metrics` mở được; đúng scrape config |
+| Query counter ra số vô nghĩa | Counter chỉ tăng | Bọc `rate(counter[5m])` |
+| HPA/metric trống | Prometheus chưa scrape service | Kiểm ServiceMonitor/annotation scrape |
+| Alert bắn liên tục | Ngưỡng quá nhạy | Thêm `for:` (duy trì X phút), dựa golden signals |
+| PromQL `no data` | Sai tên metric/label | Dùng autocomplete UI; kiểm label với `{job=...}` |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** 3 trụ cột observability là gì?
-- Prometheus dùng cơ chế pull hay push?
-- Phân biệt counter và gauge.
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. 3 trụ cột observability là gì?</summary>
+
+> Metrics (số đo — "có sai không?"), Logs (nhật ký — "sai gì?"), Traces (dấu vết — "sai ở đâu trong chuỗi service?").
+</details>
+
+<details>
+<summary>2. Prometheus dùng pull hay push? Lợi ích?</summary>
+
+> **Pull** (scrape `/metrics`). Lợi: tự biết target chết (scrape fail = down), không cần target biết địa chỉ Prometheus, dễ debug.
+</details>
+
+<details>
+<summary>3. Counter và gauge khác nhau?</summary>
+
+> Counter chỉ tăng (tổng request) — phải dùng `rate()`. Gauge lên xuống (RAM đang dùng, số kết nối).
+</details>
+
+<details>
+<summary>4. "Alert fatigue" là gì và tránh thế nào?</summary>
+
+> Alert quá nhiều/nhạy → người ta chai lì, tắt cả alert thật. Tránh bằng alert theo triệu chứng người dùng cảm nhận + `for:` duy trì.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Prometheus thu thập metrics | UI, query `up` → giá trị 1 cho target |
-| Xem targets | Status > Targets tất cả State UP |
-| Truy vấn 1 metric | PromQL trả về biểu đồ/giá trị (vd node_cpu...) |
+| Prometheus thu thập metric | Query `up` → `1` cho target |
+| Xem Targets | Status > Targets đều `UP` |
+| PromQL | Trả biểu đồ/giá trị (vd `rate(...)`) |
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Observability** | Khả năng quan sát hệ thống |
+| **Metric / time-series** | Số đo theo thời gian |
+| **Prometheus** | Hệ thu thập metric (pull) |
+| **Exporter** | Nguồn expose metric (node-exporter...) |
+| **PromQL** | Ngôn ngữ truy vấn metric |
+| **Counter/Gauge/Histogram** | Các loại metric |
+| **Alertmanager** | Gửi cảnh báo khi vượt ngưỡng |
 
 ✅ **Kết quả đạt được:** Thu thập và truy vấn metric với Prometheus — nền tảng giám sát.
 
