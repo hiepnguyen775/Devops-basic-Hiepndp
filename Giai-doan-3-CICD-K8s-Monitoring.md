@@ -795,6 +795,10 @@ Quy tắc: **rollback trước, điều tra sau**. Vì deploy theo tag bất bi�
 ## Ngày 35 — MILESTONE: Pipeline CI/CD hoàn chỉnh
 
 > ⏱️ ~120 phút · Loại: Milestone
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 31–34 (từng mảnh CI/CD) → **Ngày 35 (ghép thành 1 dây chuyền hoàn chỉnh: push là app live)** → Ngày 36 (bước vào Kubernetes). Đây là kỹ năng "định danh" của DevOps Engineer.
+>
+> ✅ **Chuẩn bị:** app full-stack + Dockerfile, VM cloud SSH được, registry. Ghép lại kiến thức Ngày 31–34.
 
 ### 📘 Lý thuyết — Tổng kết
 
@@ -864,15 +868,51 @@ flowchart TD
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Tự chấm:** pipeline chạy từ commit tới production không cần thao tác tay không?
-- **Mở rộng:** thêm thông báo Slack/Discord khi deploy xong.
-- Vẽ sơ đồ toàn bộ pipeline.
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Kể thứ tự các stage của pipeline CI/CD hoàn chỉnh.</summary>
+
+> push → lint → test → scan bảo mật → build image (tag SHA) → push registry → deploy server → health check → (fail? rollback).
+</details>
+
+<details>
+<summary>2. Vì sao CI chạy mọi PR nhưng CD chỉ chạy khi merge main?</summary>
+
+> CI kiểm tra chất lượng mọi thay đổi (cả nhánh feature). CD đưa lên production — chỉ nên chạy với code đã được duyệt vào main/tag, không deploy mỗi push nhánh.
+</details>
+
+<details>
+<summary>3. Pipeline giải 5 điểm yếu của deploy tay thế nào?</summary>
+
+> Lặp lại được, có dấu vết (log mỗi run), không phụ thuộc 1 người, rollback bằng re-run tag cũ, ít sai vì máy làm.
+</details>
+
+<details>
+<summary>4. Vì sao đây là kỹ năng "định danh" của DevOps?</summary>
+
+> Nó gộp mọi năng lực: test (chất lượng), scan (bảo mật), build (Docker), deploy (orchestration) thành 1 dây chuyền tự động — thứ phân biệt DevOps với chỉ biết từng công cụ rời.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Pipeline end-to-end | push → test → build → push → deploy, tất cả tự động |
+| Pipeline end-to-end | push → test → build → push → deploy tự động |
 | Thời gian commit → live | Đo được (vài phút), không thao tác tay |
-| Repo có workflow đầy đủ | `.github/workflows/*.yml` có đủ các stage |
+| Repo có workflow đầy đủ | `.github/workflows/*.yml` đủ các stage |
+
+### 📚 Thuật ngữ Anh–Việt (tổng hợp CI/CD)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Pipeline** | Dây chuyền tự động lint→test→build→deploy |
+| **Stage / Job** | Giai đoạn / nhóm việc trong pipeline |
+| **Registry** | Kho image |
+| **Immutable tag** | Tag bất biến (SHA) để truy vết |
+| **Health check** | Kiểm tra app khoẻ sau deploy |
+| **Rollback** | Quay về bản trước |
+| **Status badge** | Huy hiệu trạng thái build trên README |
 
 ✅ **Kết quả đạt được — MỐC 4:** Làm chủ CI/CD end-to-end — năng lực cốt lõi nhất của DevOps.
 
@@ -882,18 +922,44 @@ flowchart TD
 
 > ⏱️ ~90 phút · Loại: Kubernetes
 >
+> 🧭 **Bạn đang ở đâu:** Ngày 35 (CI/CD hoàn chỉnh) → **Ngày 36 (Kubernetes — nhạc trưởng điều phối container)** → Ngày 37 (chạy app bằng Deployment). Docker chạy vài container 1 máy; K8s quản hàng trăm container trên nhiều máy, tự phục hồi & scale.
 > ☸️ *Học trên Minikube/kind/k3s (local); production dùng managed: **EKS** (AWS) / **GKE** (GCP) / **AKS** (Azure).*
+>
+> ✅ **Chuẩn bị:** cài `kubectl` + Minikube (hoặc kind/k3s). RAM tối thiểu ~4GB cho cluster local.
 
 ### 📘 Lý thuyết
 
-- **Vấn đề K8s giải quyết:** chạy/quản lý hàng trăm container, tự phục hồi, scale, không downtime.
-- **Kiến trúc:**
-  - **Control Plane:** API server, scheduler, etcd (database trạng thái), controller manager.
-  - **Worker Node:** kubelet, kube-proxy, container runtime.
-- **Đối tượng cơ bản:** Pod (đơn vị nhỏ nhất, chứa 1+ container), Node, Cluster.
-- **Declarative:** bạn mô tả **trạng thái mong muốn** (YAML), K8s tự điều chỉnh để đạt được.
-- **kubectl:** công cụ dòng lệnh điều khiển cluster.
-- **Self-healing:** pod chết → K8s tự tạo lại; đây là sức mạnh chính.
+#### 1. Vấn đề K8s giải quyết
+
+Docker chạy được vài container trên 1 máy. Nhưng khi có *hàng trăm* container trên *nhiều máy*, cần tự động: máy nào chạy gì, container chết thì tạo lại, tải cao thì thêm bản sao, cập nhật không downtime. Đó là **điều phối (orchestrate)** — việc của Kubernetes.
+
+#### 2. Kiến trúc — như một công ty
+
+| Thành phần | Vai trò |
+|---|---|
+| **Control Plane** (ban giám đốc) | Ra quyết định, ghi nhớ trạng thái |
+| ├ API Server | Lễ tân nhận mọi lệnh (`kubectl` nói chuyện với cái này) |
+| ├ etcd | Sổ cái ghi "mọi thứ đang thế nào" |
+| ├ Scheduler | Xếp pod cho máy nào chạy |
+| └ Controller Manager | Vòng điều hoà — giữ thực tế khớp mong muốn |
+| **Worker Node** (nhân viên) | Nơi container thật sự chạy (kubelet, kube-proxy, runtime) |
+
+#### 3. Đối tượng cơ bản
+
+- **Pod**: đơn vị nhỏ nhất, chứa 1+ container.
+- **Node**: một máy (VM/vật lý) trong cluster.
+- **Cluster**: tập hợp control plane + các node.
+
+#### 4. Declarative — điểm cốt lõi cần "ngấm"
+
+Bạn không ra lệnh từng bước. Bạn **mô tả trạng thái mong muốn** ("tôi muốn 3 bản sao app") trong YAML. K8s tự lo *làm sao đạt* và *giữ* nó.
+
+#### 5. Self-healing & kubectl
+
+- **Self-healing**: pod chết → K8s tự tạo lại để luôn đủ số mong muốn (vòng điều hoà liên tục so sánh thực tế ↔ etcd).
+- **kubectl**: công cụ dòng lệnh điều khiển cluster.
+
+> 🔑 Học K8s trên máy mình trước bằng **Minikube/kind/k3s** (miễn phí) — đừng vội thuê cluster cloud (tốn tiền) khi chưa vững cơ bản.
 
 **Sơ đồ — kiến trúc Kubernetes (Control Plane + Worker Nodes):**
 ```mermaid
@@ -988,19 +1054,65 @@ Bạn không ra lệnh từng bước. Bạn **mô tả kết quả mong muốn*
 
 💡 **Hiểu sâu:** linh hồn K8s là **vòng điều hòa** — controller so sánh "thực tế" với "mong muốn" (trong etcd) và tự sửa. Bạn khai báo *cái muốn*, K8s lo *cách đạt*.
 
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| `minikube start` treo/lỗi | Thiếu driver / RAM | Chỉ định driver (`--driver=docker`); tăng RAM |
+| `kubectl` báo `connection refused` | Cluster chưa chạy / sai context | `minikube start`; `kubectl config current-context` |
+| `kubectl get nodes` không có node | Cluster chưa lên | Chờ `minikube start` xong; `minikube status` |
+| Pod kẹt `Pending` | Node hết tài nguyên | `kubectl describe pod` đọc Events; tăng tài nguyên |
+| Lệnh áp nhầm cluster | Sai context (nhiều cluster) | `kubectl config use-context minikube` |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** Pod là gì và khác container thế nào?
-- Control Plane và Worker Node mỗi bên làm gì?
-- Declarative nghĩa là gì trong K8s?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Pod là gì và khác container thế nào?</summary>
+
+> Pod là đơn vị nhỏ nhất K8s chạy, bọc 1+ container dùng chung mạng & ổ đĩa. K8s quản lý Pod (không quản container trực tiếp).
+</details>
+
+<details>
+<summary>2. Control Plane và Worker Node mỗi bên làm gì?</summary>
+
+> Control Plane ra quyết định + ghi nhớ trạng thái (API server, etcd, scheduler, controller). Worker Node là nơi container thật sự chạy (kubelet, runtime).
+</details>
+
+<details>
+<summary>3. "Declarative" trong K8s nghĩa là gì?</summary>
+
+> Bạn mô tả *trạng thái mong muốn* (YAML), K8s tự điều chỉnh để đạt và giữ nó — không ra lệnh từng bước.
+</details>
+
+<details>
+<summary>4. Self-healing hoạt động nhờ đâu?</summary>
+
+> Vòng điều hoà (reconciliation loop): controller liên tục so thực tế với mong muốn (trong etcd), pod chết thì tạo lại cho đủ.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Cụm K8s hoạt động | `kubectl get nodes` → STATUS Ready |
-| Xem thông tin cụm | `kubectl cluster-info` in control plane URL |
-| Giải thích kiến trúc | Mô tả control plane, node, kubelet, etcd |
+| `kubectl get nodes` | STATUS `Ready` |
+| `kubectl cluster-info` | In control plane URL |
+| Chạy pod đầu tiên | `kubectl get pods` → Running |
 
-✅ **Kết quả đạt được:** Hiểu kiến trúc Kubernetes, chạy cluster local và pod đầu tiên.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Kubernetes (K8s)** | Hệ điều phối container |
+| **Control Plane** | Bộ não cluster (API server, etcd...) |
+| **Node** | Máy trong cluster |
+| **Pod** | Đơn vị nhỏ nhất chạy container |
+| **kubectl** | CLI điều khiển cluster |
+| **Declarative** | Khai báo trạng thái mong muốn |
+| **Self-healing** | Tự tạo lại pod chết |
+
+✅ **Kết quả đạt được:** Hiểu kiến trúc Kubernetes, chạy được cluster local và pod đầu tiên.
 
 ---
 
