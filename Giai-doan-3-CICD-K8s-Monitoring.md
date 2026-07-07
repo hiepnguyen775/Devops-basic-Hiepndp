@@ -665,16 +665,98 @@ Bạn không ra lệnh từng bước. Bạn **mô tả kết quả mong muốn*
 ## Ngày 37 — Kubernetes: Pod, Deployment & ReplicaSet
 
 > ⏱️ ~90 phút · Loại: Kubernetes
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 36 (kiến trúc K8s + pod đầu tiên) → **Ngày 37 (chạy app bằng Deployment)** → Ngày 38 (Service — cho app nhận request từ ngoài). Hôm nay bạn học cách *chạy và cập nhật ứng dụng đúng chuẩn*.
+>
+> ✅ **Chuẩn bị trước khi làm:** cluster local đã chạy từ Ngày 36 (`minikube start`) và `kubectl get nodes` trả về STATUS `Ready`. Nếu chưa, quay lại Ngày 36.
 
 ### 📘 Lý thuyết
 
-- **Pod YAML:** `apiVersion`, `kind`, `metadata`, `spec` (containers, image, ports).
-- **Deployment:** quản lý ReplicaSet, đảm bảo số lượng pod mong muốn, hỗ trợ rolling update.
-- **ReplicaSet:** duy trì số bản sao pod; thường không tạo trực tiếp mà qua Deployment.
-- **Scaling:** `kubectl scale deployment <tên> --replicas=3`.
-- **Rolling update & rollback:** cập nhật image không downtime; `kubectl rollout undo`.
-- **Label & selector:** gắn nhãn để nhóm và chọn lọc đối tượng.
-- **`kubectl apply -f file.yaml`:** áp dụng cấu hình declarative.
+#### 1. Ba lớp: Pod → ReplicaSet → Deployment
+
+Đây là kiến thức xương sống của K8s. Ba đối tượng này **lồng nhau như búp bê Nga**, mỗi lớp thêm một khả năng:
+
+| Đối tượng | Là gì | Khả năng thêm vào | Bạn có tự tạo không? |
+|---|---|---|---|
+| **Pod** | Đơn vị nhỏ nhất K8s chạy được, bọc 1 (hoặc vài) container dùng chung mạng + ổ đĩa | Không có gì thêm — chạy trần | ❌ Hầu như không bao giờ |
+| **ReplicaSet** | Bộ điều khiển giữ "luôn có đúng **N** pod giống nhau" | **Self-healing** + **scaling** | ❌ Rất hiếm (để Deployment lo) |
+| **Deployment** | Bộ điều khiển quản lý ReplicaSet | **Rolling update** + **rollback** | ✅ **Đây là thứ bạn dùng 99% thời gian** |
+
+Khi bạn tạo 1 **Deployment**, chuỗi tự động diễn ra: **Deployment** tạo ra **ReplicaSet**, **ReplicaSet** tạo ra các **Pod**. Bạn chỉ khai báo lớp trên cùng.
+
+```
+Bạn khai báo:   Deployment (web, replicas=3)
+                      │  tạo & quản lý
+                      ▼
+                 ReplicaSet (web-7d9f, giữ đúng 3 pod)
+                      │  tạo & quản lý
+          ┌───────────┼───────────┐
+          ▼           ▼           ▼
+        Pod web-a   Pod web-b   Pod web-c   ← nơi container thật sự chạy
+```
+
+#### 2. Vì sao KHÔNG bao giờ tạo Pod trần
+
+Một Pod tạo trực tiếp (không qua Deployment) chết là **mất vĩnh viễn** — không ai tạo lại. ReplicaSet mới là "người canh gác": nó liên tục đếm pod, thiếu thì tạo bù. Đây chính là **self-healing**. Vì thế quy tắc vàng: *luôn bọc Pod trong một Deployment*.
+
+#### 3. Cấu trúc một manifest (file YAML khai báo)
+
+Mọi đối tượng K8s đều có **4 khối bắt buộc**. Hiểu 4 khối này là đọc được mọi YAML:
+
+| Khối | Ý nghĩa | Ví dụ |
+|---|---|---|
+| `apiVersion` | Phiên bản API dùng để hiểu đối tượng | `apps/v1` (cho Deployment) |
+| `kind` | Loại đối tượng | `Deployment`, `Pod`, `Service`... |
+| `metadata` | Tên + nhãn (label) để nhận diện | `name: web`, `labels: {app: web}` |
+| `spec` | **Trạng thái mong muốn** — mô tả bạn muốn gì | replicas, image, ports... |
+
+#### 4. Label & Selector — "keo dán" gắn các đối tượng
+
+- **Label** = cái nhãn dán tùy ý lên đối tượng, dạng `key: value` (vd `app: web`).
+- **Selector** = câu điều kiện "chọn mọi đối tượng có nhãn này".
+
+Deployment dùng `selector.matchLabels` để biết *"những Pod nào là của tôi"*. Đây cũng là cách Service (Ngày 38) và hệ thống monitoring tìm đúng Pod. **Nhãn ở `selector` phải khớp y hệt nhãn trong `template.metadata.labels`** — sai chỗ này là lỗi kinh điển của người mới.
+
+#### 5. Rolling update — cập nhật không downtime
+
+Khi đổi phiên bản image, K8s **không tắt hết rồi bật lại** (sẽ downtime). Nó thay **từng Pod một**: dựng Pod mới → chờ khỏe → xóa Pod cũ → lặp lại. Luôn còn Pod phục vụ → người dùng không thấy gián đoạn. Hai "van" điều khiển tốc độ:
+
+- `maxSurge`: được phép tạo thừa tối đa bao nhiêu Pod so với mong muốn (vd `1` = tạo trước 1 pod mới).
+- `maxUnavailable`: được phép thiếu tối đa bao nhiêu Pod (vd `0` = không bao giờ thiếu → zero-downtime tuyệt đối).
+
+Về mặt cơ chế: mỗi lần đổi image, Deployment tạo một **ReplicaSet mới**, tăng dần pod ở RS mới và giảm dần pod ở RS cũ. Vì RS cũ vẫn còn đó (chỉ scale về 0), nên **rollback = bật lại RS cũ** → nhanh trong vài giây: `kubectl rollout undo`.
+
+#### 6. Scaling — co giãn bằng một con số
+
+`kubectl scale deployment web --replicas=5` chỉ đổi con số `replicas`. ReplicaSet thấy 3≠5 → tạo thêm 2 pod. Đây là nền tảng của autoscaling (Ngày 41).
+
+#### 7. Manifest Deployment tối thiểu (đọc để hình dung, sẽ dùng ở Lab)
+
+```yaml
+apiVersion: apps/v1          # Deployment thuộc nhóm API "apps"
+kind: Deployment
+metadata:
+  name: web                  # tên Deployment
+  labels:
+    app: web
+spec:
+  replicas: 3                # MUỐN có 3 pod
+  selector:
+    matchLabels:
+      app: web               # "pod của tôi là pod có nhãn app=web"
+  template:                  # ← khuôn để đúc ra từng Pod
+    metadata:
+      labels:
+        app: web             # PHẢI khớp selector ở trên
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.27  # dùng tag cụ thể, KHÔNG dùng :latest
+          ports:
+            - containerPort: 80
+```
+
+> 🔑 Để ý: từ `template:` trở xuống chính là "định nghĩa một Pod". Deployment = "khuôn đúc Pod (`template`)" + "muốn bao nhiêu cái (`replicas`)" + "nhận diện chúng bằng nhãn nào (`selector`)".
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -694,39 +776,143 @@ Khi đổi phiên bản, K8s **thay từng pod một**: dựng pod mới → kh�
 
 ### 🧪 Lab cơ bản
 
-1. Viết `deployment.yaml` chạy 3 replica của app bạn, `kubectl apply -f`.
-2. Xem: `kubectl get deployments`, `kubectl get pods` (thấy 3 pod).
-3. Scale lên 5 rồi xuống 2: `kubectl scale`.
-4. Rolling update đổi image version, xem `kubectl rollout status`.
-5. Rollback về version cũ: `kubectl rollout undo deployment/<tên>`.
+> Mục tiêu: tự tay tạo Deployment 3 pod, scale, rolling update và rollback. Dùng image `nginx` có sẵn nên **không cần build gì**.
+
+**Bước 1 — Tạo thư mục làm việc và file manifest.**
+```bash
+mkdir -p ~/k8s-lab/ngay37 && cd ~/k8s-lab/ngay37
+nano deployment.yaml
+```
+Dán **toàn bộ** nội dung sau vào file (đây là file hoàn chỉnh, copy-chạy được ngay):
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  labels:
+    app: web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.27
+          ports:
+            - containerPort: 80
+```
+Lưu lại: `Ctrl+O` → `Enter` → `Ctrl+X`.
+
+**Bước 2 — Áp dụng file lên cluster.**
+```bash
+kubectl apply -f deployment.yaml
+```
+
+**Bước 3 — Xem kết quả.**
+```bash
+kubectl get deployments
+kubectl get pods
+```
+
+**Bước 4 — Scale lên 5 rồi xuống 2.**
+```bash
+kubectl scale deployment web --replicas=5
+kubectl get pods          # đếm lại số pod
+kubectl scale deployment web --replicas=2
+```
+
+**Bước 5 — Rolling update: đổi phiên bản image.**
+```bash
+kubectl set image deployment/web web=nginx:1.28
+kubectl rollout status deployment/web
+```
+
+**Bước 6 — Rollback về bản trước.**
+```bash
+kubectl rollout undo deployment/web
+kubectl rollout status deployment/web
+```
+
+**Bước 7 — Dọn dẹp (để làm lại từ đầu nếu muốn).**
+```bash
+kubectl delete -f deployment.yaml
+```
 
 ### 🚀 Lab nâng cao (best-practice)
 
-> Mục tiêu: viết Deployment chuẩn production — có label đúng, rolling update kiểm soát.
+> Mục tiêu: viết một Deployment **chuẩn production** — chiến lược rolling update zero-downtime, label chuẩn hoá, và tự quan sát K8s tự chữa lành (self-healing).
 
-1. **Deployment với chiến lược rolling update kiểm soát:**
-   ```yaml
-   spec:
-     replicas: 3
-     strategy:
-       type: RollingUpdate
-       rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }   # 0 downtime: tạo mới trước, xóa cũ sau
-     selector: { matchLabels: { app: web } }
-     template:
-       metadata: { labels: { app: web } }
-       spec:
-         containers:
-           - name: web
-             image: ghcr.io/user/web:a1b2c3d   # tag bất biến, KHÔNG latest
-   ```
-2. **Luôn dùng tag bất biến** (SHA) trong image — `latest` làm rolling update không đoán được.
-3. **Label chuẩn** (`app.kubernetes.io/name`, `version`) để Service/monitoring chọn đúng pod.
-4. **`kubectl rollout`** kiểm soát triển khai:
-   ```bash
-   kubectl rollout status deployment/web   # theo dõi tiến trình
-   kubectl rollout history deployment/web  # lịch sử các bản
-   kubectl rollout undo deployment/web     # rollback
-   ```
+**Bước 1 — Tạo manifest production.** Tạo file `deployment-prod.yaml` với **đầy đủ 4 khối** (khác lab cơ bản ở khối `strategy` và bộ label chuẩn):
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  labels:
+    app.kubernetes.io/name: web        # bộ label khuyến nghị của K8s
+    app.kubernetes.io/version: "1.27"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1            # tạo dư tối đa 1 pod khi update
+      maxUnavailable: 0      # KHÔNG bao giờ thiếu pod → zero-downtime
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: web    # PHẢI khớp selector
+        app.kubernetes.io/version: "1.27"
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.27            # tag cụ thể, KHÔNG dùng :latest
+          ports:
+            - containerPort: 80
+```
+```bash
+kubectl apply -f deployment-prod.yaml
+```
+
+**Bước 2 — Quan sát rolling update zero-downtime.** Mở **2 cửa sổ terminal**:
+- Terminal A (theo dõi liên tục): `kubectl get pods -w`
+- Terminal B (kích hoạt update): `kubectl set image deployment/web web=nginx:1.28`
+
+Nhìn Terminal A: pod mới `ContainerCreating` → `Running` **rồi** pod cũ mới `Terminating`. Nhờ `maxUnavailable: 0`, luôn đủ 3 pod phục vụ.
+
+**Bước 3 — Thử nghiệm rollback khi update hỏng.** Cố tình đặt tag sai:
+```bash
+kubectl set image deployment/web web=nginx:khong-ton-tai
+kubectl get pods            # pod mới kẹt ở ImagePullBackOff, pod cũ VẪN chạy
+kubectl rollout undo deployment/web   # cứu về bản tốt
+```
+
+**Bước 4 — Kiểm chứng self-healing.** Xoá tay một pod và xem ReplicaSet tạo lại:
+```bash
+kubectl get pods
+kubectl delete pod <tên-một-pod>      # thay bằng tên thật ở lệnh trên
+kubectl get pods                      # thấy pod mới xuất hiện thay thế
+```
+
+**Nguyên tắc production rút ra:**
+- **Luôn dùng tag bất biến** (số phiên bản hoặc SHA), không dùng `:latest` — `latest` khiến rolling update và rollback không đoán trước được.
+- **`maxUnavailable: 0`** cho dịch vụ cần zero-downtime.
+- **Bộ label chuẩn** `app.kubernetes.io/*` để Service (Ngày 38) và monitoring (Ngày 44) chọn đúng pod.
+- Bộ lệnh `kubectl rollout` để kiểm soát vòng đời triển khai:
+  ```bash
+  kubectl rollout status  deployment/web   # theo dõi tiến trình update
+  kubectl rollout history deployment/web   # xem lịch sử các bản
+  kubectl rollout undo    deployment/web   # rollback bản gần nhất
+  ```
 
 ### 💡 Bổ sung thực tế: chuỗi Deployment → ReplicaSet → Pod & rolling update
 
@@ -737,34 +923,172 @@ Khi đổi phiên bản, K8s **thay từng pod một**: dựng pod mới → kh�
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** viết `deployment.yaml` 3 replica → apply → xem deploy/pods → scale → rolling update đổi image → rollback.
+> Làm **tuần tự từng bước**. Sau mỗi bước, đối chiếu với "Bạn sẽ thấy" và dừng lại ở dòng ✅ **Checkpoint** trước khi đi tiếp. Chưa qua checkpoint thì đừng vội sang bước sau.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `kubectl apply -f deployment.yaml` — tạo/cập nhật theo file (declarative). *Kết quả:* `kubectl get deploy` → READY 3/3.
-- `kubectl scale deployment web --replicas=5` — đổi số bản sao. *Kết quả:* `get pods` thấy 5 pod.
-- `kubectl set image deployment/web web=img:v2` → rolling update; `kubectl rollout status` theo dõi; `kubectl rollout undo` rollback.
+**Bước 1 — Kiểm tra cluster đã sẵn sàng.**
+```bash
+kubectl get nodes
+```
+Bạn sẽ thấy (Minikube 1 node):
+```
+NAME       STATUS   ROLES           AGE   VERSION
+minikube   Ready    control-plane   3d    v1.30.x
+```
+✅ **Checkpoint:** STATUS là `Ready`.
+⚠️ Nếu lỗi `connection refused` hoặc không có node → cluster chưa chạy: `minikube start` rồi thử lại.
 
-**🧪 Thử nghiệm:**
-- Đang rolling update, chạy `kubectl get pods -w` (watch) → pod cũ giảm, pod mới tăng dần. **Bài học:** rolling update không downtime.
-- Đổi image sang tag SAI → pod mới `ImagePullBackOff` nhưng pod cũ vẫn chạy (nhờ `maxUnavailable: 0`) → `rollout undo`. **Bài học:** rollback an toàn.
+**Bước 2 — Tạo Deployment từ file.**
+```bash
+kubectl apply -f deployment.yaml
+```
+Bạn sẽ thấy:
+```
+deployment.apps/web created
+```
+✅ **Checkpoint:** có chữ `created`. (Chạy lại lệnh này lần 2 sẽ thấy `unchanged` — đó là bản chất *declarative*: áp dụng nhiều lần vẫn ra một kết quả.)
 
-⚠️ **Dễ sai:** tạo Pod "trần" thay vì Deployment → pod chết là mất luôn. Luôn dùng Deployment.
+**Bước 3 — Xác nhận 3 pod đã chạy.**
+```bash
+kubectl get deployments
+kubectl get pods
+```
+Bạn sẽ thấy:
+```
+NAME   READY   UP-TO-DATE   AVAILABLE   AGE
+web    3/3     3            3           20s
 
-💡 **Hiểu sâu:** chuỗi **Deployment → ReplicaSet → Pod**: mỗi lần đổi image, Deployment tạo ReplicaSet mới, dịch dần pod cũ→mới. `rollout undo` = quay về ReplicaSet cũ → nhanh.
+NAME                   READY   STATUS    RESTARTS   AGE
+web-7d9f8c6b5-2xk4p    1/1     Running   0          20s
+web-7d9f8c6b5-8fq2m    1/1     Running   0          20s
+web-7d9f8c6b5-lp9wz    1/1     Running   0          20s
+```
+✅ **Checkpoint:** Deployment `READY 3/3` và có đúng **3 pod** `Running`.
+⚠️ Nếu pod kẹt ở `Pending`/`ContainerCreating` quá lâu → chạy `kubectl describe pod <tên>`, đọc mục **Events** ở cuối để biết lý do (thường là đang kéo image, chờ chút).
+💡 *Vì sao tên pod có hậu tố lạ (`web-7d9f8c6b5-2xk4p`)?* `web-7d9f8c6b5` là tên **ReplicaSet** do Deployment sinh ra, `-2xk4p` là mã ngẫu nhiên của từng Pod. Bạn vừa nhìn thấy chuỗi Deployment → ReplicaSet → Pod bằng mắt thật.
+
+**Bước 4 — Scale và quan sát.**
+```bash
+kubectl scale deployment web --replicas=5
+kubectl get pods        # đếm: giờ phải là 5 pod
+kubectl scale deployment web --replicas=2
+kubectl get pods        # 3 pod dư bị xoá, còn 2
+```
+✅ **Checkpoint:** số pod thay đổi theo đúng con số `--replicas`.
+💡 *Kết quả cho thấy:* bạn không tạo/xoá pod thủ công — chỉ đổi *mong muốn*, ReplicaSet tự điều chỉnh cho khớp.
+
+**Bước 5 — Rolling update.**
+```bash
+kubectl set image deployment/web web=nginx:1.28
+kubectl rollout status deployment/web
+```
+Bạn sẽ thấy:
+```
+Waiting for deployment "web" rollout to finish: 1 out of 2 new replicas have been updated...
+deployment "web" successfully rolled out
+```
+✅ **Checkpoint:** dòng cuối là `successfully rolled out`.
+💡 *Muốn thấy tận mắt "không downtime"?* Mở terminal thứ 2 chạy `kubectl get pods -w` **trước khi** gõ lệnh `set image` — bạn sẽ thấy pod mới lên `Running` rồi pod cũ mới `Terminating`.
+
+**Bước 6 — Rollback.**
+```bash
+kubectl rollout history deployment/web   # xem có mấy revision
+kubectl rollout undo deployment/web
+kubectl rollout status deployment/web
+```
+✅ **Checkpoint:** rollout thành công, image quay về `nginx:1.27`. Kiểm chứng:
+```bash
+kubectl describe deployment web | grep -i image
+```
+💡 *Vì sao rollback nhanh vậy?* ReplicaSet cũ (chạy `1.27`) không bị xoá, chỉ bị scale về 0. `undo` = bật lại nó → vài giây, không cần kéo lại image.
+
+**Bước 7 — Dọn dẹp.**
+```bash
+kubectl delete -f deployment.yaml
+kubectl get pods        # danh sách trống dần rồi rỗng
+```
+✅ **Checkpoint:** không còn pod `web` nào.
+
+---
+
+**⚠️ Ba lỗi kinh điển của người mới ở ngày này:**
+1. **Nhãn `selector` ≠ nhãn `template`** → `kubectl apply` báo lỗi `selector does not match template labels`. Hai chỗ nhãn PHẢI y hệt nhau.
+2. **Tạo Pod trần** (`kind: Pod`) thay vì Deployment → pod chết là mất luôn, không self-healing.
+3. **Dùng `image: nginx:latest`** → mỗi lần pull có thể ra bản khác nhau, rolling update/rollback không đoán trước được. Luôn ghi tag cụ thể.
+
+💡 **Hiểu sâu để nhớ lâu:** mỗi lần bạn đổi image, Deployment **không sửa pod cũ** — nó tạo hẳn một **ReplicaSet mới**, rồi dịch dần số pod từ RS cũ sang RS mới (tăng bên mới, giảm bên cũ). Đó là lý do vừa *không downtime* (luôn còn pod phục vụ) vừa *rollback tức thì* (RS cũ vẫn nằm đó chờ được bật lại).
+
+### 🐛 Gỡ lỗi nhanh (kỹ năng dùng cả đời làm K8s)
+
+> Khi có gì đó "không chạy", **đừng đoán mò**. Luôn đi theo đúng 3 lệnh này, theo thứ tự — 90% sự cố lộ ra ngay.
+
+**🔧 3 lệnh debug vạn năng:**
+```bash
+kubectl get pods                 # 1. NHÌN TỔNG QUAN: pod nào lỗi? STATUS gì?
+kubectl describe pod <tên-pod>   # 2. TÌM NGUYÊN NHÂN: đọc mục "Events" ở CUỐI output
+kubectl logs <tên-pod>           # 3. XEM APP NÓI GÌ: log bên trong container
+```
+Quy tắc: `get` để *thấy triệu chứng* → `describe` để *biết vì sao K8s không xếp/chạy được* (Events) → `logs` để *biết app tự chết vì lý do gì*.
+
+**📋 Bảng lỗi thường gặp ở ngày này:**
+
+| STATUS bạn thấy (`get pods`) | Nghĩa là gì | Nguyên nhân hay gặp | Cách sửa |
+|---|---|---|---|
+| `ImagePullBackOff` / `ErrImagePull` | Không kéo được image | Gõ sai tên/tag image, hoặc tag không tồn tại | Kiểm tra lại chính tả image; dùng tag có thật (vd `nginx:1.27`) |
+| `CrashLoopBackOff` | Container khởi động rồi chết, lặp mãi | App lỗi khi chạy, thiếu config/biến môi trường | `kubectl logs <pod>` đọc lý do app chết |
+| `Pending` (kẹt lâu) | Chưa được xếp lên node nào | Node hết CPU/RAM, hoặc cluster chưa Ready | `kubectl describe pod` đọc Events; kiểm tra `kubectl get nodes` |
+| `apply` báo `selector does not match template labels` | Manifest sai | Nhãn ở `selector.matchLabels` ≠ nhãn ở `template.metadata.labels` | Sửa cho 2 chỗ nhãn **y hệt nhau** |
+| `0/3` mãi không lên `3/3` | Pod không sẵn sàng | Thường là 1 trong các lỗi trên | Chạy 3 lệnh debug ở trên để truy nguyên |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** Deployment quản lý ReplicaSet quản lý Pod — giải thích chuỗi này.
-- Rolling update giúp tránh điều gì?
-- Viết lệnh scale deployment lên 4 replica.
+**✍️ Tự kiểm tra (nghĩ câu trả lời rồi mới bấm xem đáp án):**
+
+<details>
+<summary>1. Giải thích chuỗi Deployment → ReplicaSet → Pod. Vì sao không tạo Pod trần?</summary>
+
+> Bạn khai báo **Deployment**, nó tạo **ReplicaSet** (giữ đúng số pod), ReplicaSet tạo các **Pod** (chạy container). Không tạo Pod trần vì pod trần chết là mất luôn — không ai tạo lại; ReplicaSet mới có self-healing.
+</details>
+
+<details>
+<summary>2. Rolling update giúp tránh điều gì, và nhờ tham số nào?</summary>
+
+> Tránh **downtime** khi cập nhật. K8s thay từng pod một, luôn giữ đủ pod phục vụ. `maxUnavailable: 0` đảm bảo không bao giờ thiếu pod; `maxSurge` cho phép tạo dư pod mới trong lúc chuyển.
+</details>
+
+<details>
+<summary>3. Viết lệnh scale deployment "web" lên 4 replica.</summary>
+
+> `kubectl scale deployment web --replicas=4`
+</details>
+
+<details>
+<summary>4. Thấy pod ở STATUS `ImagePullBackOff` thì làm gì đầu tiên?</summary>
+
+> `kubectl describe pod <tên>` đọc mục Events — thường là gõ sai tên/tag image. Sửa lại tag cho đúng.
+</details>
+
+**🔬 Demo đối chiếu (làm xong phải khớp bảng này):**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
 | Tạo Deployment | `kubectl get deploy` → READY 3/3 |
 | Xem các Pod | `kubectl get pods` → tất cả Running |
 | Thử xóa 1 pod | K8s tự tạo lại pod mới (self-healing) |
+| Rolling update rồi rollback | `rollout status` → `successfully rolled out`, image quay về bản cũ |
 
-✅ **Kết quả đạt được:** Triển khai và scale ứng dụng bằng Deployment, rolling update an toàn.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Replica** | Bản sao của pod. `replicas: 3` = muốn 3 bản sao giống nhau |
+| **Rolling update** | Cập nhật cuốn chiếu, thay từng pod một để không downtime |
+| **Rollback** | Quay về phiên bản trước khi bản mới lỗi |
+| **Selector / Label** | Nhãn dán lên đối tượng + câu điều kiện chọn theo nhãn |
+| **Manifest** | File YAML mô tả đối tượng K8s (trạng thái mong muốn) |
+| **Self-healing** | K8s tự tạo lại pod khi pod chết, để luôn đủ số mong muốn |
+| **Declarative** | Khai báo *cái muốn* (YAML), K8s tự lo *cách đạt* |
+
+✅ **Kết quả đạt được:** Triển khai và scale ứng dụng bằng Deployment, rolling update & rollback an toàn, và biết dùng 3 lệnh debug + bảng lỗi để tự gỡ sự cố.
 
 ---
 
