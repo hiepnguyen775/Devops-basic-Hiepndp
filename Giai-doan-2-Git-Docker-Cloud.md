@@ -1490,17 +1490,43 @@ docker history --no-trunc my-app:slim
 ## Ngày 19 — Docker: Volume, Network & dữ liệu bền vững
 
 > ⏱️ ~90 phút · Loại: Docker
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 18 (tối ưu image) → **Ngày 19 (lưu dữ liệu bền vững + cho container nói chuyện)** → Ngày 20 (Docker Compose). Đây là 2 mảnh còn thiếu để ghép nhiều container thành 1 hệ thống thật.
+>
+> ✅ **Chuẩn bị:** Docker chạy được. Sẽ dùng image `postgres` để minh hoạ dữ liệu bền vững.
 
 ### 📘 Lý thuyết
 
-- **Vấn đề:** container bị xóa → mất dữ liệu; cần lưu trữ bền vững.
-- **Volume:** `docker volume create`, `-v tên-volume:/path`; do Docker quản lý (khuyến nghị).
-- **Bind mount:** `-v /host/path:/container/path`; gắn trực tiếp thư mục host (tốt cho dev).
-- **tmpfs:** lưu trong RAM, không bền vững.
-- **Docker network:** `bridge` (mặc định), `host`, `none`; container cùng network gọi nhau qua tên.
-- **Tạo network:** `docker network create mynet`; `--network mynet` khi run.
-- **DNS nội bộ:** trong cùng network, container kết nối nhau bằng **tên container/service**.
-- **Inspect:** `docker volume inspect`, `docker network inspect`.
+#### 1. Vấn đề: container "khỏe nhưng hay quên"
+
+Container thiết kế để *dùng xong vứt* (ephemeral). Xoá container = mất sạch dữ liệu bên trong. Vậy database chạy trong container thì sao? → cần **Volume**.
+
+#### 2. Ba cách lưu trữ
+
+| Loại | Cú pháp | Dùng khi |
+|---|---|---|
+| **Volume** (khuyến nghị) | `-v tên:/path` | Dữ liệu quan trọng (database) — Docker quản lý, backup được |
+| **Bind mount** | `-v /host/path:/path` | Dev — gắn thẳng thư mục máy, sửa code thấy ngay |
+| **tmpfs** | `--tmpfs /path` | Dữ liệu tạm trong RAM (không bền vững) |
+
+Volume nằm **ngoài** vòng đời container → xoá container, dữ liệu vẫn còn.
+
+#### 3. Docker Network — cách container "nói chuyện"
+
+| Mode | Dùng khi |
+|---|---|
+| `bridge` (mặc định) | Đa số — container có IP riêng, cô lập |
+| `host` | Cần hiệu năng mạng tối đa (mất cô lập) |
+| `none` | Container không cần mạng |
+
+- Tạo: `docker network create mynet`; dùng: `--network mynet` khi `run`.
+- **DNS nội bộ:** container cùng network gọi nhau bằng **tên** (không cần IP). Vd app gọi DB bằng `db:5432` — Docker tự dịch `db` → IP container database. Đây là nền tảng ghép microservice.
+
+#### 4. Inspect
+
+`docker volume inspect <vol>`, `docker network inspect <net>` để xem chi tiết.
+
+> 🔑 Dữ liệu quan trọng (nhất là database) **bắt buộc** để trong volume. Cẩn thận `docker compose down -v` — chữ `-v` xoá luôn volume = **mất dữ liệu thật**.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -1518,11 +1544,46 @@ Khi nhiều container ở **cùng một network**, chúng gọi nhau bằng **t�
 
 ### 🧪 Lab cơ bản
 
-1. Tạo volume, chạy container ghi dữ liệu vào volume, xóa container rồi tạo lại — dữ liệu vẫn còn.
-2. Dùng bind mount gắn thư mục code host vào container để chỉnh sửa trực tiếp.
-3. Tạo network riêng, chạy 2 container (app + database giả lập) cho giao tiếp qua tên.
-4. Chạy MySQL/Postgres container với volume → dữ liệu không mất khi restart.
-5. Inspect network xem các container được kết nối.
+> Mục tiêu: chứng minh volume giữ dữ liệu qua xoá container, và 2 container gọi nhau qua tên.
+
+**Bước 1 — Chứng minh dữ liệu bền vững với volume.**
+```bash
+docker volume create dbdata
+docker run -d --name pg -v dbdata:/var/lib/postgresql/data \
+  -e POSTGRES_PASSWORD=secret postgres:16-alpine
+docker exec -it pg psql -U postgres -c "CREATE TABLE t(x int); INSERT INTO t VALUES(42);"
+docker rm -f pg          # XOÁ container
+docker run -d --name pg -v dbdata:/var/lib/postgresql/data \
+  -e POSTGRES_PASSWORD=secret postgres:16-alpine
+docker exec -it pg psql -U postgres -c "SELECT * FROM t;"
+```
+Bạn sẽ thấy `42` vẫn còn dù đã xoá container — nhờ volume.
+
+**Bước 2 — Tạo network riêng và cho 2 container nói chuyện.**
+```bash
+docker network create mynet
+docker run -d --name db --network mynet -e POSTGRES_PASSWORD=secret postgres:16-alpine
+docker run -it --rm --network mynet postgres:16-alpine \
+  psql -h db -U postgres -c "SELECT 1;"     # gọi DB bằng TÊN "db", không cần IP
+```
+
+**Bước 3 — Bind mount cho dev.**
+```bash
+docker run -d --name web -p 8080:80 -v "$(pwd)":/usr/share/nginx/html:ro nginx
+# sửa file index.html trên máy → tải lại trình duyệt thấy đổi ngay
+```
+
+**Bước 4 — Inspect.**
+```bash
+docker volume inspect dbdata
+docker network inspect mynet     # thấy các container đang nối
+```
+
+**Bước 5 — Dọn dẹp.**
+```bash
+docker rm -f pg db web; docker network rm mynet
+# (giữ hoặc xoá volume: docker volume rm dbdata)
+```
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -1556,50 +1617,130 @@ Khi nhiều container ở **cùng một network**, chúng gọi nhau bằng **t�
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** tạo volume & ghi dữ liệu → xóa container rồi tạo lại (dữ liệu còn) → bind mount cho dev → network riêng cho 2 container nói chuyện qua tên.
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `docker volume create data` + `-v data:/var/lib/...` — volume do Docker quản (khuyến nghị cho dữ liệu). *Kết quả:* xóa container, tạo lại → dữ liệu vẫn còn.
-- `-v $(pwd):/app` (bind mount) — gắn thẳng thư mục host vào container (tốt cho **dev**: sửa code nóng).
-- `docker network create mynet` + `--network mynet` — 2 container cùng network gọi nhau bằng **tên** (DNS nội bộ), không cần IP.
+**Bước 1 — Kiểm chứng "không volume = mất dữ liệu".**
+```bash
+docker run -d --name pg-tmp -e POSTGRES_PASSWORD=secret postgres:16-alpine
+docker exec -it pg-tmp psql -U postgres -c "CREATE TABLE t(x int);"
+docker rm -f pg-tmp
+# tạo lại KHÔNG volume → bảng t biến mất
+```
+✅ **Checkpoint:** hiểu container không volume → xoá là mất sạch.
 
-**🧪 Thử nghiệm:**
-- Chạy postgres KHÔNG volume → ghi dữ liệu → `docker rm` → tạo lại → dữ liệu MẤT. Làm lại CÓ `-v` → dữ liệu CÒN. **Bài học:** vì sao DB bắt buộc có volume.
-- 2 container cùng network: từ A `ping <tên-B>` → thông. **Bài học:** DNS nội bộ là nền tảng microservice.
+**Bước 2 — Làm lại CÓ volume (theo Lab Bước 1).**
+✅ **Checkpoint:** sau khi xoá & tạo lại container, `SELECT * FROM t;` vẫn ra `42`.
+💡 Volume nằm NGOÀI vòng đời container → dữ liệu sống sót.
 
-⚠️ **Dễ sai:** `docker compose down -v` xóa cả volume → mất dữ liệu thật. Đọc kỹ cờ `-v`.
+**Bước 3 — 2 container gọi nhau qua tên.**
+```bash
+docker network inspect mynet | grep Name
+```
+✅ **Checkpoint:** `psql -h db` (dùng tên) kết nối được — không cần biết IP.
+💡 DNS nội bộ là nền tảng để app gọi `db:5432` trong microservice.
 
-💡 **Hiểu sâu:** dữ liệu trong "lớp ghi" container mất khi xóa container; volume nằm NGOÀI vòng đời container nên bền vững. Tách network theo tầng để DB không lộ ra ngoài.
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Dữ liệu DB mất sau khi tái tạo container | Quên gắn volume | `-v tên:/var/lib/postgresql/data` |
+| Container A không gọi được B bằng tên | Không cùng network, hoặc dùng default bridge | Tạo network riêng, cùng `--network`; default bridge KHÔNG có DNS theo tên |
+| `docker compose down -v` mất dữ liệu | `-v` xoá cả volume | Không dùng `-v` khi có dữ liệu thật cần giữ |
+| Bind mount không thấy file | Sai đường dẫn host / quyền | Dùng đường dẫn tuyệt đối; kiểm quyền thư mục |
+| Volume ngốn đĩa | Volume mồ côi tích tụ | `docker volume ls`, `docker volume prune` (cẩn thận) |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** phân biệt volume và bind mount, khi nào dùng cái nào.
-- 2 container làm sao gọi nhau qua tên thay vì IP?
-- Vì sao database trong container BẮT BUỘC phải dùng volume?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Volume và bind mount khác nhau, khi nào dùng cái nào?</summary>
+
+> Volume do Docker quản lý, dùng cho dữ liệu quan trọng (database) — backup được, bền vững. Bind mount gắn thẳng thư mục máy vào container, tiện cho dev (sửa code thấy ngay).
+</details>
+
+<details>
+<summary>2. 2 container gọi nhau qua tên thế nào?</summary>
+
+> Đặt chúng vào **cùng một network do bạn tạo** (`docker network create`), rồi gọi bằng tên container/service (Docker có DNS nội bộ). Default bridge không hỗ trợ DNS theo tên.
+</details>
+
+<details>
+<summary>3. Vì sao database trong container BẮT BUỘC có volume?</summary>
+
+> Vì container ephemeral — xoá/tái tạo là mất dữ liệu ở lớp ghi. Volume nằm ngoài vòng đời container nên giữ được dữ liệu.
+</details>
+
+<details>
+<summary>4. `docker compose down -v` nguy hiểm ở chỗ nào?</summary>
+
+> Cờ `-v` xoá luôn các volume → mất dữ liệu thật. Bình thường chỉ `down` (không `-v`).
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Tạo volume, gắn vào container | `docker volume ls` hiện volume; dữ liệu còn sau khi xóa container |
-| Tạo network riêng | `docker network ls` hiện network |
-| 2 container nói chuyện qua tên | ping/curl theo tên service thành công |
+| Tạo volume, xoá container, tạo lại | Dữ liệu vẫn còn (`42`) |
+| `docker network ls` | Hiện network vừa tạo |
+| `psql -h db` qua tên | Kết nối thành công |
 
-✅ **Kết quả đạt được:** Quản lý dữ liệu bền vững và mạng giữa các container.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Volume** | Ổ lưu dữ liệu bền vững do Docker quản lý |
+| **Bind mount** | Gắn thẳng thư mục host vào container |
+| **Ephemeral** | Tạm thời — xoá là mất |
+| **Network (bridge/host/none)** | Mạng của container |
+| **DNS nội bộ** | Gọi container bằng tên trong cùng network |
+| **Persistent data** | Dữ liệu bền vững (giữ qua restart) |
+| **tmpfs** | Lưu trong RAM, không bền vững |
+
+✅ **Kết quả đạt được:** Quản lý dữ liệu bền vững (volume) và mạng giữa các container — 2 mảnh để ghép hệ thống thật.
 
 ---
 
 ## Ngày 20 — Docker Compose: Quản lý multi-container
 
 > ⏱️ ~90 phút · Loại: Docker
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 19 (volume & network) → **Ngày 20 (mô tả cả hệ thống nhiều container trong 1 file)** → Ngày 21 (Milestone full-stack). Compose là công cụ bạn dùng mỗi ngày cho local/dev.
+>
+> ✅ **Chuẩn bị:** Docker + Docker Compose (`docker compose version`). App Node từ Ngày 17 để ghép với database.
 
 ### 📘 Lý thuyết
 
-- **Vấn đề:** app thực tế có nhiều dịch vụ (web + db + cache) — chạy từng `docker run` rất cực.
-- **Docker Compose:** định nghĩa nhiều dịch vụ trong 1 file `docker-compose.yml` (YAML).
-- **Cấu trúc:** `services`, `image`/`build`, `ports`, `volumes`, `environment`, `depends_on`, `networks`.
-- **Lệnh:** `docker compose up -d`, `docker compose down`, `docker compose logs`, `docker compose ps`.
-- **Biến môi trường:** file `.env` tự động được Compose đọc.
-- **Scale:** `docker compose up --scale web=3`.
-- **depends_on & healthcheck:** kiểm soát thứ tự khởi động và tình trạng dịch vụ.
+#### 1. Vấn đề: app thật có nhiều mảnh
+
+Một web app thật gồm frontend + backend + database + cache... Chạy từng `docker run` (kèm cả tá `-p`, `-v`, `--network`) rất cực và dễ sai.
+
+#### 2. Docker Compose — "1 file mô tả cả dàn nhạc"
+
+Viết 1 file `docker-compose.yml` (YAML) liệt kê mọi service, network, volume. Rồi:
+
+| Lệnh | Làm gì |
+|---|---|
+| `docker compose up -d` | Tạo & chạy tất cả service (nền) |
+| `docker compose ps` | Xem trạng thái các service |
+| `docker compose logs -f` | Xem log gộp mọi service |
+| `docker compose down` | Tắt tất cả (thêm `-v` = xoá cả volume ⚠️) |
+| `docker compose config` | In cấu hình đã merge (bắt lỗi YAML sớm) |
+
+#### 3. Cấu trúc file
+
+Các khoá chính: `services` (danh sách dịch vụ), mỗi service có `image` hoặc `build`, `ports`, `volumes`, `environment`, `depends_on`, `networks`.
+
+#### 4. Biến môi trường & scale
+
+- File `.env` được Compose **tự đọc** → không hard-code mật khẩu trong YAML.
+- Scale: `docker compose up --scale web=3` (3 bản của service `web`).
+
+#### 5. `depends_on` — cái bẫy người mới
+
+`depends_on` chỉ đảm bảo container khởi động *theo thứ tự*, **KHÔNG** đảm bảo dịch vụ bên trong đã *sẵn sàng*. DB "đã start" nhưng còn đang khởi tạo → app connect lỗi. Giải pháp: thêm **healthcheck** + `condition: service_healthy`.
+
+> 🔑 Compose tuyệt cho **dev và app nhỏ**. Cần tự scale, tự phục hồi, chạy nhiều máy → đó là việc của Kubernetes (Giai đoạn 3). Đừng ép Compose làm việc của K8s.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -1616,11 +1757,55 @@ Bạn viết 1 file `docker-compose.yml` (dạng YAML) liệt kê mọi dịch v
 
 ### 🧪 Lab cơ bản
 
-1. Viết `docker-compose.yml` cho stack web (app ngày 17) + database (Postgres) + adminer.
-2. Chạy toàn bộ: `docker compose up -d`, kiểm tra `docker compose ps`.
-3. Dùng `.env` truyền mật khẩu DB vào Compose.
-4. Xem log gộp: `docker compose logs -f`, rồi tắt: `docker compose down`.
-5. Thêm volume cho database, test restart vẫn còn dữ liệu.
+> Mục tiêu: dựng stack web + database + adminer chỉ bằng 1 file và 1 lệnh.
+
+**Bước 1 — Tạo `.env`** (Compose tự đọc):
+```bash
+POSTGRES_PASSWORD=secret123
+```
+
+**Bước 2 — Viết `docker-compose.yml`** (file đầy đủ):
+```yaml
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 5
+  adminer:
+    image: adminer
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+volumes:
+  dbdata:
+```
+
+**Bước 3 — Chạy toàn bộ.**
+```bash
+docker compose up -d
+docker compose ps        # thấy db (healthy) + adminer (Up)
+```
+Mở `http://localhost:8080` (Adminer) → đăng nhập vào Postgres (server `db`, user `postgres`, mật khẩu từ `.env`).
+
+**Bước 4 — Xem log gộp và validate.**
+```bash
+docker compose config    # in cấu hình đã merge (thấy biến .env đã thay)
+docker compose logs -f   # Ctrl+C để dừng theo dõi
+```
+
+**Bước 5 — Test dữ liệu bền vững.**
+```bash
+docker compose down      # KHÔNG có -v → giữ volume
+docker compose up -d     # dữ liệu DB vẫn còn
+```
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -1665,41 +1850,109 @@ Bạn viết 1 file `docker-compose.yml` (dạng YAML) liệt kê mọi dịch v
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** viết `docker-compose.yml` (web+db+adminer) → `up -d` → dùng `.env` cho mật khẩu → xem log gộp → thêm volume + healthcheck.
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `docker compose up -d` — đọc file YAML, tạo & chạy mọi service ở nền. *Kết quả:* `docker compose ps` thấy các service State `Up`.
-- `.env` — Compose tự đọc, truyền biến (vd `POSTGRES_PASSWORD`). **Vì sao:** không hard-code mật khẩu trong YAML.
-- `depends_on: condition: service_healthy` — chờ DB **sẵn sàng** (qua healthcheck), không chỉ "đã start".
-- `docker compose logs -f` — log gộp mọi service; `docker compose down` — tắt (thêm `-v` xóa cả volume).
+**Bước 1 — Validate cấu hình TRƯỚC khi chạy.**
+```bash
+docker compose config
+```
+✅ **Checkpoint:** in ra cấu hình đã merge, thấy `${POSTGRES_PASSWORD}` đã thay bằng giá trị thật từ `.env`.
+💡 Bắt lỗi YAML (thụt lề sai) sớm, trước khi tốn công `up`.
 
-**🧪 Thử nghiệm:**
-- `docker compose config` — in cấu hình đã merge (bắt lỗi YAML + thấy biến `.env` đã thay). **Bài học:** validate trước khi chạy.
-- Bỏ `condition: service_healthy` → app connect DB ngay → lỗi vì DB chưa sẵn sàng. **Bài học:** `depends_on` trơn KHÔNG đảm bảo DB sẵn sàng.
+**Bước 2 — Chạy và kiểm tra trạng thái.**
+```bash
+docker compose up -d
+docker compose ps
+```
+✅ **Checkpoint:** `db` hiện `(healthy)`, `adminer` hiện `Up`.
 
-⚠️ **Dễ sai:** tưởng `depends_on` đảm bảo DB sẵn sàng — nó chỉ đảm bảo **thứ tự start container**. Cần healthcheck hoặc app tự retry.
+**Bước 3 — Hiểu `depends_on` + healthcheck.**
+✅ **Checkpoint:** `adminer` chỉ start SAU khi `db` đã `healthy` (nhờ `condition: service_healthy`).
+💡 Bỏ `condition` đi → adminer có thể lên trước khi DB sẵn sàng → lỗi kết nối. `depends_on` trơn chỉ đảm bảo **thứ tự start**, không đảm bảo **sẵn sàng**.
 
-💡 **Hiểu sâu:** Compose tuyệt cho dev/local & app nhỏ; cần HA + auto-scale + self-healing thì lên Kubernetes (GĐ3). Đừng ép Compose làm việc của K8s.
+**Bước 4 — Test bền vững & dọn.**
+```bash
+docker compose down       # giữ volume
+docker compose up -d      # dữ liệu còn
+docker compose down -v    # ⚠️ chỉ khi muốn XOÁ sạch cả dữ liệu
+```
+✅ **Checkpoint:** phân biệt được `down` (giữ dữ liệu) vs `down -v` (xoá sạch).
+
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| `yaml: line X: ...` | Thụt lề YAML sai (dùng tab) | Dùng **space** (2 space), `docker compose config` để kiểm |
+| App connect DB lỗi lúc khởi động | `depends_on` không chờ DB sẵn sàng | Thêm `healthcheck` + `condition: service_healthy`, hoặc app tự retry |
+| Biến `.env` không được thay | `.env` không cùng thư mục / sai tên | Đặt `.env` cạnh compose; kiểm bằng `docker compose config` |
+| Mất dữ liệu sau `down` | Lỡ dùng `-v` | Không dùng `-v`; hoặc backup volume trước |
+| Port conflict | Cổng host đã bị chiếm | Đổi `ports` sang cổng khác |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** Compose giúp gì so với chạy nhiều lệnh `docker run`?
-- `depends_on` đảm bảo điều gì và KHÔNG đảm bảo điều gì?
-- Viết 1 service tối giản trong compose chạy nginx cổng 8080.
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Compose giúp gì so với chạy nhiều `docker run`?</summary>
+
+> Mô tả cả hệ thống (nhiều service + network + volume) trong 1 file YAML, khởi động/tắt tất cả bằng 1 lệnh, tái lập được và version hoá được.
+</details>
+
+<details>
+<summary>2. `depends_on` đảm bảo gì và KHÔNG đảm bảo gì?</summary>
+
+> Đảm bảo **thứ tự khởi động container**. KHÔNG đảm bảo dịch vụ bên trong đã **sẵn sàng nhận kết nối**. Cần healthcheck + `condition: service_healthy`.
+</details>
+
+<details>
+<summary>3. Viết service Compose tối giản chạy nginx cổng 8080.</summary>
+
+> ```yaml
+> services:
+>   web:
+>     image: nginx
+>     ports:
+>       - "8080:80"
+> ```
+</details>
+
+<details>
+<summary>4. Khi nào KHÔNG nên dùng Compose mà cần Kubernetes?</summary>
+
+> Khi cần auto-scaling, self-healing, chạy trên nhiều máy, high availability — đó là việc của K8s (GĐ3). Compose hợp cho dev/local & app nhỏ.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| `docker compose up -d` | `Creating ... done` |
-| `docker compose ps` | Liệt kê web, db... State `Up` |
-| Truy cập app full-stack | Mở giao diện + đọc/ghi DB |
+| `docker compose up -d` | Các service `Creating ... done` |
+| `docker compose ps` | db `(healthy)`, adminer `Up` |
+| Mở `localhost:8080` | Adminer đăng nhập được vào Postgres |
 
-✅ **Kết quả đạt được:** Định nghĩa và chạy ứng dụng đa container bằng 1 lệnh — nền tảng triển khai thực tế.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Docker Compose** | Công cụ mô tả & chạy nhiều container bằng 1 file |
+| **Service** | Một dịch vụ (container) trong compose |
+| **`depends_on`** | Khai báo thứ tự khởi động |
+| **healthcheck** | Kiểm tra dịch vụ đã sẵn sàng chưa |
+| **`.env`** | File biến môi trường Compose tự đọc |
+| **`condition: service_healthy`** | Chờ service kia khoẻ mới start |
+| **profiles** | Bật/tắt nhóm service theo môi trường |
+
+✅ **Kết quả đạt được:** Định nghĩa và chạy ứng dụng đa container bằng 1 lệnh, hiểu healthcheck & thứ tự khởi động.
 
 ---
 
 ## Ngày 21 — MILESTONE: Đóng gói ứng dụng full-stack
 
 > ⏱️ ~120 phút · Loại: Milestone
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 16–20 (từng mảnh Docker) → **Ngày 21 (ghép thành app 3 tầng hoàn chỉnh)** → Ngày 22+ (YAML, Nginx, DB, Cloud). Đây là lúc chứng minh bạn giải quyết được "works on my machine" từ đầu đến cuối.
+>
+> ✅ **Chuẩn bị:** đã nắm Dockerfile multi-stage (Ngày 18), volume/network (Ngày 19), Compose + healthcheck (Ngày 20). Tài khoản GitHub để đẩy repo.
 
 ### 📘 Lý thuyết — Tổng kết
 
@@ -1785,9 +2038,33 @@ flowchart TD
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Tự chấm:** app chạy được trên máy người khác chỉ bằng `docker compose up` không?
-- **Mở rộng:** thêm dịch vụ Redis làm cache vào Compose.
-- Vẽ sơ đồ kiến trúc stack (draw.io / excalidraw).
+**✍️ Tự kiểm tra (tổng hợp Docker):**
+
+<details>
+<summary>1. Vì sao đặt database ở network riêng (backend), không chung với nginx?</summary>
+
+> Để Internet không thấy DB. Chỉ nginx ở network "ngoài" (frontend); DB ở network "trong" (backend) → kẻ tấn công không chọc thẳng vào DB được. Phân lớp mạng = bảo mật.
+</details>
+
+<details>
+<summary>2. Làm sao đảm bảo backend không khởi động trước khi DB sẵn sàng?</summary>
+
+> DB có `healthcheck` (vd `pg_isready`), backend `depends_on: db: condition: service_healthy` → chờ DB khoẻ mới lên.
+</details>
+
+<details>
+<summary>3. Mục tiêu "thành công" của milestone này là gì?</summary>
+
+> Người khác clone repo về, gõ `docker compose up` là chạy được ngay — không cần sửa gì. Đó là đã thực sự giải quyết "works on my machine".
+</details>
+
+<details>
+<summary>4. Vì sao backend nên dùng Dockerfile multi-stage?</summary>
+
+> Image nhỏ, nhanh, ít lỗ hổng, chạy bằng user thường — chuẩn production (Ngày 18).
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
@@ -1795,7 +2072,19 @@ flowchart TD
 | `down` rồi `up` lại | Dữ liệu vẫn còn (volume bền vững) |
 | Người khác clone repo | Chạy được ngay, không cần sửa |
 
-✅ **Kết quả đạt được — MỐC 2:** Đóng gói được ứng dụng full-stack đa container — kỹ năng Docker thực chiến.
+### 📚 Thuật ngữ Anh–Việt (tổng hợp Docker)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **3-tier architecture** | Kiến trúc 3 tầng: frontend → backend → database |
+| **Reverse proxy** | nginx đứng trước, nhận request rồi chuyển vào trong |
+| **Network segmentation** | Tách mạng theo tầng để cô lập/bảo mật |
+| **Named volume** | Volume có tên do Docker quản lý (dữ liệu bền vững) |
+| **healthcheck** | Kiểm tra dịch vụ đã sẵn sàng |
+| **`.env.example`** | File mẫu biến (không chứa secret thật) |
+| **restart: unless-stopped** | Tự khởi động lại container khi lỗi/reboot |
+
+✅ **Kết quả đạt được — MỐC 2:** Đóng gói được ứng dụng full-stack đa container (3 tầng, tách mạng, volume, healthcheck) — kỹ năng Docker thực chiến.
 
 ---
 
