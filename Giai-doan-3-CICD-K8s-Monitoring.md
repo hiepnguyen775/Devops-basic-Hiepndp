@@ -2777,16 +2777,42 @@ Chuyên lưu metric theo thời gian. Điểm đặc biệt: Prometheus **chủ 
 ## Ngày 45 — Monitoring: Grafana Dashboard
 
 > ⏱️ ~90 phút · Loại: Monitoring
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 44 (Prometheus thu metric) → **Ngày 45 (Grafana vẽ dashboard + cảnh báo)** → Ngày 46 (Loki gom log). Prometheus lưu số, Grafana biến số thành hình để "nhìn 5 giây biết khoẻ hay không".
+>
+> ✅ **Chuẩn bị:** Prometheus đang chạy (Ngày 44). Grafana thường đi kèm `kube-prometheus-stack`.
 
 ### 📘 Lý thuyết
 
-- **Grafana:** công cụ trực quan hóa, tạo dashboard từ nhiều nguồn dữ liệu (Prometheus, Loki...).
-- **Data source:** kết nối Grafana với Prometheus.
-- **Panel:** biểu đồ (graph, gauge, stat, table) hiển thị metric.
-- **Dashboard có sẵn:** import từ Grafana.com bằng ID (vd Node Exporter Full).
-- **Variable & template:** dashboard động chọn theo host/service.
-- **Alerting trong Grafana:** cảnh báo trực quan, gửi qua nhiều kênh.
-- **Best practice:** dashboard cho **4 golden signals** (latency, traffic, errors, saturation).
+#### 1. Grafana — "màn hình quan sát"
+
+Prometheus *lưu + tính* số liệu; nhìn số thô thì khó. **Grafana** vẽ chúng thành biểu đồ, dashboard real-time. Phân vai: Prometheus = kho dữ liệu; Grafana = người vẽ + cảnh báo. **Grafana KHÔNG lưu metric** — nó *hỏi* Prometheus.
+
+#### 2. Các khái niệm
+
+| Khái niệm | Nghĩa |
+|---|---|
+| **Data source** | Nguồn dữ liệu (Prometheus, Loki...) |
+| **Panel** | 1 biểu đồ (graph, gauge, stat, table) |
+| **Dashboard** | Tập hợp panel |
+| **Variable** | Biến động (`$instance`) → 1 dashboard xem mọi server |
+
+#### 3. 4 Golden Signals (Google SRE) — theo dõi 4 thứ này là đủ
+
+| Tín hiệu | Trả lời |
+|---|---|
+| **Latency** | Request mất bao lâu? (tách thành công vs lỗi) |
+| **Traffic** | Đang chịu tải bao nhiêu? (request/s) |
+| **Errors** | Tỉ lệ request lỗi? |
+| **Saturation** | Tài nguyên "đầy" tới đâu? (CPU/RAM/disk %) |
+
+#### 4. Mẹo thực tế
+
+- Import dashboard có sẵn bằng **ID** (vd `1860` Node Exporter Full) → khỏi vẽ từ đầu.
+- **Alerting trong Grafana**: gửi qua contact point (Slack/email). Alert không ai thấy = vô dụng.
+- **Provisioning dashboard bằng code** (JSON trong Git) — dashboard cũng nên là IaC.
+
+> 🔑 Dashboard tốt **kể một câu chuyện** (khoẻ hay không trong 5 giây), không nhồi 50 biểu đồ rối mắt. Bắt đầu từ golden signals, đào sâu khi cần. Alert nên gắn với **SLO** (Ngày 51), không phải mọi dao động nhỏ.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -2854,35 +2880,107 @@ Prometheus *lưu + tính* số liệu, nhưng nhìn số thô thì khó. **Grafa
 
 💡 **Hiểu sâu:** 4 Golden Signals (Google SRE): Latency (mất bao lâu), Traffic (tải bao nhiêu), Errors (tỉ lệ lỗi), Saturation (tài nguyên đầy đến đâu). Alert nên gắn với SLO (Ngày 51).
 
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Panel "No data" | Sai data source / PromQL / khoảng thời gian | Kiểm data source URL; thử query ở Explore; chỉnh time range |
+| Data source test fail | Sai URL Prometheus | Đúng URL (trong K8s: tên service:9090) |
+| Import dashboard trống | Data source không khớp tên | Chọn đúng data source khi import |
+| Alert không gửi | Chưa cấu hình contact point | Thêm Slack/email vào contact point + notification policy |
+| Dashboard quá rối | Nhồi mọi metric | Rút gọn về 4 golden signals |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** Grafana và Prometheus phối hợp thế nào?
-- 4 golden signals là gì?
-- Vì sao trực quan hóa metric quan trọng cho vận hành?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Grafana và Prometheus phối hợp thế nào?</summary>
+
+> Prometheus lưu + truy vấn metric; Grafana vẽ + cảnh báo. Grafana không lưu metric, nó hỏi Prometheus.
+</details>
+
+<details>
+<summary>2. 4 golden signals là gì?</summary>
+
+> Latency (thời gian), Traffic (tải), Errors (tỉ lệ lỗi), Saturation (mức đầy tài nguyên).
+</details>
+
+<details>
+<summary>3. Vì sao trực quan hoá metric quan trọng?</summary>
+
+> Số thô khó đọc; biểu đồ cho biết xu hướng & sức khoẻ hệ thống trong vài giây, giúp phát hiện & điều tra sự cố nhanh.
+</details>
+
+<details>
+<summary>4. Alert nên gắn với gì thay vì mọi dao động nhỏ?</summary>
+
+> Gắn với SLO / golden signals — cảnh báo khi sắp ảnh hưởng người dùng, tránh alert fatigue.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
 | Grafana kết nối Prometheus | Data source: Test → working |
-| Tạo dashboard | Panel hiển thị CPU/RAM theo thời gian thực |
-| Import dashboard có sẵn | Nhập ID → biểu đồ hiện ngay |
+| Tạo dashboard | Panel hiển thị CPU/RAM real-time |
+| Import dashboard (ID 1860) | Biểu đồ hiện ngay |
 
-✅ **Kết quả đạt được:** Xây dashboard giám sát trực quan với Grafana — kỹ năng SRE/DevOps.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Grafana** | Công cụ trực quan hoá + cảnh báo |
+| **Data source** | Nguồn dữ liệu (Prometheus/Loki) |
+| **Panel / Dashboard** | Biểu đồ / bảng biểu đồ |
+| **Variable** | Biến động của dashboard |
+| **4 Golden Signals** | Latency/Traffic/Errors/Saturation |
+| **Contact point** | Kênh nhận alert (Slack/email) |
+| **Provisioning** | Cấu hình dashboard bằng code |
+
+✅ **Kết quả đạt được:** Xây dashboard giám sát trực quan (4 golden signals) với Grafana — kỹ năng SRE/DevOps.
 
 ---
 
 ## Ngày 46 — Logging tập trung: Loki
 
 > ⏱️ ~90 phút · Loại: Monitoring
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 45 (Grafana metric) → **Ngày 46 (Loki — gom log toàn hệ thống về 1 nơi)** → Ngày 47 (Ansible). Đây là trụ cột "Logs" — sau khi metric báo "có sự cố", log cho biết "sai cái gì".
+>
+> ✅ **Chuẩn bị:** Grafana đang chạy (Ngày 45). Chạy Loki + Promtail (Docker Compose hoặc Helm).
 
 ### 📘 Lý thuyết
 
-- **Vấn đề:** log nằm rải rác trên nhiều container/server → cần tập trung.
-- **Loki:** hệ thống tổng hợp log của Grafana, nhẹ, index theo **label** (như Prometheus cho log).
-- **Promtail/agent:** thu thập log và đẩy về Loki.
-- **ELK/EFK stack** (Elasticsearch + Logstash/Fluentd + Kibana): giải pháp truyền thống mạnh mẽ.
-- **LogQL:** truy vấn log trong Loki.
-- **Cấu trúc log:** nên log dạng JSON có cấu trúc để dễ query.
-- **Tổng quan log + metric trong Grafana** để debug nhanh.
+#### 1. Vấn đề: log nằm rải rác
+
+Với hàng chục container trên nhiều máy, không thể SSH vào từng cái đọc log. → cần **gom log về một chỗ** để tìm kiếm.
+
+#### 2. Loki — "Prometheus cho log"
+
+Loki thu log từ mọi container về 1 nơi, tìm/lọc trong Grafana. Điểm đặc biệt: **chỉ index theo nhãn (label)** (như `app="api"`), không index toàn bộ nội dung → nhẹ, rẻ, nhanh.
+
+- **Promtail** = "người đưa thư" gom log đẩy về Loki.
+- **LogQL** = ngôn ngữ truy vấn: `{app="api"} |= "error"` = "log của app, dòng nào chứa error".
+
+#### 3. Loki vs ELK/EFK
+
+| | Loki | ELK (Elasticsearch) |
+|---|---|---|
+| Index | Chỉ **label** | **Toàn văn** |
+| Tài nguyên | Nhẹ, rẻ | Nặng, mạnh |
+| Hợp khi | Đã dùng Grafana/Prometheus | Cần phân tích log sâu |
+
+#### 4. Log có cấu trúc (JSON)
+
+Log text thô (`"Error tại dòng 5"`) khó lọc. Log JSON (`{"level":"error","user_id":123}`) cho phép lọc chính xác theo field. App production nên **log JSON**.
+
+#### 5. Correlation & 3 trụ cột
+
+- Thêm `request_id`/`trace_id` vào log → lần theo 1 request qua nhiều service.
+- Phối hợp: **Metric** báo "có sự cố" → **Log** cho biết "lỗi gì" → **Trace** chỉ "lỗi ở đâu". Gom cả 3 vào Grafana = debug nhanh.
+
+> 🔑 **TUYỆT ĐỐI không log mật khẩu/PII** (thông tin cá nhân) — log lưu lâu, ai cũng đọc. Và đặt **retention** cho log kẻo đầy đĩa.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -2946,19 +3044,65 @@ Log text thô (`"Error tại dòng 5"`) khó lọc. Log JSON (`{"level":"error",
 
 💡 **Hiểu sâu:** Loki **chỉ index label** (nhẹ, rẻ) vs Elasticsearch index **toàn văn** (mạnh, nặng). 3 trụ cột: Metric "có gì đó sai" → Log "sai cái gì" → Trace "sai ở đâu".
 
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Grafana Explore không thấy log | Promtail chưa đẩy / sai target | Kiểm Promtail config; data source Loki đúng URL |
+| Query `{app="x"}` rỗng | Sai label | Xem label thật trong Explore (label browser) |
+| `| json` không parse | Log không phải JSON | Cho app log JSON; hoặc dùng `| logfmt`/regex |
+| Đĩa Loki đầy | Không đặt retention | Cấu hình retention + giới hạn dung lượng |
+| Lỡ log mật khẩu | App in secret ra log | Sửa app; log lưu lâu — coi như đã lộ, xoay secret |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** vì sao cần logging tập trung?
-- Loki khác Elasticsearch ở cách index thế nào?
-- Vì sao nên log dạng JSON có cấu trúc?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Vì sao cần logging tập trung?</summary>
+
+> Log rải rác trên nhiều container/máy; không thể SSH từng cái. Gom về 1 nơi để tìm kiếm/lọc nhanh khi sự cố.
+</details>
+
+<details>
+<summary>2. Loki khác Elasticsearch ở cách index thế nào?</summary>
+
+> Loki chỉ index **label** (nhẹ, rẻ). Elasticsearch index **toàn văn** (mạnh, nặng). Loki hợp khi đã dùng Grafana/Prometheus.
+</details>
+
+<details>
+<summary>3. Vì sao nên log JSON có cấu trúc?</summary>
+
+> Cho phép lọc chính xác theo field (`level=error AND user_id=123`); log text thô khó query.
+</details>
+
+<details>
+<summary>4. 3 trụ cột phối hợp thế nào khi debug?</summary>
+
+> Metric báo "có sự cố" → Log cho biết "lỗi gì" → Trace chỉ "lỗi ở đâu trong chuỗi service".
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Loki nhận log | Trong Grafana Explore, chọn Loki thấy log chạy về |
-| Truy vấn log theo nhãn | `{app="myapp"}` lọc đúng log của app |
-| Gộp log nhiều service | Xem được log tập trung từ các container |
+| Loki nhận log | Grafana Explore (Loki) thấy log chạy về |
+| Query theo nhãn | `{app="myapp"}` lọc đúng log |
+| Gộp log nhiều service | Xem log tập trung từ các container |
 
-✅ **Kết quả đạt được:** Tập trung và truy vấn log toàn hệ thống — hoàn thiện observability.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Loki** | Hệ gom log của Grafana (index label) |
+| **Promtail** | Agent thu log đẩy về Loki |
+| **LogQL** | Ngôn ngữ truy vấn log |
+| **Label** | Nhãn để index/lọc log |
+| **Structured log (JSON)** | Log có field, dễ query |
+| **Correlation** | Lần theo request qua `request_id`/`trace_id` |
+| **Retention** | Chính sách giữ/xoá log |
+
+✅ **Kết quả đạt được:** Tập trung và truy vấn log toàn hệ thống (Loki + LogQL) — hoàn thiện observability.
 
 ---
 
