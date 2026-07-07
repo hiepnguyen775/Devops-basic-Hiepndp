@@ -2791,17 +2791,50 @@ docker exec -it db psql -U postgres -c "SELECT * FROM users;"
 ## Ngày 25 — Git nâng cao — Rebase, Tag, Workflow
 
 > ⏱️ ~90 phút · Loại: Git
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 15 (GitHub/PR) → **Ngày 25 (Git chuyên nghiệp: rebase, tag, versioning)** → Ngày 26 (Cloud). Đây là các kỹ năng Git "level team" — lịch sử sạch, version có ý nghĩa, changelog tự động.
+>
+> ✅ **Chuẩn bị:** repo Git có nhiều commit để tập rebase/tag (có thể dùng repo `my-app`).
 
 ### 📘 Lý thuyết
 
-- **git rebase:** viết lại lịch sử, làm lịch sử commit gọn gàng tuyến tính (vs merge).
-- **Interactive rebase:** `git rebase -i` để squash, sửa, sắp xếp lại commit.
-- **Quy tắc vàng:** KHÔNG rebase nhánh đã push/chia sẻ với người khác.
-- **Tag:** đánh dấu phiên bản (`git tag v1.0.0`), annotated tag; dùng cho release.
-- **Semantic Versioning:** `MAJOR.MINOR.PATCH` (1.2.3).
-- **Git workflow:** GitHub Flow, Git Flow, trunk-based — ưu nhược điểm.
-- **Conventional Commits:** chuẩn commit message (`feat:`, `fix:`, `docs:`) để tự sinh changelog.
-- **git cherry-pick:** lấy 1 commit cụ thể sang nhánh khác.
+#### 1. Merge vs Rebase — 2 cách gộp, khác ở "lịch sử"
+
+| | Lịch sử | Dùng khi |
+|---|---|---|
+| **merge** | Giữ nguyên, có "merge commit" (hình cây) | Nhánh chung, muốn giữ ngữ cảnh thật |
+| **rebase** | Viết lại thành **tuyến tính** (thẳng, sạch) | Nhánh riêng, dọn trước khi mở PR |
+
+> ⚠️ **Quy tắc vàng:** KHÔNG rebase nhánh **đã push/chia sẻ**. Rebase nhánh người khác đang dùng = phá lịch sử của họ → hỗn loạn.
+
+#### 2. Interactive rebase — dọn commit
+
+`git rebase -i HEAD~3` mở editor để **squash** (gộp), sửa message, sắp xếp lại commit → lịch sử gọn trước khi merge.
+
+#### 3. Tag & Semantic Versioning
+
+`git tag -a v1.2.3 -m "..."` đánh dấu mốc phát hành. Số `MAJOR.MINOR.PATCH`:
+
+| Phần | Ví dụ | Nghĩa |
+|---|---|---|
+| **PATCH** | 1.2.3 → 1.2.4 | Sửa lỗi nhỏ, an toàn nâng |
+| **MINOR** | 1.2 → 1.3 | Thêm tính năng, vẫn tương thích |
+| **MAJOR** | 1.x → 2.0 | **Breaking change** — đọc kỹ migration |
+
+#### 4. Conventional Commits
+
+Viết message theo chuẩn → công cụ tự sinh changelog + tự bump version:
+```
+feat: thêm đăng nhập Google      → tăng MINOR
+fix: sửa lỗi tràn bộ nhớ          → tăng PATCH
+feat!: đổi format API (breaking)  → tăng MAJOR
+```
+
+#### 5. Công cụ khác
+
+- **`git cherry-pick <hash>`**: lấy 1 commit cụ thể sang nhánh hiện tại.
+- **`git bisect`**: tìm commit gây bug bằng nhị phân — vàng khi "không biết bug từ đâu".
+- **Workflow**: GitHub Flow (đơn giản, phổ biến), Git Flow (nhiều phiên bản), trunk-based (CI/CD trưởng thành).
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -2823,11 +2856,41 @@ Viết `feat:`, `fix:`, `docs:`... → công cụ tự sinh changelog + tự tă
 
 ### 🧪 Lab cơ bản
 
-1. Thực hành `git rebase -i` squash 3 commit nhỏ thành 1 commit gọn.
-2. Tạo annotated tag: `git tag -a v1.0.0 -m 'Release 1.0'`, push tag lên GitHub.
-3. Viết vài commit theo chuẩn Conventional Commits.
-4. Thực hành cherry-pick 1 commit từ nhánh này sang nhánh khác.
-5. Tạo 1 GitHub Release từ tag v1.0.0.
+> Mục tiêu: dọn lịch sử bằng rebase, đánh tag phiên bản, và tập cherry-pick.
+
+**Bước 1 — Tạo vài commit nhỏ để squash.**
+```bash
+git switch -c dep-clean
+for m in "wip 1" "wip 2" "wip 3"; do echo "$m" >> notes.txt; git commit -am "$m"; done
+```
+
+**Bước 2 — Squash 3 commit thành 1.**
+```bash
+git rebase -i HEAD~3
+# trong editor: giữ dòng đầu là "pick", đổi 2 dòng sau thành "squash" (hoặc "s")
+git log --oneline      # 3 commit gộp còn 1
+```
+
+**Bước 3 — Đánh annotated tag & push.**
+```bash
+git switch main
+git tag -a v1.0.0 -m "Release 1.0"
+git push origin v1.0.0
+git tag           # thấy v1.0.0
+```
+
+**Bước 4 — Viết commit theo Conventional Commits.**
+```bash
+echo x >> f; git commit -am "feat: thêm tính năng x"
+echo y >> f; git commit -am "fix: sửa lỗi y"
+```
+
+**Bước 5 — Cherry-pick 1 commit sang nhánh khác.**
+```bash
+git switch -c hotfix
+git cherry-pick <hash-commit-fix>    # lấy đúng 1 commit
+```
+Trên GitHub: tạo **Release** từ tag `v1.0.0`.
 
 ### 🚀 Lab nâng cao (best-practice)
 
@@ -2861,35 +2924,92 @@ Viết `feat:`, `fix:`, `docs:`... → công cụ tự sinh changelog + tự tă
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
-**Trình tự nên làm:** squash commit bằng `rebase -i` → tạo annotated tag + push → viết Conventional Commits → cherry-pick → tạo GitHub Release.
+> Làm tuần tự, dừng ở mỗi ✅ **Checkpoint**.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `git rebase -i HEAD~3` — mở editor để **squash** 3 commit nhỏ thành 1 (đổi `pick` → `squash`). *Kết quả:* `git log` gọn lại.
-- `git tag -a v1.0.0 -m 'Release 1.0'` rồi `git push --tags` — annotated tag (có tác giả/ngày/message) cho release.
-- Conventional Commits: `feat:`/`fix:`/`docs:` → công cụ tự sinh CHANGELOG + bump version.
-- `git cherry-pick <hash>` — lấy 1 commit cụ thể sang nhánh hiện tại.
+**Bước 1 — Squash và xem lịch sử gọn.**
+```bash
+git rebase -i HEAD~3      # đổi pick → squash cho 2 dòng sau
+git log --oneline
+```
+✅ **Checkpoint:** 3 commit "wip" gộp thành 1.
+💡 Chỉ squash nhánh **của riêng bạn**, trước khi mở PR.
 
-**🧪 Thử nghiệm:**
-- Tạo bug ở 1 commit rồi `git bisect start` / `bad` / `good <tag>` → Git nhị phân tìm đúng commit lỗi. **Bài học:** debug "bug từ đâu" cực nhanh.
-- So sánh `git merge` (có merge commit) vs `git rebase` (lịch sử thẳng) trên `git log --graph`. **Bài học:** thấy khác biệt lịch sử.
+**Bước 2 — Đánh tag & push.**
+```bash
+git tag -a v1.0.0 -m "Release 1.0" && git push origin v1.0.0
+```
+✅ **Checkpoint:** `git tag` hiện `v1.0.0`, GitHub thấy tag.
 
-⚠️ **Dễ sai:** rebase nhánh **đã push/chia sẻ** → phá lịch sử người khác. Quy tắc vàng: chỉ rebase nhánh riêng chưa public.
+**Bước 3 — Đọc version có ý nghĩa.**
+✅ **Checkpoint:** nhìn `2.4.0 → 2.4.1` biết là an toàn (PATCH); `2.x → 3.0.0` biết phải đọc migration (MAJOR).
 
-💡 **Hiểu sâu:** Semantic Versioning `MAJOR.MINOR.PATCH` — MAJOR = breaking change. Người dùng nhìn `2.x → 3.0` là biết phải đọc migration guide. Đây là "hợp đồng" giữa bạn và người dùng.
+**Bước 4 — (Nâng cao) tìm bug bằng bisect.**
+```bash
+git bisect start; git bisect bad; git bisect good v1.0.0
+# Git checkout giữa, bạn test rồi đánh dấu good/bad → ra đúng commit lỗi
+git bisect reset
+```
+✅ **Checkpoint:** bisect chỉ ra commit đầu tiên gây bug.
+
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Rebase gây conflict | 2 nhánh sửa cùng chỗ | Sửa file, `git add`, `git rebase --continue`; hoặc `--abort` để huỷ |
+| Đồng đội phàn nàn lịch sử bị "lệch" | Rebase nhánh đã public | Không rebase nhánh chung; nếu lỡ, phối hợp `pull --rebase` |
+| `push` tag không lên | Chưa push tag riêng | `git push origin <tag>` hoặc `git push --tags` |
+| Cherry-pick trùng lặp commit | Lấy commit đã có sẵn ở nhánh | Kiểm `git log` trước; dùng `-x` để ghi nguồn |
+| Kẹt trong bisect | Quên reset | `git bisect reset` về trạng thái ban đầu |
 
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** khi nào KHÔNG được rebase?
-- Giải thích Semantic Versioning qua ví dụ tăng version.
-- Phân biệt merge và rebase về lịch sử commit.
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Khi nào KHÔNG được rebase?</summary>
+
+> Khi nhánh đã **push/chia sẻ** với người khác. Rebase viết lại lịch sử → phá commit của người đang dùng nhánh đó.
+</details>
+
+<details>
+<summary>2. Semantic Versioning: 1.4.2 → cần lên số nào nếu thêm tính năng tương thích?</summary>
+
+> Tăng MINOR: `1.4.2 → 1.5.0`. (PATCH cho sửa lỗi, MAJOR cho breaking change.)
+</details>
+
+<details>
+<summary>3. merge và rebase khác nhau về lịch sử thế nào?</summary>
+
+> merge giữ nguyên lịch sử phân nhánh + tạo merge commit. rebase dời commit lên đầu nhánh chính → lịch sử tuyến tính, sạch.
+</details>
+
+<details>
+<summary>4. `git bisect` dùng để làm gì?</summary>
+
+> Tìm commit đầu tiên gây bug bằng tìm kiếm nhị phân — nhanh hơn nhiều so với dò từng commit.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
-| Rebase nhánh lên main | `git log` thẳng hàng, lịch sử sạch (linear) |
-| Tạo tag phiên bản | `git tag` hiện `v1.0.0`; push lên thành Release |
-| Giải thích Git Flow | Mô tả main, develop, feature, release, hotfix |
+| Rebase/squash | `git log` gọn, tuyến tính |
+| Tạo tag | `git tag` hiện `v1.0.0`, push thành Release |
+| Cherry-pick | Commit chỉ định xuất hiện ở nhánh mới |
 
-✅ **Kết quả đạt được:** Sử dụng Git như chuyên gia: rebase, tag, versioning, workflow chuẩn.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Rebase** | Viết lại lịch sử thành tuyến tính |
+| **Squash** | Gộp nhiều commit thành 1 |
+| **Tag** | Nhãn đánh dấu phiên bản phát hành |
+| **Semantic Versioning** | Đánh số MAJOR.MINOR.PATCH có quy tắc |
+| **Conventional Commits** | Chuẩn message (`feat:`/`fix:`) |
+| **cherry-pick** | Lấy 1 commit cụ thể sang nhánh khác |
+| **bisect** | Tìm commit gây bug bằng nhị phân |
+
+✅ **Kết quả đạt được:** Dùng Git như chuyên gia — rebase, tag, versioning, workflow chuẩn, tìm bug bằng bisect.
 
 ---
 
@@ -2897,18 +3017,45 @@ Viết `feat:`, `fix:`, `docs:`... → công cụ tự sinh changelog + tự tă
 
 > ⏱️ ~90 phút · Loại: Cloud
 >
+> 🧭 **Bạn đang ở đâu:** Ngày 25 (Git nâng cao) → **Ngày 26 (bước chân vào Cloud: khái niệm + tài khoản an toàn)** → Ngày 27 (tạo VM thật). Đây là ngày đầu tiên với cloud — làm đúng ngay để tránh hoá đơn nghìn đô và bị hack.
 > 🌐 *Ví dụ dùng AWS; tương đương: **GCP** (Compute Engine/Cloud Storage/IAM), **Azure** (VM/Blob/Entra ID).*
+>
+> ✅ **Chuẩn bị:** một thẻ (Free Tier vẫn yêu cầu thẻ để xác thực) hoặc dùng Oracle Cloud Free Tier nếu lo chi phí. Email để đăng ký.
 
 ### 📘 Lý thuyết
 
-- **Cloud computing:** thuê tài nguyên tính toán theo nhu cầu thay vì mua server vật lý.
-- **Mô hình dịch vụ:** IaaS (hạ tầng), PaaS (nền tảng), SaaS (phần mềm).
-- **Nhà cung cấp lớn:** AWS, Google Cloud (GCP), Microsoft Azure; AWS phổ biến nhất.
-- **Dịch vụ AWS cốt lõi:** EC2 (máy ảo), S3 (lưu trữ object), VPC (mạng ảo), IAM (quyền), RDS (database).
-- **Region & Availability Zone:** phân bố địa lý để dự phòng và độ trễ thấp.
-- **Mô hình chi phí:** trả theo sử dụng; cảnh báo chi phí ngoài dự kiến.
-- **Free Tier:** AWS 12 tháng miễn phí; Oracle Cloud có VM miễn phí vĩnh viễn (lựa chọn tiết kiệm).
-- **IAM:** KHÔNG dùng root account hàng ngày; tạo IAM user, bật MFA.
+#### 1. Cloud là gì — "thuê" thay vì "mua"
+
+Thay vì mua server vật lý (đắt, phải bảo trì), bạn **thuê** tài nguyên của AWS/Google/Azure theo nhu cầu, trả tiền theo lượng dùng — như thuê khách sạn thay vì xây nhà.
+
+#### 2. IaaS / PaaS / SaaS — 3 mức "ăn sẵn"
+
+| Mức | Ví như | Ví dụ |
+|---|---|---|
+| **IaaS** | Thuê đất, tự xây nhà | EC2/VM — tự cài mọi thứ |
+| **PaaS** | Thuê nhà có nội thất | App Engine, Elastic Beanstalk — chỉ đẩy code |
+| **SaaS** | Ở khách sạn, dùng luôn | Gmail, Notion |
+
+#### 3. Dịch vụ AWS cốt lõi (tên khác giữa hãng, ý giống)
+
+| Dịch vụ | Làm gì |
+|---|---|
+| **EC2** | Máy ảo |
+| **S3** | Kho lưu trữ file (object storage) |
+| **VPC** | Mạng riêng ảo |
+| **IAM** | Quản lý quyền/người dùng |
+| **RDS** | Database do AWS vận hành |
+
+#### 4. Region & Availability Zone
+
+Region = khu vực địa lý (vd `ap-southeast-1` Singapore). Chọn region ảnh hưởng **độ trễ** (gần người dùng), **chi phí** (giá khác nhau), **tuân thủ** (dữ liệu ở quốc gia nào).
+
+#### 5. ⚠️ 2 việc phải làm NGAY khi tạo tài khoản
+
+1. **Bật MFA + tạo IAM user** — đừng dùng tài khoản **root** hàng ngày; gán quyền tối thiểu (least privilege).
+2. **Đặt Billing Alert** — quên tắt máy hoặc lộ access key = hoá đơn nghìn đô.
+
+> 🔑 **Shared Responsibility:** nhà cung cấp lo bảo mật *của* cloud (phần cứng); **BẠN** lo bảo mật *trong* cloud (cấu hình, IAM, dữ liệu). "Lên cloud" không tự an toàn. Access key lộ trên GitHub là nguyên nhân #1 của hoá đơn khổng lồ.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -2970,19 +3117,65 @@ EC2 (máy ảo), S3 (kho lưu trữ file), VPC (mạng riêng), IAM (quản lý 
 
 💡 **Hiểu sâu:** **Shared responsibility** — nhà cung cấp lo bảo mật *của* cloud (phần cứng); BẠN lo bảo mật *trong* cloud (IAM, cấu hình, dữ liệu). "Lên cloud" không tự an toàn.
 
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| Hoá đơn tăng bất ngờ | Quên tắt instance / NAT Gateway / egress traffic | Đặt Billing Alert; tắt/terminate tài nguyên không dùng; xem Cost Explorer |
+| Access key bị lạm dụng | Lỡ commit key lên GitHub | **Xoá & xoay key ngay**; bật cảnh báo; không commit key |
+| Không tạo được tài nguyên | IAM user thiếu quyền | Gán policy phù hợp (least privilege, không AdminAccess bừa) |
+| Bị khoá tài khoản root | Không bật MFA, bị chiếm | Bật MFA ngay; dùng IAM user hàng ngày |
+| App chậm/độ trễ cao | Region xa người dùng | Chọn region gần; cân nhắc CDN |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** phân biệt IaaS, PaaS, SaaS qua ví dụ.
-- EC2, S3, IAM mỗi dịch vụ làm gì?
-- Vì sao phải bật billing alert ngay khi tạo tài khoản cloud?
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Phân biệt IaaS, PaaS, SaaS qua ví dụ.</summary>
+
+> IaaS = thuê đất tự xây nhà (EC2/VM). PaaS = thuê nhà có nội thất, chỉ đẩy code (App Engine). SaaS = ở khách sạn dùng luôn (Gmail).
+</details>
+
+<details>
+<summary>2. EC2, S3, IAM mỗi dịch vụ làm gì?</summary>
+
+> EC2 = máy ảo. S3 = kho lưu file (object storage). IAM = quản lý người dùng & quyền.
+</details>
+
+<details>
+<summary>3. Vì sao bật Billing Alert ngay khi tạo tài khoản?</summary>
+
+> Cloud tính tiền theo dùng; quên tắt máy hoặc lộ key → hoá đơn nghìn đô. Billing Alert cảnh báo sớm khi chi phí vượt ngưỡng.
+</details>
+
+<details>
+<summary>4. "Shared Responsibility" nghĩa là gì?</summary>
+
+> Nhà cung cấp lo bảo mật *của* cloud (phần cứng, hạ tầng). Bạn lo bảo mật *trong* cloud (IAM, cấu hình, dữ liệu, patch OS). Lên cloud không tự an toàn.
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
 | Tạo tài khoản Free Tier | Đăng nhập Console thành công |
-| Phân biệt IaaS/PaaS/SaaS | Cho ví dụ đúng từng loại |
+| Bật MFA + IAM user | Đăng nhập bằng IAM user, không dùng root |
 | Đặt billing alarm | Budget alert > $1 đã tạo |
 
-✅ **Kết quả đạt được:** Hiểu mô hình cloud, có tài khoản an toàn với MFA và cảnh báo chi phí.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **IaaS / PaaS / SaaS** | 3 mức dịch vụ cloud |
+| **EC2 / S3 / VPC / IAM / RDS** | Máy ảo / kho file / mạng / quyền / DB |
+| **Region / AZ** | Khu vực địa lý / vùng sẵn sàng |
+| **Free Tier** | Gói miễn phí để học |
+| **IAM user / MFA** | Người dùng có quyền / xác thực 2 lớp |
+| **Billing Alert** | Cảnh báo chi phí |
+| **Shared Responsibility** | Chia trách nhiệm bảo mật cloud |
+
+✅ **Kết quả đạt được:** Hiểu mô hình cloud (IaaS/PaaS/SaaS), có tài khoản an toàn với MFA, IAM user và cảnh báo chi phí.
 
 ---
 
@@ -2990,17 +3183,43 @@ EC2 (máy ảo), S3 (kho lưu trữ file), VPC (mạng riêng), IAM (quản lý 
 
 > ⏱️ ~90 phút · Loại: Cloud
 >
+> 🧭 **Bạn đang ở đâu:** Ngày 26 (tài khoản cloud an toàn) → **Ngày 27 (tạo & vận hành 1 VM thật trên cloud)** → Ngày 28 (deploy Docker lên VM). Đây là lúc kiến thức Linux/SSH/hardening (GĐ1) gặp cloud.
 > 🌐 *EC2 (AWS) ≈ Compute Engine (GCP) ≈ Virtual Machines (Azure). Security Group ≈ Firewall rules ≈ Network Security Group.*
+>
+> ✅ **Chuẩn bị:** tài khoản cloud có IAM user + billing alert (Ngày 26). Ôn SSH bằng key (Ngày 8) và hardening (Ngày 9).
 
 ### 📘 Lý thuyết
 
-- **EC2 instance:** máy ảo trên cloud; chọn AMI (OS), instance type (t2.micro free tier), storage.
-- **Key pair:** cặp khóa SSH để đăng nhập EC2; tải file `.pem` khi tạo, giữ an toàn.
-- **Security Group:** tường lửa ảo cấp instance; chỉ mở cổng cần thiết (22, 80, 443).
-- **Elastic IP:** IP tĩnh cho instance (IP mặc định đổi khi restart).
-- **Kết nối:** `ssh -i key.pem ubuntu@<public-ip>`.
-- **User data:** script chạy tự động khi khởi tạo instance (cài đặt ban đầu).
-- **Vòng đời:** start/stop/terminate; stop để tiết kiệm chi phí, terminate để xóa hẳn.
+#### 1. EC2 instance — máy ảo thuê trên cloud
+
+Chọn **AMI** (hệ điều hành, vd Ubuntu), **instance type** (`t2.micro` — free tier), **storage**, rồi SSH vào dùng như server Linux thật.
+
+#### 2. Key pair — chìa khoá vào máy
+
+Khi tạo EC2, tải về file khoá `.pem` (chỉ tải được **1 lần** — giữ kỹ, mất là không vào được). Bắt buộc `chmod 400 key.pem`, nếu không SSH từ chối. Kết nối: `ssh -i key.pem ubuntu@<public-ip>`.
+
+#### 3. Security Group — tường lửa của cloud
+
+"Người gác cổng" ở tầng cloud (trước cả khi gói tin tới máy). Mặc định **chặn hết**, mở cổng cần (22, 80, 443). Cùng với UFW bên trong máy = **2 lớp bảo vệ** (defense in depth).
+
+| | Security Group | UFW |
+|---|---|---|
+| Tầng | Cloud (trước máy) | Hệ điều hành (trong máy) |
+| Mặc định | Deny all inbound | Lớp phòng thủ thứ 2 |
+
+#### 4. Elastic IP & User data
+
+- **Elastic IP**: IP tĩnh (IP mặc định đổi mỗi lần stop/start).
+- **User data**: script chạy tự động khi khởi tạo instance (cài đặt/hardening ban đầu).
+
+#### 5. Vòng đời — `stop` vs `terminate` (đừng nhầm!)
+
+| Lệnh | Tác dụng |
+|---|---|
+| `stop` | Tắt máy, **giữ ổ đĩa** (vẫn trả phí storage), bật lại được |
+| `terminate` | **Xoá hẳn** máy + ổ đĩa → mất dữ liệu vĩnh viễn |
+
+> 🔑 ĐỪNG mở SSH (cổng 22) cho `0.0.0.0/0` (cả thế giới) — bot sẽ dò mật khẩu liên tục. Chỉ mở cho IP của bạn.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
@@ -3073,11 +3292,46 @@ Là "người gác cổng" ở tầng cloud (trước cả khi gói tin tới m�
 
 💡 **Hiểu sâu:** Security Group (tầng cloud) + UFW (tầng OS) = 2 lớp phòng thủ (defense in depth). Áp checklist hardening Ngày 9 cho MỌI instance mới.
 
+### 🐛 Gỡ lỗi nhanh
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| SSH `Permission denied (publickey)` | Sai user (dùng `ubuntu`/`ec2-user`) hoặc sai key | Đúng user theo AMI; đúng file `.pem` |
+| SSH `UNPROTECTED PRIVATE KEY` | Quyền `.pem` quá mở | `chmod 400 key.pem` |
+| SSH `Connection timed out` | Security Group chưa mở 22 / sai IP | Thêm rule cổng 22 cho IP của bạn |
+| Web không vào được | Chưa mở 80/443 ở Security Group | Thêm rule 80/443 |
+| Public IP đổi sau restart | IP động | Gắn Elastic IP |
+| Lỡ `terminate` mất dữ liệu | Nhầm với `stop` | Dùng `stop` để giữ disk; bật "termination protection" |
+
 ### 📝 Bài ôn tập & Demo đối chiếu
 
-- **Bài ôn:** Security Group khác gì với UFW trong instance?
-- Vì sao cần `chmod 400` cho file `.pem`?
-- Phân biệt stop và terminate instance về chi phí và dữ liệu.
+**✍️ Tự kiểm tra:**
+
+<details>
+<summary>1. Security Group khác gì với UFW trong instance?</summary>
+
+> Security Group là firewall ở **tầng cloud** (trước khi gói tới máy, deny-all mặc định). UFW là firewall ở **tầng OS** (trong máy). Dùng cả hai = 2 lớp phòng thủ.
+</details>
+
+<details>
+<summary>2. Vì sao cần `chmod 400` cho file `.pem`?</summary>
+
+> SSH từ chối private key nếu quyền quá mở (người khác đọc được). `400` = chỉ chủ đọc.
+</details>
+
+<details>
+<summary>3. `stop` và `terminate` khác nhau về chi phí và dữ liệu?</summary>
+
+> `stop`: tắt máy, giữ ổ đĩa (vẫn trả phí storage), bật lại được. `terminate`: xoá hẳn máy + ổ đĩa → mất dữ liệu vĩnh viễn.
+</details>
+
+<details>
+<summary>4. Vì sao không mở SSH cho `0.0.0.0/0`?</summary>
+
+> Bot cả thế giới sẽ dò mật khẩu cổng 22 liên tục. Chỉ mở cho IP của bạn (hoặc dùng bastion/VPN).
+</details>
+
+**🔬 Demo đối chiếu:**
 
 | Demo đối chiếu | Kết quả mong đợi |
 |---|---|
@@ -3085,7 +3339,19 @@ Là "người gác cổng" ở tầng cloud (trước cả khi gói tin tới m�
 | SSH vào EC2 | `ssh -i key.pem ubuntu@<ip>` vào được shell |
 | Cấu hình Security Group | Chỉ mở 22 và 80, truy cập đúng như mong đợi |
 
-✅ **Kết quả đạt được:** Tạo, kết nối, cấu hình bảo mật và triển khai dịch vụ trên server cloud thật.
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **EC2 instance** | Máy ảo trên cloud |
+| **AMI** | Ảnh hệ điều hành để tạo máy |
+| **Key pair / `.pem`** | Cặp khoá SSH đăng nhập máy |
+| **Security Group** | Firewall tầng cloud theo instance |
+| **Elastic IP** | IP tĩnh |
+| **User data** | Script chạy khi khởi tạo máy |
+| **stop / terminate** | Tắt giữ đĩa / xoá hẳn |
+
+✅ **Kết quả đạt được:** Tạo, kết nối, cấu hình bảo mật (Security Group + UFW) và triển khai dịch vụ trên server cloud thật.
 
 ---
 
