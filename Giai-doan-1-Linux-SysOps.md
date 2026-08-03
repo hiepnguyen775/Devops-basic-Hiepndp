@@ -2,11 +2,16 @@
 
 > **Ngày 1–12** · Làm chủ Linux, dòng lệnh, mạng, bảo mật cơ bản — nền móng của mọi SysOps/DevOps.
 >
-> **Cách dùng tài liệu:** Mỗi ngày dành 60–90 phút. **Gõ tay tất cả lệnh** (không copy-paste) để cơ tay nhớ. Mỗi ngày có 4 phần:
+> **Cách dùng tài liệu:** Mỗi ngày dành 60–90 phút. **Gõ tay tất cả lệnh** (không copy-paste) để cơ tay nhớ. Mỗi ngày đi theo một mạch quen thuộc:
 > - 📘 **Lý thuyết** — nắm khái niệm
+> - 📖 **Hiểu rõ hơn** — cách hình dung để nhớ lâu (không lặp lý thuyết)
 > - 🧪 **Lab cơ bản** — làm tay theo từng bước để hiểu
 > - 🚀 **Lab nâng cao (best-practice)** — làm sát production, đúng chuẩn vận hành thật
+> - 🧭 **Hướng dẫn làm lab** — làm tuần tự kèm ✅ checkpoint & giải nghĩa lệnh
+> - 💡 **Bổ sung thực tế** — kiến thức đi làm mới thấm (có ở một số ngày)
+> - 🐛 **Gỡ lỗi nhanh** — lỗi hay gặp & cách sửa
 > - 📝 **Bài ôn tập + Demo đối chiếu** — tự kiểm tra
+> - 🎯 **Đúc kết** — 3 điều phải mang theo + tự chấm
 >
 > Chưa hiểu ngày nào thì học lại trước khi đi tiếp — DevOps là kiến thức tích lũy.
 
@@ -85,22 +90,13 @@ Mỗi vòng lặp là một lần cải tiến. **CI/CD chính là "cái máy" t
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**DevOps thực ra là gì? (bằng một câu chuyện)**
-Ngày xưa, lập trình viên (Dev) viết code xong "ném" cho bộ phận vận hành (Ops) đem lên server. Code chạy được trên máy Dev nhưng lên server thì lỗi → hai bên đổ lỗi nhau (*"works on my machine!"*). **DevOps** sinh ra để xóa bức tường đó: cùng một quy trình, tự động hóa, ai cũng chịu trách nhiệm từ lúc viết code đến lúc chạy thật.
+> Phần 📘 đã nêu định nghĩa. Mục này cho bạn **một cách hình dung** để nhớ lâu — không lặp lại bảng.
 
-**SysOps vs DevOps — khác gì?**
-- **SysOps** = người trông server: cài đặt, theo dõi, sửa khi hỏng (nhiều thao tác tay).
-- **DevOps** = SysOps + **tự động hóa mọi thứ bằng code** (CI/CD, Infrastructure as Code). Thay vì click chuột tạo 10 server, bạn viết 1 file code để máy tự tạo.
-> Bạn sẽ đi: SysOps (nền tảng — Giai đoạn 1) → DevOps (tự động hóa — Giai đoạn 2–3) → SRE (độ tin cậy — Giai đoạn 4).
+**Bức tường giữa Dev và Ops — hình dung như một nhà hàng:** **đầu bếp** (Dev) muốn liên tục ra món mới; **quản lý ca + phục vụ** (Ops) muốn bếp chạy êm, không cháy nổ. Nếu bếp cứ tống món lạ ra mà không báo, phục vụ trở tay không kịp → khách phàn nàn, hai bên đổ lỗi nhau. *"Works on my machine!"* chính là câu **"món này ở bếp tôi ngon mà!"**. **DevOps** là quy ước chung: cùng một quy trình ra món, ai cũng thấy đơn hàng, ai cũng chịu trách nhiệm cho tới khi khách hài lòng.
 
-**Vòng đời DevOps (8 bước) — như dây chuyền nhà máy chạy vòng ∞:**
-`Plan` (lên kế hoạch) → `Code` (viết) → `Build` (đóng gói) → `Test` (kiểm thử) → `Release` (phát hành) → `Deploy` (đưa lên server) → `Operate` (vận hành) → `Monitor` (giám sát) → quay lại Plan. **CI/CD** chính là cái máy tự động chạy dây chuyền này.
+**Vì sao người mới nên bắt đầu từ SysOps, đừng nhảy thẳng vào công cụ:** tự động hoá (DevOps) thực chất là *"dạy máy làm việc mà bạn đã biết làm tay"*. Chưa từng cài nginx tay, bạn không thể viết code cho máy tự cài. Vì thế thứ tự là **SysOps (làm tay, hiểu bản chất) → DevOps (tự động hoá) → SRE (giữ cho tin cậy)** — đúng mạch Giai đoạn 1 → 2–3 → 4.
 
-**CI/CD nói thật đơn giản:**
-- **CI** = mỗi lần bạn sửa code, máy tự *kiểm tra + đóng gói* ngay (bắt lỗi sớm).
-- **CD** = sau khi kiểm tra xong, máy tự *đưa lên server*. Bạn chỉ `git push`, phần còn lại máy lo.
-
-> 🧠 **Một câu để nhớ:** DevOps không phải một công cụ, mà là **văn hóa "tự động hóa mọi việc lặp lại"**. Mọi công cụ bạn học (Git, Docker, K8s...) chỉ là phương tiện cho triết lý đó.
+**Một cách nhớ CI/CD:** CI như *"máy kiểm hàng ngay khi bạn vừa đặt lên băng chuyền"*; CD như *"máy tự chở hàng đã kiểm tới kho"*. Bạn chỉ `git push`, phần còn lại dây chuyền lo.
 
 ### 🧪 Lab cơ bản
 
@@ -252,6 +248,22 @@ Bạn sẽ thấy: `Hi <username>! You've successfully authenticated, but GitHub
 | **Automation** | Tự động hoá — để máy làm việc lặp lại thay người |
 | **Works on my machine** | Câu nói kinh điển khi code chạy ở máy Dev nhưng lỗi trên server |
 
+### 🎯 Đúc kết Ngày 1
+
+**3 điều phải mang theo:**
+1. **DevOps là văn hoá, không phải công cụ** — mọi tool (Git, Docker, K8s) chỉ là phương tiện để "tự động hoá việc lặp lại".
+2. **Lộ trình nghề:** SysOps (làm tay) → DevOps (tự động hoá) → SRE (độ tin cậy) — bạn học đúng theo thứ tự này.
+3. **Vòng đời 8 bước** Plan → Code → Build → Test → Release → Deploy → Operate → Monitor chạy vòng ∞; **CI/CD** là cái máy tự động chạy dây chuyền đó.
+
+> 🧠 **Một câu để nhớ:** DevOps không phải một công cụ, mà là **văn hoá "tự động hoá mọi việc lặp lại"**.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Nói được khác biệt cốt lõi SysOps vs DevOps trong 1 câu
+- [ ] Đọc thuộc 8 bước vòng đời DevOps
+- [ ] Phân biệt được CI và CD
+- [ ] `git --version` chạy được + đã tạo tài khoản GitHub
+- [ ] `ssh -T git@github.com` trả về `Hi <username>! ...`
+
 ✅ **Kết quả đạt được:** Hiểu bức tranh tổng thể SysOps/DevOps & vòng đời 8 bước, cài Git thành công, có GitHub + SSH key kết nối được, và có kế hoạch học 60 ngày.
 
 ---
@@ -313,27 +325,13 @@ Windows chia ổ rời `C:`, `D:`. Linux gom **tất cả vào MỘT cây**, g�
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Linux là gì, và vì sao DevOps bắt buộc học?**
-Linux là hệ điều hành giống Windows nhưng **điều khiển bằng cách gõ lệnh** thay vì bấm chuột. Nghe khó hơn, nhưng chính vì ra lệnh bằng chữ nên ta **viết sẵn lệnh thành script cho máy tự làm** — gốc rễ của tự động hóa. ~90% server, toàn bộ cloud và container đều chạy Linux → đây là kỹ năng nền không thể bỏ.
+> Phần 📘 đã có bảng thư mục và bảng lệnh. Mục này cho bạn **cách hình dung** để nhớ lâu — không nhắc lại bảng.
 
-**Cây thư mục — như một cái cây úp ngược (khác hẳn Windows).**
-Windows chia ổ rời `C:`, `D:`. Linux gom **tất cả vào MỘT cây**, gốc là `/` ("root"). Các nhánh chính:
-- `/home` = đồ của bạn (≈ thư mục Users/Documents).
-- `/etc` = file cấu hình hệ thống (≈ "Settings", nhưng là file text).
-- `/var` = log + dữ liệu thay đổi liên tục (database, cache).
-- `/tmp` = file tạm (xóa khi khởi động lại).
+**Dùng terminal như đi bộ trong một tòa nhà tối.** Hãy tưởng tượng bạn đứng trong một tòa nhà nhiều phòng mà đèn tắt hết. `pwd` = sờ biển tên để biết mình đang đứng ở phòng nào; `ls` = bật đèn nhìn xem trong phòng có gì; `cd` = bước qua một cánh cửa sang phòng khác. Người mới hay "lạc" vì quên bật đèn và không đọc biển phòng trước khi làm gì. Thói quen `pwd` rồi `ls` *trước* mỗi thao tác quan trọng (nhất là trước khi xóa/sửa) sẽ theo bạn suốt đời làm SysOps.
 
-**Các nhóm lệnh — bức tranh lớn:**
-- *Đi lại*: `pwd` (đang ở đâu), `ls` (nhìn quanh), `cd` (di chuyển) — như đi bộ giữa các thư mục.
-- *Tạo/xóa*: `mkdir`, `touch`, `rm` — như tạo/xóa trong Explorer.
-- *Sao chép/di chuyển*: `cp` (giữ gốc), `mv` (chuyển/đổi tên) — như Ctrl+C / Ctrl+X.
-- *Xem nội dung*: `cat` (in cả file), `less` (xem từng trang), `tail -f` (xem log chạy real-time).
+**Vì sao "một cây duy nhất, gốc `/`" là thiết kế thông minh.** Windows tách ổ `C:`, `D:` nên phần mềm phải "biết" dữ liệu nằm ở ổ nào. Linux gộp tất cả vào một cây, nhờ đó bạn có thể "cắm" một ổ cứng mới, một USB, thậm chí một thư mục ở máy khác vào *bất kỳ nhánh nào* của cây (thao tác gọi là *mount*) — chương trình vẫn thấy đường dẫn quen thuộc, không cần biết dữ liệu thật nằm ở đâu. Chính sự "một cây" này làm việc tự động hóa về sau (script, container) đơn giản hơn nhiều.
 
-**Đường dẫn tuyệt đối vs tương đối — như chỉ đường.**
-- *Tuyệt đối* (`/home/ban/file`) = **địa chỉ nhà đầy đủ**, đi từ đâu cũng tới.
-- *Tương đối* (`./file`, `../file`) = **"rẽ trái 2 nhà"**, chỉ đúng khi đang đứng đúng chỗ. `.` = thư mục hiện tại, `..` = lùi ra 1 cấp.
-
-> 🧠 **Một câu để nhớ:** *"Trong Linux, gần như mọi thứ đều là file"* — kể cả thiết bị, cấu hình, tiến trình. Hiểu điều này thì về sau mọi thứ đều quy về "thao tác với file".
+**Sức mạnh đi kèm không có nút Undo.** Thứ khiến người mới sợ Linux nhất là `rm` xóa vĩnh viễn, không có Thùng rác. Hãy đổi góc nhìn: Linux giả định bạn là người biết mình làm gì, đổi lại nó cho bạn sức mạnh xóa/đổi hàng nghìn file bằng một lệnh. `cp` là đi photocopy (bản gốc còn nguyên), `mv` là bê nguyên cái bàn sang phòng khác (chỗ cũ trống trơn). Vì không có "hoàn tác", phản xạ sống còn là: nhìn (`ls`) đường dẫn trước khi xóa, và tự hỏi "lệnh này đụng tới file nào" trước khi nhấn Enter.
 
 ### 🧪 Lab cơ bản
 
@@ -511,6 +509,22 @@ rsync -avh --progress ~/devops-lab/ ~/devops-lab-copy/
 | **Brace expansion** `{a,b,c}` | Shell bung thành nhiều tên trước khi chạy lệnh |
 | **Hidden file** | File ẩn (tên bắt đầu bằng `.`) |
 
+### 🎯 Đúc kết Ngày 2
+
+**3 điều phải mang theo:**
+1. Luôn `pwd` + `ls` *trước* khi thao tác — biết mình đứng đâu, thấy cái mình sắp đụng.
+2. Linux là **MỘT cây**, gốc `/`; `/etc` (cấu hình) và `/var/log` (log) là 2 chỗ SysOps mở đầu tiên khi điều tra.
+3. `cp` giữ gốc, `mv` mất gốc, `rm` xóa **vĩnh viễn** (không Thùng rác) — chọn nhầm là mất file.
+
+> 🧠 **Một câu để nhớ:** *"Trong Linux, gần như mọi thứ đều là file"* — kể cả thiết bị, cấu hình, tiến trình. Hiểu điều này thì về sau mọi thứ đều quy về "thao tác với file".
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Di chuyển thành thạo bằng `cd`, `pwd`, `ls -la` (thấy được file ẩn)
+- [ ] Nói được vai trò của `/etc`, `/var`, `/home`, `/tmp`
+- [ ] Tạo cây thư mục lồng nhau bằng `mkdir -p` (kể cả brace expansion `{a,b,c}`)
+- [ ] Phân biệt `cp` vs `mv`, đường dẫn tuyệt đối vs tương đối
+- [ ] Giải thích vì sao `rm -rf` nguy hiểm và cách tự bảo vệ (quote biến, `ls` trước)
+
 ✅ **Kết quả đạt được:** Chạy được lệnh Linux cơ bản, có môi trường thực hành, hiểu cây thư mục Linux và phân biệt cp/mv, đường dẫn tuyệt đối/tương đối.
 
 ---
@@ -581,20 +595,13 @@ Dịch vụ chạy nền liên tục (nginx, database...) gọi là *service*. `
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Tiến trình (process) là gì?**
-Mỗi chương trình đang chạy là 1 **tiến trình**, có số định danh riêng gọi là **PID** (như số căn cước). Trên Windows bạn mở Task Manager để xem/tắt chương trình; trên Linux bạn dùng `ps`/`top`/`htop` để xem và `kill <PID>` để tắt. Hiểu process là nền để sau này điều tra "máy chậm vì cái gì đang chạy".
+> Phần 📘 đã liệt kê lệnh & bảng. Mục này giúp bạn *hình dung* để nhớ — không nhắc lại bảng.
 
-**`kill` không phải lúc nào cũng là "giết" — đó là "gửi tín hiệu".**
-- `kill <PID>` gửi tín hiệu **TERM** = "dừng giúp, dọn dẹp xong rồi tắt" (lịch sự).
-- `kill -9 <PID>` gửi **KILL** = "tắt ngay lập tức" (ép buộc, không cho dọn dẹp → có thể mất dữ liệu). Chỉ dùng khi cách lịch sự không ăn thua.
+**Máy tính như một văn phòng bận rộn.** Mỗi tiến trình (process) là một nhân viên đang làm việc, PID là số bàn của họ. `ps`/`top`/`htop` là bạn đứng ở cửa nhìn xem *ai đang làm gì* và *ai đang uống hết cà phê* (ngốn CPU/RAM). Khi văn phòng ì ạch, phản xạ đúng không phải đập bàn khởi động lại tất cả, mà là nhìn xem *nhân viên nào* chiếm tài nguyên rồi xử đúng người — đó chính là kỹ năng điều tra "máy chậm vì cái gì".
 
-**Package manager (apt) — như "App Store" của Linux.**
-Thay vì lên web tải file `.exe` về cài như Windows, Linux có kho phần mềm trung tâm. `sudo apt install nginx` = "lên store tải + cài nginx". `apt update` = cập nhật *danh sách* phần mềm (chưa cài gì); `apt upgrade` = *nâng cấp* phần mềm đã cài. (Fedora/RHEL dùng `dnf` thay `apt`.)
+**"kill" là gõ cửa nhắn tin, không phải bạo lực.** Cái tên `kill` gây hiểu nhầm. Thực ra bạn đang *gửi tín hiệu* cho tiến trình. `kill` (TERM) = "này, lưu việc đang làm rồi dọn bàn về đi" — tiến trình tắt gọn gàng. `kill -9` (KILL) = "an ninh lôi ra ngoài ngay lập tức" — nhanh, nhưng việc đang dở (file đang ghi) có thể hỏng. Vì thế `-9` là biện pháp *cuối cùng*, không phải lựa chọn đầu tiên.
 
-**systemd — "người quản lý dịch vụ" của Linux.**
-Dịch vụ chạy nền liên tục (nginx, database...) gọi là *service*. `systemctl` điều khiển chúng: `start` (chạy ngay), `stop`, `restart`, và quan trọng — `enable` (tự bật khi máy khởi động lại). Đây là cách server tự "sống lại" sau reboot.
-
-> 🧠 **Một câu để nhớ:** `start` = chạy bây giờ; `enable` = nhớ bật mỗi lần khởi động. Quên `enable` là lỗi kinh điển khiến dịch vụ "biến mất" sau reboot.
+**start vs enable — bẫy số 1 của người mới.** Hãy hình dung: `start` giống bật công tắc đèn *ngay bây giờ*; `enable` giống đấu đèn vào hệ thống điện để *mỗi lần có điện đèn tự sáng*. Bật tay (start) mà quên đấu điện (enable), thì sau một lần cúp-mở điện (reboot) đèn tắt ngóm — và 3h sáng bạn ngồi tự hỏi "sao dịch vụ biến mất?". systemd chính là "người quản lý điện" lo cho dịch vụ tự sống lại. Còn package manager (apt/dnf) thì hãy coi như "App Store có kiểm duyệt" — cài từ kho tin cậy an toàn hơn tải file `.exe` trôi nổi.
 
 ### 🧪 Lab cơ bản
 
@@ -811,6 +818,22 @@ ps aux --sort=-%cpu | head -5    # 5 tiến trình ngốn CPU nhất
 | **Environment variable** | Biến môi trường (vd `$PATH`) |
 | **Foreground / Background** | Tiền cảnh / chạy nền (`&`) |
 
+### 🎯 Đúc kết Ngày 3
+
+**3 điều phải mang theo:**
+1. Xem tiến trình bằng `ps aux`/`htop`; điều tra "máy chậm" bằng `ps aux --sort=-%cpu | head`.
+2. `kill` = TERM (lịch sự), `kill -9` = KILL (ép buộc, bất đắc dĩ) — luôn thử TERM trước.
+3. `systemctl enable --now` = vừa chạy ngay vừa nhớ tự bật sau reboot; lỗi dịch vụ thì `journalctl -u <dv>` đọc lý do.
+
+> 🧠 **Một câu để nhớ:** `start` = chạy bây giờ; `enable` = nhớ bật mỗi lần khởi động. Quên `enable` là lỗi kinh điển khiến dịch vụ "biến mất" sau reboot.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Xem & dừng tiến trình an toàn (`ps`, `kill <PID>`, `kill %1`)
+- [ ] Phân biệt `apt update` vs `apt upgrade`
+- [ ] Phân biệt `start` vs `enable`, dùng `enable --now`
+- [ ] Đọc log dịch vụ bằng `journalctl -u <dv>`
+- [ ] Kiểm tra tài nguyên: `free -h`, `df -h`, `uptime`
+
 ✅ **Kết quả đạt được:** Quản lý được tiến trình, cài/gỡ phần mềm, hiểu systemd (start vs enable), biến môi trường và biết điều tra tài nguyên hệ thống.
 
 ---
@@ -874,20 +897,13 @@ Ba chữ số = ba nhóm. Ví dụ `chmod 750` = owner `rwx`(7) / group `r-x`(5)
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Vì sao Linux khắt khe về user & quyền?**
-Server thường có nhiều người dùng và chạy nhiều dịch vụ. Nếu ai cũng làm được mọi thứ thì 1 sai lầm (hoặc 1 hacker) phá sạch. Nên Linux chia **user** (người dùng) và **quyền** (ai được đọc/ghi/chạy cái gì) rất rõ. `root` là "siêu admin" có mọi quyền — như Administrator của Windows nhưng quyền lực hơn nhiều.
+> Phần 📘 đã có bảng quyền và bảng lệnh. Mục này cho bạn *cách nghĩ* để nhớ — không nhắc lại bảng.
 
-**Quyền file đọc thế nào? (dễ khi nắm mẹo)**
-Mỗi file có quyền cho 3 nhóm: **owner** (chủ) – **group** (nhóm) – **other** (người khác). Mỗi nhóm có 3 quyền: `r` đọc (=4), `w` ghi (=2), `x` chạy (=1). Cộng lại ra số:
-- `7` = 4+2+1 = `rwx` (đọc+ghi+chạy)
-- `5` = 4+0+1 = `r-x` (đọc+chạy, không ghi)
-- `0` = cấm hết.
-→ `chmod 750` = chủ `7` (rwx), nhóm `5` (r-x), người khác `0` (cấm).
+**Vì sao Linux "đa nghi".** Một server không phải máy cá nhân — nó có nhiều người và nhiều dịch vụ cùng sống chung như một chung cư. Nếu ai cũng cầm chìa khóa master thì một người bất cẩn (hoặc một kẻ lạ lẻn vào) phá được cả tòa nhà. Cơ chế user/group/permission chính là quy ước "mỗi người một chìa, chỉ mở đúng phòng mình". Nghe phiền, nhưng đó đúng là lý do một sai lầm đơn lẻ hiếm khi hạ được cả server.
 
-**`sudo` — "mượn quyền admin trong chốc lát".**
-Đừng đăng nhập thẳng bằng root (1 lệnh sai = phá hệ thống, không có lớp bảo vệ). Hãy dùng user thường rồi thêm `sudo` trước lệnh khi *thực sự cần* quyền cao — như "xin phép admin làm 1 việc cụ thể".
+**Mẹo đọc quyền số mà không cần tính.** Nhiều người mới sợ mấy con số `755`, `644`. Bí quyết: mỗi chữ số chỉ là tổng của 3 công tắc `r=4`, `w=2`, `x=1`. Vậy `7`=bật hết (rwx), `6`=đọc+ghi (rw-), `5`=đọc+chạy (r-x), `4`=chỉ đọc. Và luôn nhớ thứ tự 3 chữ số = **chủ – nhóm – người ngoài**. Thuộc "4-2-1" cùng thứ tự đó là bạn đọc mọi quyền trong 2 giây, khỏi nhẩm.
 
-> 🧠 **Một câu để nhớ:** dùng `600` cho file chứa bí mật (SSH key) — chỉ mình chủ đọc; `chmod 777` ("ai cũng làm mọi thứ") nghe tiện nhưng là **lỗ hổng bảo mật** — đừng dùng.
+**`sudo` và triết lý "mượn quyền".** Đừng sống bằng root như đăng nhập Administrator cả ngày. Hãy làm việc bằng user thường, chỉ `sudo` khi *thật cần* — như nhân viên xin chữ ký sếp cho *đúng một việc*, thay vì cầm luôn con dấu công ty. Lợi ích không chỉ là an toàn: mỗi lần `sudo` đều được ghi log, nên khi có sự cố bạn truy được "ai đã làm gì, lúc nào". Bao trùm tất cả là nguyên tắc *least privilege* — cấp đúng cái cần, không dư một quyền.
 
 ### 🧪 Lab cơ bản
 
@@ -1041,6 +1057,22 @@ find / -perm -4000 -type f 2>/dev/null
 | **Least privilege** | Nguyên tắc cấp quyền tối thiểu đủ dùng |
 | **SUID** | Cờ đặc biệt: file chạy với quyền của chủ file |
 
+### 🎯 Đúc kết Ngày 4
+
+**3 điều phải mang theo:**
+1. `usermod -aG` **luôn có `-a`** (thêm nhóm), thiếu `-a` là xóa sạch nhóm cũ; làm việc bằng user thường + `sudo`, không sống bằng root.
+2. Đọc quyền bằng "4-2-1" theo thứ tự **chủ–nhóm–người ngoài**: `644` (file thường), `755` (script/thư mục), `600` (bí mật).
+3. Least privilege: cấp quyền tối thiểu; tránh `chmod 777`; sửa `/etc/sudoers` chỉ bằng `visudo`.
+
+> 🧠 **Một câu để nhớ:** dùng `600` cho file chứa bí mật (SSH key) — chỉ mình chủ đọc; `chmod 777` ("ai cũng làm mọi thứ") nghe tiện nhưng là **lỗ hổng bảo mật** — đừng dùng.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Tạo user và thêm vào nhóm bằng `usermod -aG` (hiểu vì sao cần `-a`)
+- [ ] Đọc `rwxr-x---` ↔ `750` không cần tính
+- [ ] Đặt đúng quyền `644` / `755` / `600` cho từng loại file
+- [ ] Đổi chủ bằng `chown user:group`
+- [ ] Giải thích least privilege và vì sao không dùng root/`777`
+
 ✅ **Kết quả đạt được:** Quản lý user/group, đọc & đổi quyền file thành thạo, hiểu sudo và nguyên tắc least privilege — kỹ năng cốt lõi của SysOps.
 
 ---
@@ -1115,22 +1147,13 @@ Mỗi lệnh chạy xong trả về một số: `0` = thành công, khác `0` = 
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Bash script là gì? Vì sao DevOps sống nhờ nó?**
-Một **script** chỉ là 1 file text chứa các lệnh bạn vốn gõ tay, xếp theo thứ tự, để máy *tự chạy hết một lượt*. Thay vì gõ 20 lệnh mỗi sáng, bạn viết 1 script rồi chạy 1 lần. Đây là bước đầu tiên của "tự động hóa" — linh hồn DevOps.
+> Phần 📘 đã có cú pháp & bảng toán tử. Mục này giúp bạn *nhìn ra bản chất* — không nhắc lại cú pháp.
 
-**Vài viên gạch cơ bản (giống mọi ngôn ngữ lập trình):**
-- **Biến** = cái hộp đựng giá trị: `TEN='An'` rồi dùng `$TEN`. (⚠️ Bash khó tính: **không** khoảng trắng quanh dấu `=`.)
-- **Điều kiện** `if` = "nếu... thì..." (vd "nếu file tồn tại thì in ra").
-- **Vòng lặp** `for` = "làm đi làm lại" (vd "tạo file1 đến file5").
-- **Hàm** = gói 1 nhóm lệnh để gọi lại nhiều lần.
+**Script là cách "đóng băng" thao tác tay thành công thức.** Mỗi sáng bạn gõ đi gõ lại 20 lệnh giống nhau? Script ghi lại 20 lệnh đó thành một "công thức nấu ăn" để lần sau chỉ chạy một lệnh. Điều quan trọng nhất cho người mới: **bạn không học một ngôn ngữ mới** — bạn chỉ đang xếp những lệnh vốn đã biết vào một file theo thứ tự. Kỹ năng bash 90% chính là kỹ năng dòng lệnh bạn đã có, chỉ thêm biến/if/for để nó "biết suy nghĩ" một chút.
 
-**`#!/bin/bash` (shebang) — dòng đầu kỳ lạ đó là gì?**
-Nó báo cho máy: "file này chạy bằng bash". Nhờ nó mà gõ `./script.sh` máy biết dùng bash thông dịch. Còn `chmod +x` cấp "quyền chạy" cho file (mặc định file mới không chạy được).
+**Vì sao bash khó tính chuyện khoảng trắng.** `TEN='An'` chạy được nhưng `TEN = 'An'` lại lỗi — người mới rất hay vấp. Lý do: với bash, khoảng trắng là dấu tách giữa *lệnh và tham số*. Thấy `TEN = 'An'`, bash tưởng `TEN` là **tên một lệnh**, còn `=` và `'An'` là tham số của nó. Hiểu "bash đọc mỗi dòng bằng cách tách từ theo khoảng trắng" sẽ giải thích vô số lỗi khó hiểu về sau — kể cả vì sao phải quote `"$bien"`.
 
-**Exit code — cách script biết lệnh trước thành công hay thất bại.**
-Mỗi lệnh chạy xong trả về 1 số: `0` = thành công, khác `0` = lỗi. Xem bằng `echo $?`. Đây là cách script tự "ra quyết định": nếu bước trước lỗi thì dừng, không làm bừa bước sau.
-
-> 🧠 **Một câu để nhớ:** script chỉ là "gõ tay nhưng viết sẵn ra giấy cho máy đọc". Bắt đầu bằng việc gói những lệnh bạn hay lặp lại thành 1 file `.sh`.
+**Exit code — "giác quan" giúp script tự quyết định.** Con người nhìn màn hình là biết lệnh thành công hay thất bại; script thì "mù", nó chỉ dựa vào một con số vô hình mỗi lệnh để lại: `$?`, với `0` = ổn, khác `0` = có chuyện. Đây chính là giác quan để script tự xử: nếu bước backup thất bại thì *đừng* xóa dữ liệu cũ. Nắm exit code là nắm chìa khóa viết script *biết dừng đúng lúc* thay vì chạy bừa gây họa.
 
 ### 🧪 Lab cơ bản
 
@@ -1300,6 +1323,22 @@ if [ -f /etc/hostname ]; then echo "có"; else echo "không"; fi
 | **Loop / Condition** | Vòng lặp (`for`/`while`) / điều kiện (`if`) |
 | **Function** | Hàm — nhóm lệnh gọi lại được |
 
+### 🎯 Đúc kết Ngày 5
+
+**3 điều phải mang theo:**
+1. Script = file text chứa lệnh + shebang `#!/bin/bash` + `chmod +x` để chạy; bash không phải ngôn ngữ lạ, chỉ là lệnh xếp theo thứ tự.
+2. Cú pháp khó tính: **không** khoảng trắng quanh dấu `=`; luôn quote `"$bien"` để tránh lỗi khoảng trắng/rỗng.
+3. Exit code `$?`: `0` = ok, khác `0` = lỗi — nền tảng để script tự ra quyết định.
+
+> 🧠 **Một câu để nhớ:** script chỉ là "gõ tay nhưng viết sẵn ra giấy cho máy đọc". Bắt đầu bằng việc gói những lệnh bạn hay lặp lại thành 1 file `.sh`.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Viết script có shebang, `chmod +x`, chạy bằng `./script.sh`
+- [ ] Dùng biến, `read`, và tham số `$1` / `$@` / `$#`
+- [ ] Viết `if` với so sánh số (`-gt`, `-eq`) và file (`-f`, `-d`)
+- [ ] Viết vòng `for`/`while` và một hàm
+- [ ] Đọc exit code bằng `echo $?` và giải thích ý nghĩa
+
 ✅ **Kết quả đạt được:** Viết được script Bash với biến, điều kiện, vòng lặp, hàm, và hiểu exit code.
 
 ---
@@ -1377,23 +1416,13 @@ Ghi log có mốc thời gian để sau này điều tra: `echo "[$(date '+%F %T
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Pipe (`|`) — triết lý "ghép các công cụ nhỏ" của Unix.**
-Dấu `|` lấy *kết quả* lệnh bên trái làm *đầu vào* lệnh bên phải — như dây chuyền. Ví dụ `ps aux | grep nginx | awk '{print $2}'` đọc là: "liệt kê mọi tiến trình → lọc dòng có nginx → lấy cột số 2 (PID)". Mỗi lệnh làm 1 việc nhỏ thật giỏi, ghép lại làm việc lớn — tư duy cốt lõi của Linux.
+> Phần 📘 đã có bảng pipe/redirect và cú pháp cron. Mục này giúp bạn *nhìn ra tư duy* đằng sau — không nhắc lại bảng.
 
-**Redirect (`>`, `>>`) — chuyển hướng kết quả vào file.**
-- `>` = ghi đè (xóa cũ, ghi mới) — như "Save As" đè file.
-- `>>` = nối thêm vào cuối — như viết thêm vào sổ.
-- `2>&1` = "gộp cả thông báo lỗi vào chung" — quan trọng khi ghi log.
+**Triết lý Unix: "làm một việc, làm thật giỏi".** Khác biệt lớn nhất giữa Linux và một phần mềm "khổng lồ làm mọi thứ" là Linux cho bạn hàng trăm công cụ tí hon, mỗi cái giỏi đúng một việc, rồi để bạn *ghép* chúng lại bằng pipe `|`. Giống dây chuyền nhà máy: máy A cắt, chuyền sang máy B mài, sang máy C sơn. Vì thế học Linux không phải học thuộc từng lệnh, mà học **cách nối** — kỹ năng này vẫn giá trị ngay cả khi bạn gặp một công cụ chưa từng thấy.
 
-**3 công cụ xử lý văn bản phải biết:**
-- `grep` = tìm dòng chứa chữ gì đó (như Ctrl+F).
-- `awk` = cắt lấy cột (như lấy cột B trong Excel).
-- `sed` = tìm-và-thay-thế hàng loạt.
+**grep/awk/sed — ba kiểu "đọc hiểu văn bản".** Server nói chuyện với bạn chủ yếu bằng văn bản (log, output lệnh). Ba công cụ này là ba cách đọc: `grep` = "tìm dòng nào có chữ này" (như Ctrl+F), `awk` = "lấy cột nào trong dòng" (như tách cột Excel), `sed` = "thay chữ này bằng chữ kia hàng loạt" (như Find & Replace). Chưa cần giỏi cả ba ngay — chỉ cần biết *khi nào gọi cái nào* là đã xử được 90% việc lọc log hằng ngày.
 
-**Cron — "đồng hồ hẹn giờ" của Linux.**
-Muốn máy *tự* chạy script lúc 2h sáng mỗi ngày? Đó là việc của cron. Cú pháp 5 ô: `phút giờ ngày tháng thứ` + lệnh. `0 2 * * *` = "phút 0, giờ 2, mọi ngày" = 2h sáng hằng ngày. Dấu `*` = "mọi giá trị".
-
-> 🧠 **Một câu để nhớ:** Linux không có 1 công cụ khổng lồ làm mọi thứ — nó có **trăm công cụ nhỏ** mà bạn *ghép* lại bằng pipe. Học cách ghép quan trọng hơn nhớ từng lệnh.
+**Cron và bẫy "chạy tay được mà cron thì không".** Cron là đồng hồ hẹn giờ của Linux, nhưng nó chạy trong một môi trường *trần trụi* — không có `$PATH` đầy đủ, không có biến môi trường như lúc bạn ngồi gõ. Đây là lý do bẫy kinh điển: script chạy tay ngon lành nhưng cron thì im lặng thất bại. Phản xạ đúng cho mọi việc chạy theo cron: **luôn dùng đường dẫn tuyệt đối** và **luôn ghi log** (`>> file.log 2>&1`) — vì cron chạy âm thầm, không log thì hỏng cũng chẳng ai hay.
 
 ### 🧪 Lab cơ bản
 
@@ -1596,6 +1625,22 @@ crontab -l     # xác nhận
 | **Retention policy** | Chính sách giữ/xoá backup cũ |
 | **Array** | Mảng — danh sách nhiều giá trị |
 
+### 🎯 Đúc kết Ngày 6
+
+**3 điều phải mang theo:**
+1. Pipe `|` ghép công cụ nhỏ thành việc lớn; `>` ghi đè, `>>` nối thêm, `2>&1` gộp cả lỗi vào output.
+2. grep (tìm dòng) / awk (lấy cột) / sed (thay thế) — bộ ba xử lý văn bản & log.
+3. Cron: nhớ thứ tự 5 trường `phút giờ ngày tháng thứ`, **luôn đường dẫn tuyệt đối + ghi log** vì cron chạy âm thầm.
+
+> 🧠 **Một câu để nhớ:** Linux không có 1 công cụ khổng lồ làm mọi thứ — nó có **trăm công cụ nhỏ** mà bạn *ghép* lại bằng pipe. Học cách ghép quan trọng hơn nhớ từng lệnh.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Ghép pipe nhiều tầng (vd `ps aux | grep x | awk '{print $2}'`)
+- [ ] Phân biệt `>`, `>>`, `2>`, `2>&1`
+- [ ] Dùng grep/awk trích 1 giá trị (vd % đĩa) rồi so sánh số
+- [ ] Viết dòng cron đúng cú pháp (2h sáng mỗi ngày; mỗi 15 phút)
+- [ ] Giải thích vì sao "chạy tay được mà cron không" và cách khắc phục
+
 ✅ **Kết quả đạt được:** Tự động hóa tác vụ với Bash, cron, xử lý văn bản (grep/awk/sed), redirect & log — kỹ năng SysOps thực chiến.
 
 ---
@@ -1663,23 +1708,13 @@ Một máy (1 IP) chạy nhiều dịch vụ, mỗi dịch vụ ngồi ở một
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Mạng máy tính — hình dung như gửi thư.**
-- **Địa chỉ IP** = địa chỉ nhà của mỗi máy (vd `192.168.1.10`). *Private IP* = địa chỉ trong nhà (mạng nội bộ); *Public IP* = địa chỉ ngoài đường (Internet thấy được).
-- **Port (cổng)** = số căn hộ trong tòa nhà. 1 máy (1 IP) chạy nhiều dịch vụ, mỗi dịch vụ ngồi ở 1 cổng: web ở 80/443, SSH ở 22, database ở 3306/5432. Gửi request tới `IP:port` = "giao thư tới đúng căn hộ".
-- **DNS** = danh bạ điện thoại: đổi tên dễ nhớ (`google.com`) thành IP (`142.250.x.x`). `nslookup`/`dig` = "tra danh bạ".
+> Phần 📘 đã có bảng IP/port/DNS và bảng status code. Mục này gói tất cả vào *một ẩn dụ* để nhớ — không nhắc lại bảng.
 
-**TCP vs UDP — 2 cách gửi:**
-- **TCP** = thư bảo đảm, có xác nhận đã nhận (đáng tin, chậm hơn) — dùng cho web, SSH.
-- **UDP** = thả thư vào hòm, không xác nhận (nhanh, có thể rớt) — dùng cho video call, DNS.
+**Cả mạng máy tính gói trong ẩn dụ gửi thư.** Đừng để đống thuật ngữ (IP, port, DNS, TCP) làm choáng — tất cả chỉ là một hệ thống bưu điện. **IP** = địa chỉ tòa nhà; **port** = số căn hộ (một tòa nhà nhiều căn hộ = một máy nhiều dịch vụ); **DNS** = tổng đài tra "tên người → địa chỉ nhà"; **TCP/UDP** = chọn gửi thư bảo đảm (có ký nhận) hay thả nhanh vào hòm (chấp nhận rớt). Khi một request "không tới nơi", bạn chỉ cần hỏi: sai địa chỉ tòa nhà, sai số căn hộ, hay tổng đài (DNS) tra nhầm?
 
-**HTTP status code — câu trả lời của server:**
-- `2xx` = OK, thành công.
-- `3xx` = chuyển hướng đi chỗ khác.
-- `4xx` = lỗi do **client** (vd `404` = không tìm thấy trang).
-- `5xx` = lỗi do **server** (vd `500` = server hỏng).
-Phân biệt 4xx/5xx giúp bạn biết "lỗi tại mình hay tại server".
+**Vì sao dân DevOps ám ảnh 4xx vs 5xx.** Mã lỗi HTTP không phải để học vẹt — nó chỉ tay vào *ai có lỗi*. `4xx` = "tại người gửi" (client gọi sai đường dẫn, thiếu quyền) → đi sửa phía gọi. `5xx` = "tại server" (server nhận được nhưng xử lý hỏng) → đi sửa phía server/app. Chỉ cần phân biệt hai họ này là bạn đã khoanh vùng đúng một nửa vấn đề, thay vì mò mẫm cả hai đầu.
 
-> 🧠 **Một câu để nhớ:** `ping` được ≠ mọi thứ OK. Ping chỉ kiểm tra "máy có sống không", còn dịch vụ ở cổng 80/443 vẫn có thể chết. Phải kiểm cả tầng dịch vụ (`curl`, `nc`).
+**Cái bẫy "ping được là ổn".** Người mới hay kết luận "ping thấy rồi, mạng ngon" — một sai lầm chết người. Ping chỉ hỏi "tòa nhà còn đứng đó không", không hề kiểm tra "căn hộ (dịch vụ) có ai mở cửa không". Một server ping tốt vẫn có thể chết dịch vụ web ở cổng 80/443. Vì thế debug mạng phải đi *theo tầng*: `ping IP` (máy sống?) → `ping tên` (DNS ổn?) → `nc -zv host port` (cổng mở?) → `curl -v` (dịch vụ trả lời đúng?). Mỗi tầng loại trừ một khả năng.
 
 ### 🧪 Lab cơ bản
 
@@ -1852,6 +1887,22 @@ sudo ss -tlnp
 | **CIDR** (`/24`) | Cách viết dải mạng |
 | **Listening port** | Cổng đang mở chờ kết nối |
 
+### 🎯 Đúc kết Ngày 7
+
+**3 điều phải mang theo:**
+1. IP = địa chỉ máy, port = dịch vụ trên máy, DNS = tên→IP; nhớ port: SSH 22, HTTP 80, HTTPS 443, MySQL 3306, PostgreSQL 5432.
+2. `4xx` = lỗi client, `5xx` = lỗi server — khoanh đúng một nửa vấn đề.
+3. Debug theo tầng: `ping IP` → `ping tên` → `nc -zv host port` → `curl -v`; phân biệt `refused` (cổng đóng) vs `timeout` (firewall chặn).
+
+> 🧠 **Một câu để nhớ:** `ping` được ≠ mọi thứ OK. Ping chỉ kiểm tra "máy có sống không", còn dịch vụ ở cổng 80/443 vẫn có thể chết. Phải kiểm cả tầng dịch vụ (`curl`, `nc`).
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Xem IP máy (`ip a`), phân biệt private vs public IP
+- [ ] Nhớ port mặc định SSH / HTTP / HTTPS / MySQL / PostgreSQL
+- [ ] Phân biệt `4xx` vs `5xx`, TCP vs UDP
+- [ ] Tra DNS (`dig`/`nslookup`), kiểm cổng (`nc -zv`)
+- [ ] Debug mạng theo tầng và đọc đúng `refused` vs `timeout`
+
 ✅ **Kết quả đạt được:** Hiểu IP, port, DNS, HTTP và có phản xạ debug mạng theo tầng — nền tảng làm việc với server.
 
 ---
@@ -1911,19 +1962,13 @@ Sửa `/etc/ssh/sshd_config`: `PermitRootLogin no` (cấm login root), `Password
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**SSH là gì?**
-SSH (*Secure Shell*) là cách **đăng nhập vào server từ xa qua mạng một cách an toàn** — như Remote Desktop của Windows nhưng bằng dòng lệnh và được mã hóa. Gõ `ssh user@địa-chỉ-server` là bạn "ngồi vào" server đó dù nó ở cách nửa vòng trái đất.
+> Phần 📘 đã có cú pháp lệnh và mẫu `~/.ssh/config`. Mục này giúp bạn *hiểu vì sao* — không nhắc lại lệnh.
 
-**Khóa SSH (key) — vì sao tốt hơn mật khẩu?**
-Khi tạo key, bạn được **một cặp**: khóa *private* (giữ kín trên máy bạn, KHÔNG bao giờ chia sẻ) và khóa *public* (đem dán lên server). Cơ chế: chỉ ai giữ private key tương ứng mới "mở" được ổ khóa public trên server. Mật khẩu có thể bị đoán/brute-force; key thì dài và không gõ qua mạng → an toàn hơn nhiều. (Đây cũng đúng là cách `git push` lên GitHub hoạt động.)
+**SSH là "cánh cửa dịch chuyển" tới mọi server.** Cả sự nghiệp SysOps/DevOps xoay quanh việc "ngồi vào" máy ở xa. SSH là cánh cửa đó — gõ một lệnh là bạn có shell trên máy cách nửa vòng trái đất, y như đang ngồi trước nó, mọi thứ đi qua đường ống mã hóa. Vì bạn sẽ mở cánh cửa này hàng chục lần mỗi ngày, đầu tư 30 phút cấu hình cho gọn (key + `~/.ssh/config`) sẽ tiết kiệm cho bạn hàng trăm giờ về sau.
 
-**Vài thao tác bạn sẽ dùng hằng ngày:**
-- `ssh-keygen` = tạo cặp khóa.
-- `ssh-copy-id user@host` = dán public key lên server (lần sau khỏi nhập mật khẩu).
-- `scp file user@host:~/` = copy file qua mạng (như kéo-thả file giữa 2 máy).
-- File `~/.ssh/config` = "danh bạ server": đặt biệt danh để gõ `ssh web-01` thay vì IP dài.
+**Vì sao key thắng mật khẩu — hình dung bằng ổ khóa.** Cặp khóa SSH hoạt động hơi ngược trực giác. Public key là **ổ khóa** bạn phát đi khắp nơi (dán lên server) — ai thấy cũng không sao. Private key là **chìa** duy nhất mở được các ổ đó, và nó *không bao giờ rời máy bạn* — lúc đăng nhập, không có mật khẩu nào chạy qua mạng để bị nghe lén. Mật khẩu thì ngắn, gõ qua mạng, bot đoán cả ngày; key dài tới mức vũ trụ hết tuổi cũng chưa dò xong. Đó là lý do production gần như cấm hẳn mật khẩu.
 
-> 🧠 **Một câu để nhớ:** chỉ chia sẻ file `.pub` (public). Lộ private key = mất chìa khóa nhà → ai cũng vào được server của bạn.
+**`~/.ssh/config` biến bạn thành người quản nhiều server.** Gõ `ssh admin@10.0.3.47 -p 2222 -i ~/.ssh/...` mỗi lần vừa mỏi tay vừa dễ sai. File config cho đặt biệt danh: chỉ cần `ssh web-01`. Nâng một bậc, `ProxyJump` cho phép nhảy qua một máy "bảo vệ" (bastion) để chạm tới server nằm sâu trong mạng riêng — mô hình chuẩn ở gần như mọi công ty. Hiểu config sớm giúp bạn nghĩ về hạ tầng như "một danh bạ server" thay vì một mớ IP rời rạc.
 
 ### 🧪 Lab cơ bản
 
@@ -2128,6 +2173,22 @@ ssh -v user@host
 | **SSH tunnel** (`-L`) | Đường hầm mã hoá tới dịch vụ nội bộ |
 | **known_hosts** | Danh sách host key đã tin tưởng |
 
+### 🎯 Đúc kết Ngày 8
+
+**3 điều phải mang theo:**
+1. SSH = đăng nhập server từ xa qua kênh mã hóa (cổng 22); key an toàn hơn mật khẩu vì không gõ qua mạng.
+2. Chỉ chia sẻ `.pub`; private key giữ kín + quyền `600` (`~/.ssh` = `700`), nếu quá mở SSH sẽ từ chối.
+3. `~/.ssh/config` đặt alias; `ProxyJump`/bastion để vào mạng nội bộ; giữ 1 phiên đang mở khi sửa sshd.
+
+> 🧠 **Một câu để nhớ:** chỉ chia sẻ file `.pub` (public). Lộ private key = mất chìa khóa nhà → ai cũng vào được server của bạn.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Tạo key, `ssh-copy-id`, đăng nhập không cần mật khẩu
+- [ ] Đặt đúng quyền `.ssh` (`700`) và private key (`600`)
+- [ ] Viết block `~/.ssh/config` với alias + `IdentityFile`
+- [ ] Copy file bằng `scp`/`rsync` qua SSH
+- [ ] Debug "không SSH được" bằng `ssh -v` (đọc publickey / refused / timeout)
+
 ✅ **Kết quả đạt được:** Kết nối SSH bằng khoá (không mật khẩu), truyền file an toàn, cấu hình alias & hiểu tunnel — kỹ năng vận hành server thiết yếu.
 
 ---
@@ -2188,23 +2249,13 @@ Sau khi sửa: `sudo sshd -t` (test cú pháp) → `sudo systemctl reload ssh`.
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Vì sao server cần bảo mật ngay từ phút đầu?**
-Một server vừa lên Internet là **bị bot khắp thế giới quét/dò mật khẩu liên tục** (bạn sẽ thấy trong `/var/log/auth.log`). Không bảo mật = sớm muộn bị chiếm. Bảo mật không phải "làm sau" — là việc đầu tiên.
+> Phần 📘 đã có bảng UFW và bảng defense-in-depth. Mục này cho bạn *cách nghĩ* — không nhắc lại bảng.
 
-**Tường lửa (UFW) — người gác cổng.**
-Tường lửa quyết định *cổng nào mở cho ai*. Triết lý đúng là **"đóng hết, chỉ mở cái cần"** (deny-by-default): chỉ mở 22 (SSH), 80/443 (web), còn lại chặn. `sudo ufw allow 22` = "cho phép khách vào cổng 22".
+**"Server vừa lên mạng là đã bị dò".** Một sự thật khiến người mới sốc: chỉ vài phút sau khi có IP public, server của bạn đã bị hàng nghìn bot khắp thế giới thử đăng nhập (mở `/var/log/auth.log` mà xem). Không ai "để ý riêng" tới bạn cả — đó là quét tự động cả ngày lẫn đêm. Nên bảo mật không phải việc "để sau khi xong tính năng"; nó là việc *đầu tiên* khi dựng server, như khóa cửa trước khi ra khỏi nhà chứ không phải sau khi bị trộm.
 
-**Phòng thủ nhiều lớp (defense in depth) — như nhà nhiều ổ khóa:**
-1. Tường lửa (UFW) — chặn cổng không cần.
-2. fail2ban — tự chặn IP đoán mật khẩu sai nhiều lần.
-3. SSH chỉ dùng key, tắt đăng nhập mật khẩu & tắt root.
-4. Cập nhật bảo mật thường xuyên.
-Không lớp nào đủ một mình; nhiều lớp cộng lại mới chắc.
+**Phòng thủ nhiều lớp — vì không lớp nào bất khả xâm phạm.** Đừng đặt niềm tin vào một bức tường duy nhất. Tư duy đúng là *nhiều lớp mỏng chồng lên nhau* (defense in depth): tường lửa lọc cổng → fail2ban chặn kẻ đoán mật khẩu dai dẳng → SSH chỉ nhận key → cập nhật vá lỗ hổng. Kẻ tấn công vượt được một lớp vẫn vấp lớp sau, mà mỗi lớp lại rẻ. Xuyên suốt là hai nguyên tắc: *least privilege* và *deny-by-default* — mặc định đóng/cấm hết, chỉ mở đúng cái cần, thay vì mở hết rồi cố đi bịt.
 
-**Secret (mật khẩu, API key, token) — quy tắc sống còn:**
-**KHÔNG BAO GIỜ** viết secret thẳng trong code rồi đẩy lên Git — lịch sử Git lưu vĩnh viễn, xóa sau vẫn còn. Để secret trong file `.env` và thêm `.env` vào `.gitignore`.
-
-> 🧠 **Một câu để nhớ:** nguyên tắc **least privilege** (đặc quyền tối thiểu) — chỉ mở/cấp đúng cái cần, không hơn. Áp dụng cho cổng, quyền file, quyền user, mọi thứ.
+**Secret một khi lộ là lộ vĩnh viễn.** Nhiều người nghĩ "lỡ commit mật khẩu lên Git thì xóa là xong". Không — Git lưu **toàn bộ lịch sử**, mật khẩu cũ vẫn nằm đó cho bất kỳ ai clone về đào lại. Quy tắc phải thành phản xạ: secret không bao giờ nằm thẳng trong code; để trong `.env` và `.gitignore` ngay *trước* commit đầu tiên. Và nếu lỡ lộ, việc số một không phải "xóa file" mà là **đổi (xoay) secret ngay lập tức**, vì coi như nó đã bị công khai.
 
 ### 🧪 Lab cơ bản
 
@@ -2384,6 +2435,22 @@ git status
 | **Defense in depth** | Phòng thủ nhiều lớp |
 | **CIA** | Confidentiality/Integrity/Availability |
 
+### 🎯 Đúc kết Ngày 9
+
+**3 điều phải mang theo:**
+1. Bảo mật là việc *đầu tiên*: server public bị bot dò ngay; deny-by-default (đóng hết, mở đúng cái cần).
+2. Phòng thủ nhiều lớp: UFW → fail2ban → SSH chỉ key (tắt root & password) → cập nhật tự động.
+3. Secret lộ một lần là vĩnh viễn trong lịch sử Git: `.env` + `.gitignore` từ đầu; lỡ lộ thì **xoay secret ngay**.
+
+> 🧠 **Một câu để nhớ:** nguyên tắc **least privilege** (đặc quyền tối thiểu) — chỉ mở/cấp đúng cái cần, không hơn. Áp dụng cho cổng, quyền file, quyền user, mọi thứ.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Bật UFW an toàn (mở 22 **trước**), deny-by-default, `limit 22/tcp`
+- [ ] Cài & kiểm fail2ban (`fail2ban-client status sshd`)
+- [ ] Hardening sshd (tắt root/password) an toàn: `sshd -t` + giữ phiên đang mở
+- [ ] Chặn secret bằng `.gitignore` và giải thích vì sao lộ là vĩnh viễn
+- [ ] Giải thích CIA, least privilege, defense in depth
+
 ✅ **Kết quả đạt được:** Cấu hình tường lửa deny-by-default, hardening SSH, dùng fail2ban và quản lý secret an toàn — tư duy bảo mật của SysOps.
 
 ---
@@ -2441,22 +2508,13 @@ Cùng **Trace**, đây là **3 trụ cột observability** — bạn sẽ tự �
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Log là gì, vì sao quan trọng?**
-**Log** là "nhật ký" mọi chương trình ghi lại: cái gì xảy ra, lúc nào, lỗi gì. Khi server có vấn đề, log là **nơi đầu tiên** bạn nhìn vào — như đọc hộp đen máy bay sau sự cố. Người mới hay đoán mò; người giỏi *đọc log trước*.
+> Phần 📘 đã có bảng `journalctl` và bảng metric/log. Mục này giúp bạn *nhìn ra bản chất* — không nhắc lại bảng.
 
-**Log nằm ở đâu, xem bằng gì?**
-- File log truyền thống ở `/var/log/` (vd `auth.log` = đăng nhập, `syslog` = hệ thống).
-- Hệ thống hiện đại (systemd) dùng `journalctl`: `journalctl -u nginx` (log dịch vụ nginx), `-f` (real-time, cuộn liên tục), `--since "1 hour ago"` (lọc giờ), `-p err` (chỉ lỗi).
+**Log là "hộp đen": đọc trước, đoán sau.** Khác biệt lớn nhất giữa người mới và người giỏi khi server trục trặc: người mới *đoán* rồi thử lung tung; người giỏi *đọc log trước*. Log là cuốn nhật ký chương trình tự ghi "lúc mấy giờ, làm gì, hỏng ở đâu" — như hộp đen máy bay. Vấn đề không phải thiếu thông tin, mà là *quá nhiều*: một server đẻ ra hàng nghìn dòng mỗi giờ. Nên kỹ năng thật không phải "xem log" mà là "lọc đúng dòng cần": theo dịch vụ (`-u`), theo giờ (`--since`), theo mức độ (`-p err`).
 
-**Load average — 3 con số trong `uptime` nghĩa là gì?**
-Là mức tải trung bình trong 1 / 5 / 15 phút. **Mẹo đọc:** chia cho số nhân CPU (xem bằng `nproc`). Load `4.0` trên máy 4 nhân = bận 100% (bình thường); trên máy 2 nhân = **quá tải** (việc xếp hàng chờ).
+**Load average: con số hay bị hiểu nhầm nhất.** Thấy load `4.0` nhiều người hốt hoảng, nhưng con số đó *vô nghĩa nếu không biết máy mấy nhân*. Load là "số việc đang xếp hàng chờ CPU". `4.0` trên máy 4 nhân = vừa đủ tay (100%, bình thường); `4.0` trên máy 1 nhân = quá tải gấp 4, việc dồn ứ. Mẹo: luôn chia load cho `nproc`. Và ba con số (1/5/15 phút) cho biết xu hướng — đang tăng hay đang hạ nhiệt.
 
-**Metric vs Log — 2 khái niệm khác nhau:**
-- **Metric** = con số đo theo thời gian (CPU 70%, RAM 2GB) — trả lời *"có gì đó sai không?"*.
-- **Log** = dòng văn bản sự kiện — trả lời *"sai cái gì cụ thể?"*.
-Cùng *Trace*, đây là **3 trụ cột observability** bạn sẽ tự động hóa ở Giai đoạn 3 (Prometheus/Grafana/Loki).
-
-> 🧠 **Một câu để nhớ:** đừng để log phình mãi → đầy đĩa → server chết. `logrotate` tự động xoay/nén log cũ giúp tránh điều đó.
+**Metric vs Log — hai câu hỏi khác nhau.** Đây là cặp khái niệm sẽ theo bạn tới tận Prometheus/Grafana ở Giai đoạn 3. **Metric** là con số theo thời gian (CPU 70%, RAM 2GB) — trả lời *"có gì đó sai không?"*, hợp để vẽ đồ thị và đặt cảnh báo. **Log** là dòng chữ sự kiện — trả lời *"sai chính xác cái gì?"*. Metric như đèn báo động trên bảng điều khiển; log như cuốn sổ ghi chi tiết sự cố. Bạn cần cả hai: đèn báo để biết *khi nào* nhìn, sổ chi tiết để biết *nhìn gì*.
 
 ### 🧪 Lab cơ bản
 
@@ -2626,6 +2684,22 @@ uptime; nproc
 | **Observability** | Khả năng quan sát hệ thống (metric+log+trace) |
 | **OOM** | Out Of Memory — hết RAM, tiến trình bị kill |
 
+### 🎯 Đúc kết Ngày 10
+
+**3 điều phải mang theo:**
+1. Sự cố thì **đọc log trước, đoán sau**; lọc bằng `journalctl -u <dv> --since ... -p err`.
+2. Load average phải chia cho `nproc` mới có nghĩa; 3 số = tải 1/5/15 phút (cho biết xu hướng).
+3. Metric ("có sai không?") vs Log ("sai cái gì?") — 2 trong 3 trụ cột observability; `logrotate` để log không làm đầy đĩa.
+
+> 🧠 **Một câu để nhớ:** đừng để log phình mãi → đầy đĩa → server chết. `logrotate` tự động xoay/nén log cũ giúp tránh điều đó.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Lọc log theo dịch vụ/giờ/mức độ (`-u`, `--since`, `-p`)
+- [ ] Xem log kèm ngữ cảnh (`grep -B2 -A2`) và real-time (`-f`)
+- [ ] Đọc đúng load average (chia cho `nproc`)
+- [ ] Phân biệt Metric vs Log và kể 3 trụ cột observability
+- [ ] Giải thích `logrotate` giải quyết vấn đề gì
+
 ✅ **Kết quả đạt được:** Đọc/lọc log có trọng tâm, giám sát tài nguyên, đọc đúng load average và tự động hoá báo cáo sức khoẻ.
 
 ---
@@ -2684,24 +2758,13 @@ mysqldump --single-transaction -u root -p mydb | gzip > mydb.sql.gz   # MySQL
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Vì sao backup là "bảo hiểm" quan trọng nhất của SysOps?**
-Đĩa hỏng, xóa nhầm, ransomware, lỗi con người — dữ liệu mất là **mất thật**. Backup là bản sao để cứu vãn. Nhưng có sự thật phũ phàng: **"backup chưa từng test restore = không có backup"** — đến lúc cần mới phát hiện file backup hỏng/thiếu thì đã muộn.
+> Phần 📘 đã có bảng công cụ và bảng RPO/RTO. Mục này cho bạn *cách nghĩ* — không nhắc lại bảng.
 
-**Nguyên tắc 3-2-1 (chuẩn vàng của backup):**
-- **3** bản sao dữ liệu.
-- **2** loại lưu trữ khác nhau (vd đĩa cứng + cloud).
-- **1** bản **off-site** (ngoài cơ sở — phòng cháy/mất cả tòa nhà).
+**"Backup chưa test restore = KHÔNG có backup".** Đây là câu phũ nhưng đúng nhất nghề. Rất nhiều người "yên tâm" vì cron đang chạy backup mỗi đêm — cho tới ngày cần khôi phục mới phát hiện file rỗng, hỏng, hoặc thiếu thứ quan trọng. Backup không phải mục tiêu; **khôi phục được** mới là mục tiêu. Vì thế bước quan trọng nhất hôm nay không phải tạo ra file `.tar.gz`, mà là *giải nén nó ra và so sánh với bản gốc* (restore drill). Chưa làm bước đó thì bạn chỉ đang *hy vọng* mình có backup.
 
-**Các công cụ bạn sẽ dùng:**
-- `tar -czf backup.tar.gz thư-mục/` = nén thư mục thành 1 file (như nén ZIP); `c`=tạo, `z`=nén, `f`=tên file.
-- `rsync` = đồng bộ thông minh, **chỉ copy phần thay đổi** → backup định kỳ rất nhanh.
-- `sha256sum` = tạo "chữ ký số" để kiểm tra file backup có bị hỏng không.
+**3-2-1 chống lại các kiểu "mất" khác nhau.** Quy tắc 3 bản / 2 loại lưu trữ / 1 off-site nghe hình thức, nhưng mỗi con số chặn một thảm họa riêng: *nhiều bản* chặn "hỏng 1 bản"; *hai loại lưu trữ* chặn "cả dòng thiết bị đó lỗi cùng lúc"; và *bản off-site* chặn thứ đáng sợ nhất — cháy nhà, ngập nước, hay ransomware mã hóa sạch cả mạng nội bộ. Một backup nằm ngay cạnh dữ liệu gốc gần như vô dụng khi cả tòa nhà gặp chuyện.
 
-**RPO & RTO — 2 con số định hình chiến lược:**
-- **RPO** (Recovery Point Objective) = chấp nhận mất tối đa bao nhiêu *dữ liệu*? → quyết định backup *bao lâu một lần*.
-- **RTO** (Recovery Time Objective) = khôi phục xong trong *bao lâu*? → quyết định *cách* phục hồi.
-
-> 🧠 **Một câu để nhớ:** database đang chạy KHÔNG được backup bằng copy file thẳng (ra dữ liệu hỏng) — phải dùng công cụ riêng (`pg_dump`/`mysqldump`). Và luôn **test restore** định kỳ.
+**Vì sao database không copy được như file thường.** Đây là bẫy khiến nhiều người mất dữ liệu thật. File thường đứng yên, copy lúc nào cũng được. Database thì *đang ghi liên tục* — copy file `.db` đang chạy giống như chụp ảnh một người đang chạy: ra tấm hình nhòe, nửa động tác này nửa động tác kia, khôi phục vào là hỏng. Phải dùng công cụ "chụp đúng khoảnh khắc nhất quán": `pg_dump`, `mysqldump --single-transaction`. Song song đó, hai con số RPO (chịu mất bao nhiêu dữ liệu) và RTO (khôi phục trong bao lâu) sẽ quyết định bạn backup dày hay thưa, phục hồi kiểu nhanh hay rẻ.
 
 ### 🧪 Lab cơ bản
 
@@ -2895,6 +2958,22 @@ sha256sum -c b.sha256
 | **Snapshot** | Ảnh chụp tức thời của dữ liệu/hệ thống |
 | **Off-site** | Bản lưu ở địa điểm khác |
 
+### 🎯 Đúc kết Ngày 11
+
+**3 điều phải mang theo:**
+1. "Backup chưa test restore = không có backup" — restore drill (`tar -x` + `diff -r`) là bước quan trọng nhất.
+2. 3-2-1: 3 bản, 2 loại lưu trữ, 1 off-site; mỗi con số chặn một kiểu thảm họa khác nhau.
+3. Database phải dùng `pg_dump`/`mysqldump --single-transaction`, không copy file thẳng; RPO/RTO định hình chiến lược.
+
+> 🧠 **Một câu để nhớ:** database đang chạy KHÔNG được backup bằng copy file thẳng (ra dữ liệu hỏng) — phải dùng công cụ riêng (`pg_dump`/`mysqldump`). Và luôn **test restore** định kỳ.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Tạo backup nén (`tar -czf`) và liệt kê nội dung (`tar -tzf`)
+- [ ] Backup gia tăng bằng `rsync` (hiểu vì sao lần 2 nhanh)
+- [ ] Test restore: giải nén + `diff -r` giống hệt bản gốc
+- [ ] Kiểm toàn vẹn bằng `sha256sum -c`
+- [ ] Giải thích 3-2-1, RPO/RTO, và vì sao DB cần dump riêng
+
 ✅ **Kết quả đạt được:** Quản lý lưu trữ, backup gia tăng, kiểm tra toàn vẹn và **test restore** — trách nhiệm cốt lõi của SysOps.
 
 ---
@@ -2916,19 +2995,13 @@ sha256sum -c b.sha256
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Milestone là gì, làm để được gì?**
-Đây là ngày **ghép tất cả** kiến thức Ngày 1–11 thành 1 sản phẩm thật: biến một server trắng thành server vận hành chuẩn, bằng *script tự động*. Đây là lúc bạn chuyển từ "biết từng lệnh rời rạc" → "làm được việc thật từ đầu đến cuối".
+> Phần 📘 — Tổng kết đã điểm lại mạch kiến thức và checklist. Mục này cho bạn *góc nhìn* về ý nghĩa ngày Milestone — không nhắc lại tổng kết.
 
-**Tư duy SysOps gói trong 4 chữ:**
-- **Ổn định** — dịch vụ chạy 24/7, tự lên lại sau reboot (`systemctl enable`).
-- **Bảo mật** — firewall, SSH key, không root (Ngày 9).
-- **Tự động hóa** — script + cron thay cho thao tác tay (Ngày 5–6).
-- **Khôi phục được** — có backup + test restore (Ngày 11).
+**Milestone là bài kiểm tra "làm được việc", không phải "nhớ lệnh".** Suốt 11 ngày bạn học từng mảnh rời — điều hướng, tiến trình, quyền, script, mạng, SSH, bảo mật, log, backup. Hôm nay ghép tất cả để biến một server *trắng* thành server vận hành chuẩn, chỉ bằng script chạy tự động. Nhà tuyển dụng không hỏi "bạn nhớ bao nhiêu lệnh"; họ hỏi "đưa bạn một máy trắng, bạn dựng nổi một dịch vụ an toàn, tự phục hồi, có backup không?". Đó đúng là bài hôm nay.
 
-**"Idempotent" — từ khóa quan trọng bạn sẽ gặp mãi:**
-Nghĩa là **chạy script nhiều lần vẫn an toàn, ra cùng kết quả**. Ví dụ: trước khi tạo user, kiểm tra "đã có chưa", có rồi thì bỏ qua. Script idempotent chạy lần 2 không báo lỗi, không phá thứ đã đúng. Đây là nền tảng tư duy của Infrastructure as Code (Terraform/Ansible) sau này.
+**"Idempotent" — từ khóa sẽ theo bạn tới Terraform/Ansible.** Một script setup tốt phải chạy *lần thứ hai, thứ mười* vẫn an toàn: đã có user thì bỏ qua, đã cài nginx thì thôi, không báo lỗi, không phá thứ đang đúng. Tính chất đó gọi là *idempotent*, và mẹo thực hiện là luôn "kiểm tra trước khi tạo" (`id deploy || adduser ...`). Đây không phải chi tiết vụn vặt — nó chính là tư duy nền của Infrastructure as Code ở các giai đoạn sau, nơi bạn *mô tả trạng thái mong muốn* thay vì ra lệnh từng bước.
 
-> 🧠 **Một câu để nhớ:** bước nhảy lớn nhất ở đây là từ *"gõ lệnh thủ công"* → *"mô tả cả server bằng 1 file script chạy lại được"*. Đó chính là hạt giống của DevOps.
+**Bước nhảy tư duy lớn nhất của cả giai đoạn.** Nếu chỉ mang một thứ ra khỏi Giai đoạn 1, hãy mang điều này: khoảng cách giữa "gõ lệnh thủ công trên một máy" và "mô tả cả server bằng một file script chạy lại được" chính là ranh giới giữa SysOps truyền thống và DevOps. Ngày bạn ngừng "sửa tay trên server" và bắt đầu "sửa file rồi chạy lại", bạn đã đặt chân vào thế giới tự động hóa — mọi công cụ ở Giai đoạn 2–4 (Git, Docker, Terraform, Ansible) chỉ là mở rộng của hạt giống này.
 
 ### 🧪 Lab cơ bản (Milestone)
 
@@ -3051,6 +3124,22 @@ flowchart TD
 | **Infrastructure as Code** | Mô tả hạ tầng bằng file/code (hạt giống từ script hôm nay) |
 | **Least privilege** | Cấp quyền tối thiểu đủ dùng |
 | **Milestone** | Mốc tổng hợp, ghép nhiều kỹ năng thành sản phẩm |
+
+### 🎯 Đúc kết Ngày 12 — Tổng kết Giai đoạn 1
+
+**3 điều phải mang theo (cho cả GĐ1):**
+1. Tư duy SysOps gói trong 4 trụ: **ổn định · bảo mật · tự động hóa · khôi phục được** — mọi việc hằng ngày đều quy về 4 chữ này.
+2. **Idempotent** = chạy lại vẫn an toàn (kiểm tra trước khi tạo) — cầu nối từ script tay sang Infrastructure as Code.
+3. Bước nhảy DevOps: ngừng "sửa tay trên server", bắt đầu "mô tả server bằng 1 file chạy lại được".
+
+> 🧠 **Một câu để nhớ:** bước nhảy lớn nhất ở đây là từ *"gõ lệnh thủ công"* → *"mô tả cả server bằng 1 file script chạy lại được"*. Đó chính là hạt giống của DevOps.
+
+**✅ Tự chấm — năng lực chốt Giai đoạn 1** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Dựng server trắng → vận hành chuẩn bằng 1 script **idempotent** (mở đầu `set -euo pipefail`)
+- [ ] Hardening: user không-root + SSH key, tắt root/password, UFW deny-by-default, fail2ban
+- [ ] Dịch vụ `enable --now`; health-check + backup theo cron; logrotate
+- [ ] Backup có **test restore** + checksum; không secret trong Git
+- [ ] Debug theo hệ thống: quan sát → khoanh vùng → đọc log → sửa → xác minh
 
 ✅ **Kết quả đạt được — MỐC 1 HOÀN THÀNH:** Làm chủ nền tảng Linux/SysOps, có repo automation đầu tiên, biết biến server trắng thành server vận hành chuẩn.
 
