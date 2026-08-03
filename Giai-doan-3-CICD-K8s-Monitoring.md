@@ -93,20 +93,13 @@ flowchart TB
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**CI/CD là gì? — "robot làm thay việc lặp lại".**
-Nhớ "nỗi đau deploy tay" ở Ngày 28? CI/CD là robot làm những việc đó tự động mỗi khi bạn push code:
-- **CI** (Continuous Integration) = mỗi lần push, robot tự *kiểm tra + đóng gói* code (chạy test, build) → bắt lỗi sớm.
-- **CD** (Continuous Delivery/Deployment) = sau khi kiểm tra xong, robot tự *đưa lên server*.
+> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
 
-**GitHub Actions — robot có sẵn trong GitHub.**
-Bạn chỉ cần đặt 1 file YAML vào thư mục `.github/workflows/`. GitHub tự đọc và chạy mỗi khi có sự kiện (push, mở PR). Không cần cài server CI riêng.
+**Từ "thợ thủ công" sang "dây chuyền nhà máy".** Trước CI/CD, mỗi lần ra bản mới giống một người thợ tự tay làm lại từng công đoạn: kiểm code, đóng gói, mang lên server — mệt, dễ quên bước, và mỗi người làm một kiểu. CI/CD là **dây chuyền tự động**: bạn lắp băng chuyền một lần, sau đó cứ có "nguyên liệu" (một commit mới) đưa vào là máy chạy hết các công đoạn **giống hệt nhau, mọi lúc**. Sức mạnh không nằm ở tốc độ, mà ở chỗ *lặp lại chính xác* — thứ con người luôn làm hỏng khi mệt.
 
-**3 tầng khái niệm (đọc từ trên xuống):**
-- **Workflow** = cả quy trình (1 file YAML).
-- **Job** = một nhóm công việc, chạy trên 1 "máy ảo sạch" (runner). Nhiều job chạy **song song** mặc định.
-- **Step** = từng bước nhỏ trong job, chạy **tuần tự** (vd: tải code → cài Node → chạy test).
+**CI và CD là hai nửa của dây chuyền đó.** CI là **trạm kiểm định** — mỗi commit phải qua build + test + lint, không đạt thì băng chuyền dừng, hàng lỗi không đi tiếp. CD là **khâu đóng gói + giao hàng** — hàng đã đạt mới được đưa lên staging/production. Tách bạch hai nửa giúp bạn trả lời hai câu khác nhau: *"code có ổn không?"* (CI) và *"đưa nó đi đâu?"* (CD).
 
-> 🧠 **Một câu để nhớ:** token/mật khẩu trong pipeline phải để trong **GitHub Secrets** (được che `***` trong log), KHÔNG viết thẳng YAML — vì YAML nằm trong repo, commit = lộ.
+**Vì sao "runner sạch mỗi lần" mới là điều đáng nhớ nhất.** Mỗi job chạy trên một máy ảo mới tinh rồi bị xoá — nghĩa là pipeline không thể "ăn may" nhờ thứ gì đó vô tình cài sẵn trên máy bạn. Nếu nó chạy xanh trên runner, nó sẽ chạy được ở bất kỳ đâu. Đây chính là lý do CI diệt tận gốc câu kinh điển *"trên máy tôi vẫn chạy mà"*.
 
 ### 🧪 Lab cơ bản
 
@@ -170,15 +163,13 @@ Xem log → giá trị hiện `***` (bị che).
 3. **Quyền tối thiểu cho token:** thêm `permissions: { contents: read }` ở đầu workflow.
 4. **Trigger đúng:** PR chạy test, push main mới deploy — không deploy mỗi lần push nhánh.
 
-### 💡 Bổ sung thực tế: vì sao CI/CD là kỹ năng "định danh" của DevOps
+### 💡 Bổ sung thực tế: những cái đi làm mới thấm
 
-- **CI/CD trả lời 5 điểm yếu của deploy thủ công** (Ngày 28): lặp lại được, dấu vết đầy đủ (mỗi run có log), không phụ thuộc 1 người, rollback bằng re-run, ít sai vì máy làm.
-- **Quan hệ workflow → job → step:**
-  - **Workflow** = cả quy trình (1 file YAML).
-  - **Job** = nhóm bước chạy trên 1 runner; các job **chạy song song** mặc định (dùng `needs:` để xếp thứ tự).
-  - **Step** = 1 lệnh/action, chạy tuần tự trong job.
-- **GitHub Secrets vs biến thường:** secret được **che trong log** (hiện `***`), không lộ ra. Token/key luôn dùng secret, không bao giờ viết thẳng YAML (commit = lộ vĩnh viễn).
-- **Runner:** GitHub cấp runner sẵn (ubuntu/windows/macos) — sạch mỗi lần chạy. Khi cần môi trường riêng/mạnh hơn → self-hosted runner.
+- **PR từ fork KHÔNG thấy secrets:** vì lý do bảo mật, workflow chạy trên PR đến từ một fork lạ không được cấp secrets (tránh kẻ xấu mở PR chỉ để `echo` trộm token). Đây là lý do nhiều dự án mã nguồn mở tách các job cần secret ra khỏi CI của PR. (`pull_request_target` cấp lại secrets nhưng là "con dao hai lưỡi" — dễ thành lỗ hổng, đừng dùng khi chưa hiểu kỹ.)
+- **`concurrency` chống chạy chồng:** push liên tiếp vào cùng một nhánh/PR thì mặc định *mọi* run đều chạy → tốn phút runner và có thể deploy đè lên nhau. Đặt `concurrency: { group: '${{ github.ref }}', cancel-in-progress: true }` để chỉ giữ run mới nhất.
+- **Siết `permissions:` của `GITHUB_TOKEN`:** token này mạnh hơn bạn tưởng. Khai báo `permissions: { contents: read }` ở đầu workflow rồi nới thêm đúng thứ cần (vd `packages: write` khi push image) — giảm thiệt hại nếu một action bị chèn mã độc.
+- **Đừng copy-paste YAML giữa nhiều repo:** khi 5–10 repo cùng một pipeline, tách thành **reusable workflow** (`workflow_call`) hoặc **composite action** để sửa một chỗ áp dụng mọi nơi — y hệt tư duy "đừng lặp code".
+- **Log che secret không phải bùa hộ mệnh:** Actions tự thay secret bằng `***`, nhưng nếu bạn *biến đổi* secret rồi mới in (base64, cắt chuỗi) thì phần đã biến đổi KHÔNG được che → vẫn lộ. Nguyên tắc: không bao giờ in secret ra log, kể cả khi nghĩ đã "mã hoá nhẹ".
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -256,6 +247,22 @@ Xem log → giá trị hiện `***` (bị che).
 | **Secret** | Biến bí mật được che trong log |
 | **Pipeline** | Chuỗi bước tự động hoá |
 
+### 🎯 Đúc kết Ngày 31
+
+**3 điều phải mang theo:**
+1. **CI = tự kiểm mỗi push** (build + test + lint, bắt lỗi sớm); **CD = tự đưa bản đã đạt lên server.** Tách rõ "code có ổn không" khỏi "đưa đi đâu".
+2. **Cấu trúc Workflow → Job → Step:** job chạy trên runner *sạch mỗi lần* và **song song** mặc định (dùng `needs:` để xếp thứ tự); step chạy **tuần tự** trong job.
+3. **Pipeline cũng là bề mặt tấn công:** ghim action theo phiên bản/SHA (đừng `@main`) và siết `permissions:` tối thiểu.
+
+> 🧠 **Một câu để nhớ:** token/mật khẩu phải để trong **GitHub Secrets** (che `***` trong log), KHÔNG viết thẳng YAML — YAML nằm trong repo, commit = lộ vĩnh viễn.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
+- [ ] Tạo được `.github/workflows/ci.yml` chạy xanh khi push
+- [ ] Giải thích Workflow / Job / Step và vì sao runner "sạch mỗi lần"
+- [ ] Dùng `${{ secrets.X }}` và nói được vì sao không viết token thẳng YAML
+- [ ] Ghim action `@v7`/SHA và đặt `permissions:` tối thiểu
+- [ ] Phân biệt CI (chạy mọi PR) vs CD (chỉ khi merge main)
+
 ✅ **Kết quả đạt được:** Hiểu CI/CD, tạo được pipeline GitHub Actions đầu tiên và biết dùng Secret an toàn.
 
 ---
@@ -299,18 +306,13 @@ File kết quả (bản build, test report) được **lưu lại** để tải 
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Một pipeline CI điển hình làm gì?**
-Chuỗi bước tự động chạy mỗi khi push: `cài thư viện → lint (kiểm tra style code) → test (chạy unit test) → build (đóng gói)`. Bất kỳ bước nào fail → pipeline dừng, báo đỏ, **chặn merge**.
+> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
 
-**Vài khái niệm tăng tốc & chất lượng:**
-- **Matrix** = chạy test trên **nhiều phiên bản** cùng lúc (vd Node 18 và 20) để chắc code chạy được khắp nơi.
-- **Cache** = nhớ lại thư viện đã tải → lần sau không tải lại → pipeline nhanh hơn nhiều.
-- **Artifact** = file kết quả (bản build, báo cáo) được lưu lại để tải về hoặc cho job sau dùng.
+**Pipeline như nhiều lớp lưới lọc dần.** Hình dung code lỗi rơi qua một loạt lưới: `lint` là lưới thô — bắt lỗi style, biến thừa, cú pháp; rẻ và nhanh. `test` là lưới mịn — bắt lỗi logic. `build` là lưới cuối — chắc rằng code còn ghép lại thành bản chạy được. Mẹo là **xếp lớp rẻ-nhanh lên trước**: một lỗi thụt lề bị lint chặn trong 5 giây thì không đáng để chạy cả bộ test 8 phút mới phát hiện. Thứ tự các bước không phải ngẫu nhiên — nó là kinh tế học của thời gian.
 
-**Branch protection — "hàng rào chất lượng".**
-Bật cho nhánh `main`: bắt buộc CI xanh + có người review mới được merge. Không có nó, CI chỉ là trang trí — người ta vẫn merge code lỗi vào.
+**Matrix — thử món ăn trên nhiều loại bếp.** Ngày 31 đã lo chuyện "trên máy tôi vẫn chạy" bằng runner sạch. Matrix giải một nỗi lo khác: *"tôi viết trên Node 20, nhưng khách chạy Node 18 thì sao?"* Nó nấu cùng một công thức trên nhiều bếp (phiên bản/OS) **song song**, để bạn biết ngay món có chín đều ở mọi nơi hay không — thay vì đợi khách phàn nàn.
 
-> 🧠 **Một câu để nhớ:** mục tiêu là pipeline **dưới 10 phút**. Pipeline chậm → dev ngại push → gom nhiều thay đổi → khó tìm lỗi. Tăng tốc bằng cache + chạy job song song.
+**Branch protection biến CI từ "trang trí" thành "điều kiện".** CI mà không có branch protection giống như lắp camera an ninh nhưng vẫn để cửa mở — bạn *thấy* code đỏ nhưng vẫn merge được. Bật branch protection cho `main` là hành động biến kết quả CI thành **rào bắt buộc**: chưa xanh, chưa có review thì nút merge khoá cứng. Đây mới là thứ khiến "chất lượng" không phụ thuộc vào việc ai đó có nhớ nhìn CI hay không.
 
 ### 🧪 Lab cơ bản
 
@@ -366,12 +368,13 @@ jobs:
    ```
 4. **Báo cáo coverage + chặn merge** nếu coverage giảm; thêm status badge vào README.
 
-### 💡 Bổ sung thực tế: pipeline nhanh = team hạnh phúc
+### 💡 Bổ sung thực tế: những cái đi làm mới thấm
 
-- **Pipeline chậm giết năng suất:** CI 30 phút = dev ngại push, batch nhiều thay đổi, khó tìm lỗi. Mục tiêu CI **dưới 10 phút**. Cách tăng tốc: cache, song song hóa job, chỉ test phần thay đổi.
-- **Fail fast vs chạy hết:** mặc định 1 step lỗi → dừng job (tiết kiệm). Nhưng đôi khi muốn xem **tất cả** lỗi cùng lúc → `continue-on-error` hoặc `fail-fast: false` trong matrix.
-- **Artifact dùng để:** chuyển file giữa job (build job → deploy job), lưu test report/screenshot khi fail để debug, phát hành binary.
-- **Branch protection là "hàng rào chất lượng":** không có nó, CI chỉ là trang trí — người ta vẫn merge code lỗi. Bắt buộc: CI pass + ít nhất 1 review + nhánh up-to-date.
+- **Flaky test — kẻ giết niềm tin vào CI:** test lúc xanh lúc đỏ (do chờ theo thời gian, phụ thuộc thứ tự chạy, dùng chung port/DB) khiến dev quen tay bấm "re-run cho tới khi xanh" — và thế là CI mất hẳn vai trò gác cổng. Gặp flaky phải cô lập & sửa (hoặc tạm cách ly), đừng để tích tụ đến mức cả team hết tin CI.
+- **Cache có thể "ôi thiu":** nếu key cache không đổi theo lockfile, một lần đổi dependency vẫn có thể xài cache cũ → build/test **xanh giả**. Với cache tự dựng, hãy gắn hash của `package-lock.json`/`go.sum`… vào key để nó invalidate đúng lúc (`cache: 'npm'` của `setup-node` đã tự làm việc này).
+- **Tách tầng test theo tốc độ:** unit test (giây) chạy mọi PR; integration/e2e (phút) tốn kém → chạy trước khi merge hoặc theo lịch nightly, không nhất thiết mọi commit. Bắt e2e chạy mọi push là cách nhanh nhất đẩy pipeline vượt 10 phút.
+- **Bẫy tên trong required status checks:** branch protection ghim theo **tên job**. Đổi tên job mà quên cập nhật rule → check "bắt buộc" cũ không bao giờ báo về → PR kẹt mãi (hoặc quy tắc âm thầm vô hiệu). Đổi tên job thì luôn sửa lại rule.
+- **`--if-present` tiện nhưng có mặt trái:** `npm test --if-present` không làm đỏ pipeline khi repo chưa có script đó — hợp cho workflow dùng chung. Nhưng ở repo *phải* có test, một lỗi gõ tên script khiến test âm thầm biến mất mà pipeline vẫn xanh. Repo thật nên yêu cầu test tồn tại thực sự.
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -449,6 +452,22 @@ jobs:
 | **Status check** | Kết quả CI gắn vào PR |
 | **Branch protection** | Quy tắc bảo vệ nhánh chính |
 
+### 🎯 Đúc kết Ngày 32
+
+**3 điều phải mang theo:**
+1. **Pipeline = nhiều lớp lọc:** xếp lớp rẻ-nhanh (lint) trước lớp đắt (test → build) để chặn lỗi vặt sớm, tiết kiệm thời gian.
+2. **Matrix + cache là cặp đôi cốt lõi:** matrix phủ rộng (nhiều phiên bản/OS song song), cache tăng tốc (nhớ dependency đã tải).
+3. **Branch protection biến CI thành điều kiện bắt buộc** — không có nó, CI chỉ là trang trí và người ta vẫn merge code đỏ.
+
+> 🧠 **Một câu để nhớ:** mục tiêu là pipeline **dưới 10 phút** — chậm thì dev ngại push, gom nhiều thay đổi, khó tìm lỗi. Tăng tốc bằng cache + song song hoá job.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
+- [ ] Viết được workflow lint → test → build có matrix + cache + artifact
+- [ ] Giải thích matrix build hữu ích khi nào
+- [ ] Nói được cache tăng tốc thế nào và bẫy cache "ôi thiu"
+- [ ] Bật branch protection để chặn merge khi CI đỏ
+- [ ] Nhận diện flaky test và biết vì sao không nên "re-run cho tới khi xanh"
+
 ✅ **Kết quả đạt được:** Xây dựng CI pipeline hoàn chỉnh — lint + test + build + matrix + cache + bảo vệ nhánh.
 
 ---
@@ -493,17 +512,13 @@ Mỗi khi merge vào `main` → pipeline tự **build Docker image** và **push 
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Mục tiêu hôm nay: mỗi lần merge → tự đóng gói thành Docker image và đẩy lên kho.**
-"Kho" (registry) là nơi lưu image để server kéo về chạy — như Docker Hub, hoặc GitHub Container Registry (`ghcr.io`). Pipeline tự: build image → đăng nhập registry → push lên.
+> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
 
-**Tại sao gắn tag theo "commit SHA" thay vì `latest`?**
-- `latest` = "bản mới nhất" — nhưng *mới nhất lúc nào?* Không ai biết server đang chạy phiên bản nào → không rollback đúng được.
-- **commit SHA** (vd `myapp:a1b2c3d`) = mã định danh duy nhất của đúng commit đó. Thấy tag là biết ngay code nào, ai viết. Truy vết hoàn hảo.
+**Registry là "kho trung chuyển" giữa CI và server.** Vì sao không để pipeline SSH thẳng vào từng server rồi build tại chỗ? Vì như thế mỗi server phải tự cài compiler, tự tải dependency — chậm, bẩn, mỗi máy một kiểu. Thay vào đó CI **build đúng một lần**, đẩy image thành phẩm vào kho (registry), rồi *bất kỳ* server nào cũng chỉ việc kéo về chạy. Một nơi đóng gói, nhiều nơi dùng — đây là tinh thần "build once, run anywhere" của Docker áp vào quy trình tự động.
 
-**`GITHUB_TOKEN` — token tự sinh, an toàn.**
-Để push lên `ghcr.io`, GitHub tự cấp 1 token tạm cho mỗi lần chạy (hết hạn ngay sau đó, quyền giới hạn theo repo) → an toàn hơn token cá nhân nhiều.
+**Tag SHA giống số lô in trên hộp thuốc.** `latest` như dòng nhãn "hàng mới về" — tiện đọc, nhưng khi có sự cố cần thu hồi, bạn không biết đang thu hồi *lô nào*. Tag theo commit SHA (`myapp:a1b2c3d`) là **số lô sản xuất** đóng cứng lên từng hộp: nhìn tag là truy được đúng commit, đúng người viết, đúng PR. Khi 3 giờ sáng production cháy, thứ bạn cần là số lô, không phải chữ "mới nhất".
 
-> 🧠 **Một câu để nhớ:** ở production, **luôn deploy theo tag bất biến** (SHA/version), không bao giờ `latest`. Đây là nền tảng để rollback chính xác.
+**Vì sao image bất biến mới khiến rollback thành chuyện nhẹ nhàng.** Một image đã build là "đóng băng" — cùng tag SHA thì mãi mãi cho ra đúng bản đó, không đổi. Nhờ vậy rollback không phải là *sửa* gì cả, chỉ là **chỉ server về tag cũ** rồi khởi động lại. Chính sự bất biến này biến một sự cố đáng sợ thành một thao tác một dòng.
 
 ### 🧪 Lab cơ bản
 
@@ -535,12 +550,13 @@ Mỗi khi merge vào `main` → pipeline tự **build Docker image** và **push 
 3. **Tag theo SHA + semver** để mỗi deploy truy về đúng commit.
 4. **Quét image bằng Trivy** ngay trong pipeline trước khi push (xem Ngày 49).
 
-### 💡 Bổ sung thực tế: vì sao KHÔNG dùng `latest` để deploy
+### 💡 Bổ sung thực tế: những cái đi làm mới thấm
 
-- **`latest` là cái bẫy ở production:** "máy nào pull lúc nào ra phiên bản đó" → không ai biết chính xác đang chạy gì, không rollback chính xác được. → Luôn deploy theo **tag bất biến** (SHA/semver).
-- **Tag theo commit SHA = truy vết hoàn hảo:** thấy `myapp:a1b2c3d` → biết ngay commit nào, ai viết, PR nào. Khi sự cố, đây là vàng.
-- **`GITHUB_TOKEN` vs Personal Access Token:** `GITHUB_TOKEN` tự sinh mỗi run, hết hạn sau run, quyền giới hạn theo repo — an toàn hơn PAT cá nhân nhiều. Ưu tiên dùng nó.
-- **Cache layer trong CI** (`type=gha`) — không có cache, mỗi build cài lại từ đầu, rất chậm. Cache đúng = build vài giây thay vì vài phút.
+- **Thực tế gắn CẢ hai loại tag:** production thường push đồng thời một tag bất biến (SHA/semver) *và* một tag di động (`latest`/`main`). Con người liếc `latest` cho tiện, nhưng **deploy và rollback luôn trỏ tag bất biến**. `latest` không xấu — chỉ là đừng dùng nó làm cái để deploy.
+- **Tag vẫn có thể bị đẩy đè — digest thì không:** một tag SHA về nguyên tắc vẫn có thể bị push đè nội dung khác. Muốn bất biến *tuyệt đối*, deploy theo **digest** `image@sha256:...` — đây là thứ các hệ bảo mật cao và cả ArgoCD (Ngày 43) ưa dùng.
+- **Registry phình rất nhanh → phải dọn rác:** mỗi commit một image, chỉ vài tuần là kho đầy và tốn tiền lưu trữ. Đặt **retention policy** (xoá image cũ/không còn tag) hoặc dọn định kỳ; đừng để "kho" thành bãi rác.
+- **Thứ tự layer quyết định cache có tác dụng hay không:** trong Dockerfile, đặt bước *ít thay đổi* (cài dependency) TRƯỚC bước *hay thay đổi* (copy source). Đảo lại thì mỗi lần sửa 1 dòng code cũng phải cài lại toàn bộ dependency — cache layer gần như vô dụng.
+- **Quét image *trước* khi push, không phải sau:** gắn Trivy (Ngày 49) vào pipeline để chặn image có lỗ hổng nghiêm trọng ngay trước khi nó lên registry — rẻ hơn nhiều so với đi gỡ một image độc đã phát tán khắp các server.
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -617,6 +633,22 @@ Mỗi khi merge vào `main` → pipeline tự **build Docker image** và **push 
 | **Layer cache** | Cache tầng image trong CI |
 | **buildx** | Build đa nền tảng (amd64/arm64) |
 
+### 🎯 Đúc kết Ngày 33
+
+**3 điều phải mang theo:**
+1. **Registry = kho trung chuyển:** CI build một lần, đẩy image lên kho, mọi server kéo về — không build lại trên từng máy.
+2. **Deploy theo tag SHA, không theo `latest`:** truy vết & rollback chính xác đến từng commit; muốn bất biến tuyệt đối thì dùng **digest** `@sha256:...`.
+3. **`GITHUB_TOKEN` an toàn hơn PAT:** tự sinh mỗi run, hết hạn ngay sau run, quyền giới hạn theo repo.
+
+> 🧠 **Một câu để nhớ:** ở production, **luôn deploy theo tag bất biến** (SHA/version), không bao giờ `latest`. Đây là nền tảng để rollback chính xác.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
+- [ ] Viết được workflow build + push image lên GHCR bằng `GITHUB_TOKEN`
+- [ ] Giải thích vì sao deploy bằng SHA thay vì `latest`
+- [ ] Phân biệt tag bất biến, tag di động (`latest`) và digest
+- [ ] Bật cache layer (`type=gha`) và biết thứ tự layer ảnh hưởng cache thế nào
+- [ ] Chỉ build + push khi ở nhánh main (`if: github.ref == ...`)
+
 ✅ **Kết quả đạt được:** Tự động build và đẩy Docker image (tag SHA) lên registry mỗi lần merge.
 
 ---
@@ -663,20 +695,13 @@ Lưu **SSH private key + host** trong GitHub Secrets, dùng action SSH (vd `appl
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Bước cuối: tự động đưa image lên server.**
-Sau khi image đã ở registry, pipeline tự SSH vào server, kéo image mới, chạy lại container. Giờ bạn chỉ cần `git push` → vài phút sau app cập nhật trên production, **không động tay**.
+> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
 
-**Continuous Delivery vs Deployment — khác 1 chữ nhưng quan trọng:**
-- **Delivery** = tự động đến *sát* production, nhưng cần 1 người **bấm nút duyệt** mới lên.
-- **Deployment** = tự động hoàn toàn, không cần duyệt.
-→ Thực tế: **staging** tự động hoàn toàn (nhanh); **production** nên có bước **approval** (đặc biệt giờ cao điểm).
+**Đây là vòng cuối của cuộc chạy tiếp sức.** Ngày 33 đưa image vào kho; hôm nay là mắt xích cuối — lấy image từ kho, đưa vào chạy trên server. Khi mắt xích này khớp, `git push` không còn là "gửi code" nữa mà là **kích hoạt cả dây chuyền**: test → build → push → deploy, vài phút sau app tự cập nhật mà bạn không chạm tay vào server. Cảm giác "sửa một dòng, đi pha cà phê, quay lại thấy nó đã live" chính là lúc DevOps bắt đầu đáng giá.
 
-**Rollback — kế hoạch khi deploy hỏng.**
-Quy tắc: **rollback trước, điều tra sau**. Vì deploy theo tag bất biến (Ngày 33), rollback chỉ là "chạy lại deploy với tag cũ" — nhanh hơn cuống cuồng sửa.
+**Delivery vs Deployment = cửa tự động vs cửa có người gác.** Cả hai đều tự động đến sát production; khác nhau ở khoảnh khắc cuối. **Deployment** (staging) là cửa cảm ứng — cứ đến là mở, nhanh gọn. **Delivery** (production) là cửa có bảo vệ gật đầu mới cho qua. Bước approval đó *không phải* vì nghi máy làm sai, mà vì con người muốn một giây "chắc chưa" trước khi chạm tới khách thật — nhất là giữa giờ cao điểm.
 
-**3 chiến lược deploy nâng cao:** Rolling (thay dần — mặc định), Blue-Green (dựng môi trường mới song song rồi gạt công tắc), Canary (cho 10% user thử trước, ổn mới mở rộng).
-
-> 🧠 **Một câu để nhớ:** lưu SSH key/secret deploy trong **GitHub Secrets**, dùng key riêng quyền tối thiểu cho deploy — không dùng key cá nhân full quyền.
+**Deploy mà không health check là thả hàng xuống rồi quay đi.** Bạn không biết kiện hàng có nguyên vẹn không cho tới khi khách mở ra than phiền. Health check là cú "gọi điện xác nhận đã nhận hàng, hàng còn tốt": sau `up -d`, pipeline tự `curl /health`; fail thì **rollback trước, điều tra sau**. Vì image bất biến (Ngày 33), rollback chỉ là chỉ về tag cũ — nhanh hơn nhiều so với cuống cuồng vá tại chỗ.
 
 ### 🧪 Lab cơ bản
 
@@ -700,17 +725,13 @@ Quy tắc: **rollback trước, điều tra sau**. Vì deploy theo tag bất bi�
 3. **Deploy key least privilege:** SSH key riêng cho deploy, chỉ quyền cần thiết, không phải key cá nhân full quyền.
 4. **Tách staging/production:** merge vào `develop` → deploy staging tự động; tag release → deploy production (có approval).
 
-### 💡 Bổ sung thực tế: chiến lược deploy & vì sao cần approval
+### 💡 Bổ sung thực tế: những cái đi làm mới thấm
 
-- **Luồng CD đầy đủ:** `git push → CI test → build image → push registry → deploy server → health check → (fail? rollback)`.
-- **Vì sao production cần approval:** CD lên staging nên tự động hoàn toàn (nhanh, an toàn). Nhưng production ảnh hưởng người dùng thật → cần 1 người nhìn lại, đặc biệt giờ cao điểm. Đây là **Continuous Delivery** (sẵn sàng deploy, bấm nút) vs **Continuous Deployment** (tự động hoàn toàn).
-- **Các chiến lược deploy nâng cao** (sẽ gặp lại ở K8s):
-  | Chiến lược | Cách làm |
-  |---|---|
-  | **Rolling** | thay dần từng instance — mặc định, đơn giản |
-  | **Blue-Green** | 2 môi trường, switch traffic tức thì, rollback nhanh |
-  | **Canary** | đẩy cho % nhỏ user trước, theo dõi rồi mở rộng |
-- **Rollback phải nhanh hơn fix:** khi production lỗi, **rollback trước, điều tra sau**. Deploy theo tag bất biến giúp rollback = chạy lại deploy với tag cũ.
+- **Rollback code dễ, rollback DB mới khó:** đổi lại image chỉ là một dòng, nhưng nếu bản mới đã *migrate* schema DB thì quay về code cũ có thể vỡ. Quy tắc production: viết migration **tương thích ngược** (expand/contract — thêm cột/bảng trước, xoá sau), để rollback code không kéo theo rollback dữ liệu.
+- **`docker compose up -d` một bản = có khoảng chết:** container cũ dừng trước khi container mới sẵn sàng → vài giây trả 502. Muốn *thật sự* zero-downtime cần chạy song song ≥2 bản sau một load balancer rồi chuyển dần — và đây là một lý do lớn để lên Kubernetes (Ngày 37).
+- **Deploy bằng SSH không "lớn" nổi:** 1 server thì gọn, nhưng 20 server SSH tuần tự rất mong manh (một máy timeout là kẹt cả mẻ). Quy mô lớn cần orchestrator (K8s) hoặc mô hình **pull** — agent trên server tự kéo bản mới về, như GitOps (Ngày 43).
+- **Health check nên hơn "process còn sống":** `curl /health` chỉ nói app *khởi động* được. Nên thêm smoke test vài endpoint thật và **theo dõi tỉ lệ lỗi/độ trễ vài phút sau deploy** trước khi coi là thành công — nhiều sự cố chỉ lộ khi có traffic thật.
+- **Xoay (rotate) deploy key định kỳ:** SSH deploy key nằm trong Secrets vẫn nên đổi định kỳ và thu hồi ngay khi nghi lộ — một key deploy lộ nghĩa là kẻ xấu vào được mọi server nó chạm tới.
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -788,6 +809,22 @@ Quy tắc: **rollback trước, điều tra sau**. Vì deploy theo tag bất bi�
 | **Environment (GitHub)** | Môi trường có quy tắc duyệt |
 | **Zero-downtime** | Triển khai không gián đoạn |
 
+### 🎯 Đúc kết Ngày 34
+
+**3 điều phải mang theo:**
+1. **Mắt xích cuối:** image ở kho → SSH vào server → pull → `up -d` → app live. Từ đây `git push` kéo cả chuỗi tự chạy đến production.
+2. **Delivery (có người duyệt — production) vs Deployment (tự động hoàn toàn — staging):** production nên có bước **approval**, đặc biệt giờ cao điểm.
+3. **Health check + rollback:** deploy phải tự kiểm tra sức khoẻ; fail thì rollback. Nguyên tắc: **rollback trước, điều tra sau**.
+
+> 🧠 **Một câu để nhớ:** lưu SSH key/secret deploy trong **GitHub Secrets**, dùng deploy key riêng quyền tối thiểu — không dùng key cá nhân full quyền.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
+- [ ] Thêm được job deploy SSH: pull image + `docker compose up -d`
+- [ ] Phân biệt Continuous Delivery vs Deployment và biết khi nào cần approval
+- [ ] Cấu hình health check sau deploy, fail thì rollback tự động
+- [ ] Rollback về tag SHA cũ khi bản mới lỗi
+- [ ] Kể được Rolling / Blue-Green / Canary khác nhau ở đâu
+
 ✅ **Kết quả đạt được:** Hoàn chỉnh pipeline CI/CD end-to-end — push code là tự động lên server, có health check & rollback.
 
 ---
@@ -815,8 +852,6 @@ Quy tắc: **rollback trước, điều tra sau**. Vì deploy theo tag bất bi�
 Pipeline tự động giải đúng 5 điểm yếu của deploy tay (Ngày 28): lặp lại được, có dấu vết (mỗi lần chạy có log), không phụ thuộc 1 người, rollback bằng re-run, ít sai vì máy làm.
 
 **Mẹo phỏng vấn:** demo "tôi sửa 1 dòng → quay video pipeline tự chạy đến lúc app live" thuyết phục hơn mọi lời nói. Mỗi stage "kể" 1 năng lực của bạn (test=chất lượng, scan=bảo mật, build=Docker, deploy=orchestration).
-
-> 🧠 **Một câu để nhớ:** tách rõ — **CI chạy mọi PR** (kiểm tra), **CD chỉ chạy khi merge main** (deploy). Đừng để mỗi push nhánh feature cũng deploy lên production.
 
 ### 🧪 Lab cơ bản (Milestone)
 
@@ -914,6 +949,22 @@ flowchart TD
 | **Rollback** | Quay về bản trước |
 | **Status badge** | Huy hiệu trạng thái build trên README |
 
+### 🎯 Đúc kết Ngày 35 (Milestone CI/CD)
+
+**3 điều phải mang theo:**
+1. **Cả Giai đoạn CI/CD gói vào 1 dây chuyền:** `push → lint → test → scan → build (tag SHA) → push registry → deploy → health check → (fail? rollback)`. Bạn không học rời từng công cụ — bạn ghép chúng thành một mạch.
+2. **CI ≠ CD ở điều kiện kích hoạt:** CI chạy mọi PR (gác chất lượng), CD chỉ chạy khi merge main/tag (đưa lên). Đừng để mỗi push nhánh feature cũng deploy production.
+3. **Mỗi stage là một bằng chứng năng lực:** test (chất lượng), scan (bảo mật), build SHA (truy vết), deploy (orchestration) — một pipeline hoàn chỉnh chính là portfolio sống của bạn.
+
+> 🧠 **Một câu để nhớ:** tách rõ — **CI chạy mọi PR** (kiểm tra), **CD chỉ chạy khi merge main** (deploy). Đừng để mỗi push nhánh feature cũng deploy lên production.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
+- [ ] Dựng pipeline end-to-end cho app full-stack: push → tự lên server
+- [ ] Kể đúng thứ tự các stage và vai trò từng stage
+- [ ] Giải thích vì sao CI chạy mọi PR còn CD chỉ khi merge main
+- [ ] Có health check + rollback tự động và production có approval
+- [ ] Demo được "sửa 1 dòng → app live" (quay màn hình) + status badge trong README
+
 ✅ **Kết quả đạt được — MỐC 4:** Làm chủ CI/CD end-to-end — năng lực cốt lõi nhất của DevOps.
 
 ---
@@ -985,20 +1036,13 @@ flowchart TB
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Kubernetes (K8s) là gì? — "nhạc trưởng" điều phối container.**
-Docker chạy được vài container trên 1 máy. Nhưng khi có *hàng trăm* container trên *nhiều máy*, cần tự động: máy nào chạy cái gì, container chết thì tạo lại, tải cao thì thêm bản sao, cập nhật không downtime... Đó là việc của K8s — *điều phối* (orchestrate) container ở quy mô lớn.
+> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
 
-**Kiến trúc — như một công ty:**
-- **Control Plane** (ban giám đốc): nhận lệnh, ra quyết định, ghi nhớ trạng thái.
-  - *API Server* = lễ tân nhận mọi lệnh (`kubectl` nói chuyện với cái này).
-  - *etcd* = sổ cái ghi "mọi thứ đang thế nào".
-  - *Scheduler* = xếp pod cho máy nào chạy.
-- **Worker Node** (nhân viên): nơi container thật sự chạy.
+**Bước nhảy từ "chạy" sang "giữ cho luôn đúng".** Docker trả lời câu *"làm sao chạy 1 container?"*. Nhưng khi bạn có 200 container trên chục máy, câu hỏi đổi thành *"làm sao giữ cho tất cả luôn đúng như ý — dù máy hỏng, tải tăng, hay đang deploy bản mới?"*. Kubernetes sinh ra cho đúng câu hỏi thứ hai. Đây không phải "Docker phiên bản to hơn", mà là một mối bận tâm khác: không phải *khởi động*, mà là *duy trì*.
 
-**Declarative — điểm cốt lõi cần "ngấm":**
-Bạn không ra lệnh từng bước. Bạn **mô tả kết quả mong muốn** ("tôi muốn 3 bản sao app") trong YAML. K8s tự lo *làm sao đạt* và *giữ* nó. Pod chết → tự tạo lại để luôn đủ 3 = **self-healing**.
+**Declarative giống như đặt điều hoà, không phải bấm công tắc.** Với điều hoà, bạn không ngồi bật/tắt máy nén liên tục — bạn đặt "25°C" rồi máy tự điều chỉnh mãi để giữ mức đó. K8s hệt vậy: bạn khai *"tôi muốn 3 bản app"* rồi thôi, nó tự tạo/xoá để luôn giữ đúng 3. Cách cũ (imperative — `kubectl run`, `kubectl scale`) là bạn tự bấm từng nút; cách K8s (declarative — `apply -f`) là bạn đặt nhiệt độ rồi để máy lo.
 
-> 🧠 **Một câu để nhớ:** học K8s trên máy mình trước bằng **Minikube/kind/k3s** (miễn phí) — đừng vội thuê cluster cloud (tốn tiền) khi chưa vững cơ bản.
+**Ý tưởng đáng giá nhất: vòng lặp "so sánh thực tế ↔ mong muốn".** K8s không cần bạn viết kịch bản "nếu pod chết thì làm gì". Nó chỉ chạy một vòng lặp không nghỉ: *đọc mong muốn trong etcd → nhìn thực tế → có lệch thì sửa*. Pod chết, thực tế thành 2≠3, nó tạo lại. Gần như **mọi thứ trong K8s đều là biến thể của vòng lặp này** — hiểu nó là hiểu được linh hồn của hệ thống.
 
 ### 🧪 Lab cơ bản
 
@@ -1026,16 +1070,13 @@ Bạn không ra lệnh từng bước. Bạn **mô tả kết quả mong muốn*
    ```
 4. **Đặt alias `k=kubectl`** và bật autocomplete — bạn sẽ gõ nó hàng nghìn lần.
 
-### 💡 Bổ sung thực tế: hiểu "vòng điều hòa" (reconciliation loop)
+### 💡 Bổ sung thực tế: những cái đi làm mới thấm
 
-- **Linh hồn của K8s:** controller liên tục so sánh **trạng thái thực tế** với **trạng thái mong muốn** trong etcd, và hành động để khớp. Bạn nói "tôi muốn 3 pod" → 1 pod chết → controller thấy 2≠3 → tạo lại. Đây là **self-healing**.
-- **Imperative vs Declarative:**
-  | | Ví dụ | Vấn đề/Lợi ích |
-  |---|---|---|
-  | Imperative | `kubectl run`, `kubectl scale` | nhanh để thử, nhưng không lưu vết |
-  | Declarative | `kubectl apply -f file.yaml` | nguồn sự thật trong Git → chuẩn production |
-- **etcd là "bộ não":** lưu toàn bộ trạng thái cluster. Mất etcd = mất cluster → backup etcd là việc sống còn ở production (managed K8s lo hộ bạn việc này).
-- **Học local trước:** Minikube/kind/k3s đủ để học mọi khái niệm. Đừng vội lên cloud K8s (tốn tiền + phức tạp) khi chưa vững cơ bản.
+- **"Xoá tay" pod là vô ích — và đó chính là điểm mấu chốt của declarative:** `kubectl delete pod X` của một Deployment thì pod *mọc lại* ngay, vì mong muốn trong etcd vẫn là "phải có N bản". Muốn tắt thật phải sửa *mong muốn*: `kubectl scale --replicas=0` hoặc xoá Deployment. Người mới hay hoảng vì "xoá mãi không chết".
+- **etcd là toàn bộ cluster:** mất etcd = mất cluster. Ở production, backup etcd định kỳ là việc sống còn — và managed K8s (EKS/GKE/AKS) lo hộ bạn phần này, đây là một lý do lớn để dùng managed thay vì tự dựng.
+- **Tự dựng control plane khó hơn tưởng nhiều:** chạy thật cần control plane nhiều bản (HA), backup etcd, nâng phiên bản, xoay chứng chỉ TLS... Học thì nên tự dựng bằng `kubeadm` một lần cho biết ruột gan; chạy production thì dùng managed.
+- **Mọi thứ đi qua API Server:** nó là cửa duy nhất — `kubectl`, controller, kubelet đều nói chuyện qua đây. Nên đây cũng là nơi RBAC (ai được làm gì) và audit log bám vào. API Server nghẽn/chết thì cả cluster "mù".
+- **Node `NotReady` không đồng nghĩa pod chết ngay:** khi kubelet mất liên lạc, node chuyển `NotReady`; K8s chờ một khoảng (eviction timeout) rồi mới dời pod sang node khác — nên "app biến mất vài phút khi một node lỗi" là hành vi bình thường, không phải bug.
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -1111,6 +1152,22 @@ Bạn không ra lệnh từng bước. Bạn **mô tả kết quả mong muốn*
 | **kubectl** | CLI điều khiển cluster |
 | **Declarative** | Khai báo trạng thái mong muốn |
 | **Self-healing** | Tự tạo lại pod chết |
+
+### 🎯 Đúc kết Ngày 36
+
+**3 điều phải mang theo:**
+1. **K8s = bước nhảy từ "chạy container" (Docker) sang "giữ hàng trăm container luôn đúng như ý"** — điều phối + tự phục hồi (self-healing).
+2. **Declarative:** bạn khai *đích* (YAML), K8s lo *cách đạt & giữ* qua vòng điều hoà liên tục so sánh thực tế ↔ mong muốn (etcd).
+3. **Kiến trúc:** Control Plane (API Server + etcd + Scheduler + Controller) ra quyết định; Worker Node (kubelet) chạy container thật.
+
+> 🧠 **Một câu để nhớ:** học K8s trên máy mình trước bằng **Minikube/kind/k3s** (miễn phí) — đừng vội thuê cluster cloud khi chưa vững cơ bản.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
+- [ ] Dựng được cluster local và `kubectl get nodes` thấy `Ready`
+- [ ] Giải thích declarative vs imperative và vì sao `apply -f` là chuẩn production
+- [ ] Mô tả được vòng điều hoà (reconciliation) và self-healing
+- [ ] Kể vai trò API Server / etcd / Scheduler / Controller / kubelet
+- [ ] Hiểu vì sao `delete pod` của một Deployment lại "mọc lại"
 
 ✅ **Kết quả đạt được:** Hiểu kiến trúc Kubernetes, chạy được cluster local và pod đầu tiên.
 
@@ -1214,19 +1271,13 @@ spec:
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Pod, ReplicaSet, Deployment — chuỗi 3 lớp (đừng sợ, rất logic):**
-- **Pod** = đơn vị nhỏ nhất K8s chạy, bọc 1 (hoặc vài) container. Nhưng Pod "trần" mong manh: chết là mất luôn.
-- **ReplicaSet** = người đảm bảo "luôn có đúng N pod". 1 pod chết → tạo lại cho đủ N.
-- **Deployment** = lớp bạn thực sự dùng: quản ReplicaSet + thêm khả năng *cập nhật không downtime* và *rollback*.
-→ Bạn khai báo **Deployment**, nó tự tạo ReplicaSet, ReplicaSet tự tạo Pod.
+> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
 
-**Rolling update — cập nhật không gián đoạn (cực hay):**
-Khi đổi phiên bản, K8s **thay từng pod một**: dựng pod mới → khỏe → xóa pod cũ → lặp lại. Luôn còn pod phục vụ → người dùng không thấy downtime. Hỏng giữa chừng? `kubectl rollout undo` → quay về bản cũ trong vài giây.
+**Ba lớp giống một cây quản lý theo cấp.** **Deployment** là sếp đặt chính sách: *"luôn có 3 người trực, và khi đổi ca thì thay từ từ"*. **ReplicaSet** là tổ trưởng chỉ chăm chăm đếm đầu người: thiếu một là gọi thêm cho đủ. **Pod** là nhân viên làm việc thật. Cái hay là bạn **chỉ nói chuyện với sếp** (khai Deployment) — tổ trưởng và nhân viên tự sinh ra và tự vận hành theo chính sách đó.
 
-**Scale = đổi 1 con số.**
-`kubectl scale deployment web --replicas=5` → từ 3 lên 5 bản sao, K8s tự tạo thêm. Đây là sức mạnh "co giãn".
+**Rolling update như thay lốp xe khi xe vẫn đang chạy.** Thay vì dừng xe (tắt hết → downtime), K8s thay từng bánh một: lắp bánh mới, chắc nó ăn đường rồi mới tháo bánh cũ, cứ thế. `maxUnavailable: 0` nghĩa là "không lúc nào được thiếu bánh". Và vì bánh cũ (ReplicaSet cũ) vẫn để trong cốp, hỏng giữa chừng thì `rollout undo` lắp lại ngay — rollback tính bằng giây.
 
-> 🧠 **Một câu để nhớ:** đừng bao giờ tạo Pod trần — luôn dùng **Deployment** để có self-healing + rolling update + rollback miễn phí.
+**Vì sao Pod "trần" lại nguy hiểm.** Pod tạo trực tiếp không có ai "đếm đầu người" phía trên: nó chết là mất hẳn, không mọc lại. Deployment cho bạn self-healing + rolling update + rollback gần như **miễn phí** — chỉ tốn thêm vài dòng YAML để khai `replicas` và `selector`. Đây là lý do ngoài thực tế gần như không ai chạy Pod trần.
 
 ### 🧪 Lab cơ bản
 
@@ -1368,12 +1419,13 @@ kubectl get pods                      # thấy pod mới xuất hiện thay th�
   kubectl rollout undo    deployment/web   # rollback bản gần nhất
   ```
 
-### 💡 Bổ sung thực tế: chuỗi Deployment → ReplicaSet → Pod & rolling update
+### 💡 Bổ sung thực tế: những cái đi làm mới thấm
 
-- **Chuỗi quản lý:** **Deployment** (bạn khai báo) → tạo **ReplicaSet** (đảm bảo số lượng) → tạo **Pod** (chạy thật). Mỗi lần đổi image, Deployment tạo ReplicaSet mới, dịch dần pod từ cũ sang mới.
-- **Rolling update tránh downtime:** thay vì tắt hết rồi bật lại (downtime), K8s thay **từng pod một**, luôn giữ đủ pod phục vụ. `maxUnavailable: 0` = không bao giờ thiếu pod.
-- **Vì sao không tạo Pod trực tiếp:** Pod "trần" chết là mất luôn (không tự tạo lại). Luôn dùng Deployment để có self-healing + scaling + rolling update.
-- **Rollback trong giây:** `kubectl rollout undo` quay về ReplicaSet cũ tức thì — đây là lý do K8s rollback nhanh hơn deploy thủ công rất nhiều.
+- **Rollback nhanh vì ReplicaSet cũ *được giữ lại*:** `rollout undo` không build hay kéo gì mới — nó chỉ scale ReplicaSet cũ lên và ReplicaSet mới xuống. K8s giữ ~10 bản gần nhất (`revisionHistoryLimit`), đó là lý do rollback tính bằng giây.
+- **`maxSurge`/`maxUnavailable` là đánh đổi tốc độ ↔ an toàn:** `maxUnavailable: 0` + `maxSurge: 1` cho zero-downtime nhưng cần dư tài nguyên cho pod thứ N+1; muốn update nhanh hơn thì tăng `maxSurge`, chấp nhận tốn RAM/CPU tạm thời.
+- **Rolling update "thành công" vẫn có thể làm user lỗi — nếu thiếu readiness probe:** không có probe, K8s coi pod "sẵn sàng" ngay khi container *khởi động*, rồi dịch traffic vào dù app chưa nạp xong → thỉnh thoảng 502. Luôn kèm **readiness probe** (Ngày 41) để rolling update thật sự an toàn.
+- **`kubectl set image` gây "config drift":** đổi image bằng lệnh thì file YAML trong Git *không* đổi → lần `apply` sau sẽ kéo về bản cũ. Ở production, sửa YAML rồi `apply` — đừng dùng lệnh imperative để đổi trạng thái lâu dài.
+- **Deployment chỉ hợp app *stateless*:** mọi pod của Deployment là bản sao ngang hàng, thay thế lẫn nhau. App có trạng thái/danh tính riêng (database, hàng đợi) cần **StatefulSet** (Ngày 39) — đừng nhồi database vào Deployment.
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -1542,6 +1594,22 @@ Quy tắc: `get` để *thấy triệu chứng* → `describe` để *biết vì
 | **Self-healing** | K8s tự tạo lại pod khi pod chết, để luôn đủ số mong muốn |
 | **Declarative** | Khai báo *cái muốn* (YAML), K8s tự lo *cách đạt* |
 
+### 🎯 Đúc kết Ngày 37
+
+**3 điều phải mang theo:**
+1. **Chuỗi Deployment → ReplicaSet → Pod:** bạn chỉ khai Deployment, phần còn lại tự sinh. Đừng bao giờ tạo Pod trần.
+2. **Rolling update thay từng pod** (`maxUnavailable: 0` = zero-downtime); **rollback = quay về ReplicaSet cũ** trong giây (`rollout undo`).
+3. **Scale = đổi một con số** (`--replicas`), nhưng rolling update *an toàn* cần readiness probe (Ngày 41).
+
+> 🧠 **Một câu để nhớ:** đừng bao giờ tạo Pod trần — luôn dùng **Deployment** để có self-healing + rolling update + rollback miễn phí.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
+- [ ] Viết Deployment YAML (replicas / selector / template) và `apply`
+- [ ] Scale lên/xuống bằng `kubectl scale`
+- [ ] Rolling update đổi image + theo dõi `kubectl rollout status`
+- [ ] Rollback bằng `rollout undo` và giải thích vì sao nó nhanh
+- [ ] Giải thích chuỗi Deployment → ReplicaSet → Pod qua tên pod
+
 ✅ **Kết quả đạt được:** Triển khai và scale ứng dụng bằng Deployment, rolling update & rollback an toàn, và biết dùng 3 lệnh debug + bảng lỗi để tự gỡ sự cố.
 
 ---
@@ -1602,21 +1670,13 @@ flowchart TB
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Vấn đề: pod có IP "sớm nắng chiều mưa".**
-Pod chết và được tạo lại liên tục, mỗi lần 1 IP mới. Vậy làm sao các thành phần gọi nhau ổn định? → **Service**.
+> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
 
-**Service — "số điện thoại cố định" cho 1 nhóm pod.**
-Dù pod bên dưới đổi IP thế nào, Service cho 1 **tên + IP ổn định**. App gọi `db-svc:5432` → Service tự định tuyến tới pod database đang sống (và **chia tải** nếu có nhiều pod). K8s phân giải tên này như DNS nội bộ.
+**Pod là "phù du", Service là số tổng đài không đổi.** Trong K8s, pod sinh ra và chết đi liên tục, mỗi lần một IP mới — nếu app A phải *nhớ IP* của app B thì cứ vài phút lại mất liên lạc. Service là một địa chỉ ảo **bất biến** đứng trước một nhóm pod luôn thay đổi, hệt như số tổng đài công ty: số không đổi, còn ai nhấc máy / ngồi đâu là chuyện bên trong. Bạn gọi `db-svc:5432`, K8s tự nối tới một pod database đang sống.
 
-**3 loại Service — chọn đúng:**
-- **ClusterIP** (mặc định) = chỉ truy cập *trong* cluster. Dùng cho hầu hết (backend, db).
-- **NodePort** = mở 1 cổng trên máy node → test nhanh, không dùng production.
-- **LoadBalancer** = xin 1 IP công khai từ cloud (mỗi service 1 cái → tốn).
+**Điểm hay ngầm: Service tìm pod bằng NHÃN, không phải IP.** Service không "trỏ" tới một pod cụ thể — nó nói *"chuyển cho bất kỳ ai đang đeo thẻ `app=web`"*. Pod mới sinh, đeo đúng thẻ, là **tự động** được xếp vào nhóm nhận traffic; pod chết thì rơi ra. Đây cũng là lý do lỗi phổ biến nhất là *selector đeo nhầm thẻ*: Service vẫn "có đó" nhưng không khớp pod nào → gọi vào hư không.
 
-**Ingress — "lễ tân thông minh" cho cả cluster.**
-Thay vì mỗi service 1 LoadBalancer (tốn), **Ingress** là 1 cửa vào duy nhất, định tuyến theo đường dẫn: `/` → frontend, `/api` → backend. Ingress Controller thường chính là **nginx** (kiến thức Ngày 23 dùng lại).
-
-> 🧠 **Một câu để nhớ:** Service giải bài toán "pod đổi IP liên tục" bằng cách cho 1 tên DNS ổn định. Đây là nền tảng để các microservice tìm thấy nhau.
+**Service lo "bên trong gọi nhau", Ingress lo "bên ngoài đi vào".** Đừng để mỗi service xin một IP công khai riêng (như mỗi phòng ban một số hotline — vừa tốn vừa loạn). Ingress là một *lễ tân* đọc địa chỉ ghi trên phong bì (host/path: `/` → frontend, `/api` → backend) rồi chuyển đúng phòng. Bản thân lễ tân này thường chính là **nginx** — kiến thức Ngày 23 quay lại.
 
 ### 🧪 Lab cơ bản
 
@@ -1648,18 +1708,13 @@ Thay vì mỗi service 1 LoadBalancer (tốn), **Ingress** là 1 cửa vào duy 
 3. **TLS qua Ingress + cert-manager** — tự động cấp/gia hạn chứng chỉ Let's Encrypt.
 4. **Đặt tên service rõ ràng** (`api-svc`, `db-svc`) vì pod gọi nhau qua tên này.
 
-### 💡 Bổ sung thực tế: chọn loại Service & Ingress vs LoadBalancer
+### 💡 Bổ sung thực tế: những cái đi làm mới thấm
 
-- **Khi nào dùng loại nào:**
-  | Service | Dùng khi |
-  |---|---|
-  | **ClusterIP** | giao tiếp nội bộ trong cluster (mặc định, an toàn) — đa số trường hợp |
-  | **NodePort** | test local/dev nhanh — không dùng production (port cao, xấu) |
-  | **LoadBalancer** | expose 1 service ra ngoài qua LB của cloud — mỗi service 1 LB (tốn tiền) |
-  | **Ingress** | 1 điểm vào cho **nhiều** service theo host/path — chuẩn production |
-- **Ingress vs LoadBalancer:** LoadBalancer = mỗi service 1 IP/LB ngoài (tốn kém). Ingress = 1 LB + định tuyến thông minh cho hàng chục service (tiết kiệm, linh hoạt). → Production gần như luôn dùng Ingress.
-- **DNS nội bộ là phép màu microservice:** backend gọi `http://db-svc:5432` — K8s tự phân giải tên → IP pod hiện tại, kể cả khi pod đổi IP liên tục. Đây là lý do Service tồn tại.
-- **Ingress controller chính là nginx/traefik** — kiến thức nginx (Ngày 23) áp dụng thẳng vào đây.
+- **Service rỗng? Xem `kubectl get endpoints <svc>` NGAY:** nếu cột ENDPOINTS trống thì hoặc `selector` không khớp label pod, hoặc pod chưa `Ready`. Đây là lỗi networking số 1 của người mới — Service "có đó" nhưng gọi vào không tới đâu.
+- **Chỉ pod *Ready* mới được nhận traffic:** K8s tự loại pod chưa qua readiness probe khỏi danh sách endpoint của Service. Đây là mắt xích nối Service với rolling update an toàn (Ngày 37, 41) — pod đang khởi động sẽ không bị dội request vào.
+- **ClusterIP không phải một "máy trung gian":** nó chỉ là các luật iptables/IPVS do kube-proxy cài trên *mọi* node → không có điểm chết đơn lẻ, traffic không đi vòng qua một proxy tập trung mà được viết lại địa chỉ ngay tại node gọi.
+- **LoadBalancer tự động chỉ có trên cloud:** trên cloud, Service `type: LoadBalancer` tự gọi API tạo LB thật; cluster on-prem (bare-metal) không có cơ chế đó → cần **MetalLB** hoặc NodePort + LB ngoài. Đừng ngạc nhiên khi LoadBalancer trên máy nhà kẹt `<pending>` mãi.
+- **Ingress đang dần nhường chỗ cho Gateway API:** Ingress vẫn phổ biến, nhưng chuẩn mới **Gateway API** biểu đạt định tuyến (nhất là gRPC, chia tải theo tỉ lệ) rõ và mạnh hơn. Học Ingress trước, rồi để mắt tới Gateway API.
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -1736,6 +1791,22 @@ Thay vì mỗi service 1 LoadBalancer (tốn), **Ingress** là 1 cửa vào duy 
 | **targetPort** | Cổng container mà Service trỏ tới |
 | **cert-manager** | Tự cấp/gia hạn TLS trong K8s |
 
+### 🎯 Đúc kết Ngày 38
+
+**3 điều phải mang theo:**
+1. **Pod đổi IP liên tục → Service cho một tên + IP ổn định + chia tải** cho cả nhóm pod.
+2. **Service tìm pod bằng label selector, không phải IP** — selector sai = Service rỗng (dò bằng `kubectl get endpoints`).
+3. **ClusterIP + DNS `svc.namespace` lo gọi nhau nội bộ; Ingress lo một cửa vào cho nhiều service từ ngoài** — chuẩn production, không NodePort/LoadBalancer tràn lan.
+
+> 🧠 **Một câu để nhớ:** Service giải bài toán "pod đổi IP liên tục" bằng một tên DNS ổn định — nền tảng để các microservice tìm thấy nhau.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
+- [ ] Tạo Service ClusterIP và gọi được qua tên DNS từ pod khác
+- [ ] Giải thích 3 loại Service + khi nào dùng cái nào
+- [ ] Debug được Service rỗng bằng `kubectl get endpoints`
+- [ ] Viết Ingress định tuyến theo host/path tới service
+- [ ] Nói được vì sao production dùng ClusterIP + Ingress thay vì NodePort/LB tràn lan
+
 ✅ **Kết quả đạt được:** Kết nối & expose ứng dụng trong K8s qua Service (ClusterIP) và Ingress.
 
 ---
@@ -1787,21 +1858,13 @@ Chia cluster thành vùng logic (`dev`, `prod`) để tổ chức + phân quyề
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Tách cấu hình khỏi image — vì sao quan trọng?**
-Cùng 1 image app, bạn muốn chạy ở dev (DB test) và prod (DB thật) với cấu hình khác. Đừng "đóng cứng" cấu hình vào image — hãy **tách ra ngoài** rồi "tiêm" vào lúc chạy:
-- **ConfigMap** = cấu hình *không nhạy cảm* (URL, log level, tên DB).
-- **Secret** = thông tin *nhạy cảm* (mật khẩu, token).
+> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
 
-**⚠️ CẢNH BÁO: K8s Secret KHÔNG phải mã hóa!**
-Nó chỉ *mã hóa base64* (đổi qua lại, ai cũng giải: `echo ... | base64 -d` ra plaintext). Muốn an toàn thật cần: phân quyền RBAC chặt + bật mã hóa cho etcd + công cụ ngoài (Vault). Đừng tưởng "để vào Secret là an toàn".
+**Một chiếc áo, nhiều bộ phụ kiện.** Image (Ngày 33) là chiếc áo may sẵn — giống hệt nhau, bất biến. ConfigMap/Secret là phụ kiện gắn *lúc mặc*: dev đeo cà vạt xanh (DB test), prod đeo cà vạt đỏ (DB thật). Nhờ vậy **cùng một image mặc được mọi dịp**, đổi cấu hình không phải may lại áo (build lại image). Đóng cứng config vào image là may riêng một áo cho mỗi môi trường — tốn công và rất dễ mặc nhầm.
 
-**Lưu trữ bền vững: PV & PVC.**
-- **PVC** (PersistentVolumeClaim) = "đơn xin dung lượng" của pod. **PV** = ổ đĩa thật cấp cho đơn đó.
-- Pod xóa, tạo lại → dữ liệu trong PV vẫn còn (giống volume Docker nhưng ở tầng K8s).
+**"base64" không phải cái khoá — đây là hiểu lầm nguy hiểm nhất của ngày hôm nay.** Nhiều người thấy Secret hiện ra dạng mã lạ liền yên tâm "đã mã hoá". Không hề: base64 chỉ *dịch* chữ sang một bảng ký tự khác cho gọn khi truyền, ai cũng dịch ngược trong một giây (`base64 -d`). Coi Secret là an toàn *chỉ vì* nó base64 là sai. An toàn thật cần RBAC chặt + mã hoá etcd (encryption-at-rest) + công cụ ngoài như Vault.
 
-**Stateless vs Stateful:** app web → **Deployment**; database (cần danh tính + ổ đĩa cố định) → **StatefulSet + PVC**. Nhầm = mất dữ liệu.
-
-> 🧠 **Một câu để nhớ:** **Namespace** = chia cluster thành "phòng" riêng (dev/prod) để tổ chức + phân quyền. Mọi thứ của 1 app nên gom vào 1 namespace.
+**Câu hỏi cốt lõi: "pod này có ký ức không?"** Web *stateless* — pod nào cũng như pod nào, chết thì thay cái mới vô tư, nên dùng **Deployment**. Database có ký ức (dữ liệu trên đĩa + danh tính riêng) — nó cần một ổ đĩa đi theo (**PVC**: pod xoá/tạo lại thì dữ liệu vẫn còn) và một tên cố định (**StatefulSet**: `db-0`, `db-1`). Nhầm hai loại này là con đường ngắn nhất tới mất dữ liệu.
 
 ### 🧪 Lab cơ bản
 
@@ -1822,12 +1885,13 @@ Nó chỉ *mã hóa base64* (đổi qua lại, ai cũng giải: `echo ... | base
 3. **StatefulSet cho database** (không phải Deployment) — pod có danh tính ổn định (`db-0`, `db-1`), storage gắn cố định.
 4. **Namespace tách môi trường + ResourceQuota** giới hạn tài nguyên mỗi namespace.
 
-### 💡 Bổ sung thực tế: base64 ≠ mã hóa & ConfigMap vs Secret
+### 💡 Bổ sung thực tế: những cái đi làm mới thấm
 
-- **CẢNH BÁO quan trọng:** K8s Secret chỉ **base64-encode**, ai có quyền đọc Secret là đọc được plaintext (`echo <value> | base64 -d`). Secret an toàn cần: RBAC chặt + encryption-at-rest cho etcd + công cụ ngoài (Vault). Đừng tưởng "đặt vào Secret là an toàn".
-- **ConfigMap vs Secret:** dùng giống nhau, khác ở **ý định** — ConfigMap cho config thường (log level, URL), Secret cho nhạy cảm (mật khẩu, token). Secret được xử lý cẩn thận hơn (không hiện trong `describe`, có thể mã hóa).
-- **Stateless vs Stateful:** app web (stateless) → Deployment. Database (stateful, cần lưu dữ liệu + danh tính) → StatefulSet + PVC. Nhầm lẫn = mất dữ liệu.
-- **Namespace để làm gì:** cô lập logic (dev/staging/prod), phân quyền RBAC theo namespace, giới hạn tài nguyên — không phải bảo mật mạng (cần NetworkPolicy cho việc đó, Ngày 49).
+- **Đổi ConfigMap KHÔNG tự restart pod:** pod đọc biến môi trường *lúc khởi động* → sửa ConfigMap xong app vẫn chạy giá trị cũ cho tới khi `kubectl rollout restart`. (Config *mount dạng file* thì volume tự cập nhật sau một lúc, nhưng qua `env` thì không.) Đây là bẫy "sửa mãi không ăn" kinh điển.
+- **Với GitOps, secret plaintext KHÔNG được vào Git:** vì manifest nằm trong Git (Ngày 43), bạn không thể commit Secret thường. Giải pháp production: **Sealed Secrets** / **SOPS** (mã hoá được nên commit an toàn) hoặc **External Secrets Operator** kéo từ Vault/cloud secret manager lúc chạy.
+- **`immutable: true` cho ConfigMap/Secret:** đánh dấu bất biến giúp K8s bớt theo dõi thay đổi (nhẹ hơn ở cụm lớn) và tránh sửa nhầm — muốn đổi thì tạo bản mới rồi trỏ Deployment sang, đúng tinh thần "cấu hình bất biến".
+- **Xoá PVC có thể xoá luôn dữ liệu — coi chừng `reclaimPolicy`:** với `Delete` (mặc định của nhiều StorageClass động), xoá PVC là ổ đĩa thật bị xoá theo. Dữ liệu quan trọng nên dùng StorageClass `Retain`; và PVC chỉ nới rộng được, không thu nhỏ.
+- **Nhiều team cố tình KHÔNG chạy database trong K8s:** stateful trong K8s làm được nhưng khó làm đúng (backup, failover, nâng cấp). Thực tế phổ biến: app stateless chạy trong K8s, còn database dùng managed service (RDS/Cloud SQL) bên ngoài. Đừng mặc định "mọi thứ phải vào K8s".
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -1905,6 +1969,22 @@ Nó chỉ *mã hóa base64* (đổi qua lại, ai cũng giải: `echo ... | base
 | **Namespace** | Vùng logic của cluster |
 | **RBAC** | Phân quyền theo vai trò |
 
+### 🎯 Đúc kết Ngày 39
+
+**3 điều phải mang theo:**
+1. **Tách config/secret khỏi image:** cùng một image chạy mọi môi trường, đổi cấu hình không cần build lại.
+2. **K8s Secret chỉ base64, KHÔNG phải mã hoá** — an toàn thật cần RBAC + encryption-at-rest cho etcd + Vault/Sealed Secrets.
+3. **Stateless (web) → Deployment; stateful (database: cần danh tính + đĩa cố định) → StatefulSet + PVC.** Nhầm = mất dữ liệu.
+
+> 🧠 **Một câu để nhớ:** **Namespace** = chia cluster thành "phòng" riêng (dev/prod) để tổ chức + phân quyền; gom mọi thứ của một app vào một namespace.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
+- [ ] Tạo ConfigMap + Secret và inject vào pod (qua `env` / mount file)
+- [ ] Chứng minh Secret chỉ base64 (`base64 -d` ra plaintext)
+- [ ] Gắn PVC, ghi dữ liệu, xoá pod rồi thấy dữ liệu còn
+- [ ] Phân biệt Deployment (stateless) vs StatefulSet (stateful)
+- [ ] Biết vì sao sửa ConfigMap xong thường phải `rollout restart`
+
 ✅ **Kết quả đạt được:** Quản lý cấu hình, secret và lưu trữ bền vững (PVC/StatefulSet) trong Kubernetes.
 
 ---
@@ -1933,8 +2013,6 @@ Ghép mọi mảnh Ngày 36–39 thành 1 hệ thống: `Internet → Ingress �
 **Thử nghiệm cho "ngấm" sức mạnh K8s:**
 - `kubectl scale ... --replicas=3` → tăng bản sao tức thì.
 - Xóa 1 pod giữa lúc đang dùng → K8s tự tạo lại, app không gián đoạn.
-
-> 🧠 **Một câu để nhớ:** database dùng **StatefulSet + PVC** (không phải Deployment) — để giữ dữ liệu + danh tính ổn định. Đây là lỗi nhầm phổ biến nhất khi mới deploy DB lên K8s.
 
 ### 🧪 Lab cơ bản (Milestone)
 
@@ -2033,6 +2111,22 @@ flowchart TB
 | **Namespace** | Vùng logic cluster |
 | **Self-healing / Scale** | Tự tạo lại pod / tăng bản sao |
 
+### 🎯 Đúc kết Ngày 40 (Milestone K8s)
+
+**3 điều phải mang theo:**
+1. **App 3 tầng lên K8s:** frontend/backend = Deployment + Service (ClusterIP) sau Ingress; database = StatefulSet + PVC; cấu hình qua ConfigMap/Secret; gom vào một Namespace.
+2. **Tổ chức manifest theo số thứ tự** (`00-namespace` → `10-db` → `20-backend` → `30-frontend` → `40-ingress`) để `apply` đúng thứ tự phụ thuộc.
+3. **Sức mạnh thấy tận mắt:** scale = đổi `replicas`; xoá pod = tự mọc lại (self-healing + load balancing) — thứ Docker Compose không cho.
+
+> 🧠 **Một câu để nhớ:** database dùng **StatefulSet + PVC** (không phải Deployment) — để giữ dữ liệu + danh tính ổn định; đây là lỗi nhầm phổ biến nhất khi mới deploy DB lên K8s.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
+- [ ] Deploy app full-stack (fe + be + db) lên cluster, tất cả `Running`
+- [ ] Truy cập app từ ngoài qua Ingress
+- [ ] Scale backend lên 3 và làm rolling update
+- [ ] Xoá 1 pod và thấy self-healing giữ app không gián đoạn
+- [ ] Tổ chức toàn bộ YAML trong `k8s/` theo thứ tự phụ thuộc
+
 ✅ **Kết quả đạt được — MỐC 5:** Triển khai ứng dụng full-stack lên Kubernetes — kỹ năng cao cấp.
 
 ---
@@ -2081,23 +2175,13 @@ Tự tăng/giảm **số pod** theo tải: "CPU > 60% → tăng pod (2→5), t�
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Probe — cách K8s "bắt mạch" pod.**
-K8s cần biết pod có *khỏe* không để định tuyến đúng. 3 loại "bắt mạch":
-- **livenessProbe** ("còn sống không?"): fail → **restart pod**.
-- **readinessProbe** ("sẵn sàng nhận khách chưa?"): fail → *tạm gỡ khỏi Service* (ngừng gửi traffic), KHÔNG restart.
-- **startupProbe** ("khởi động xong chưa?"): cho app khởi động chậm thêm thời gian.
+> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
 
-**Lỗi kinh điển:** đặt liveness probe quá gắt → app đang bận bị tưởng "chết" → restart → lặp vô tận (**CrashLoopBackOff**). Nhớ: readiness mới là cái để "tạm ngừng nhận traffic".
+**Hai probe là hai người hỏi hai câu khác nhau.** **livenessProbe** là bác sĩ hỏi *"còn thở không?"* — không thở thì hồi sức (restart). **readinessProbe** là lễ tân hỏi *"tiếp khách được chưa?"* — chưa sẵn sàng thì treo biển "đang bận", ngừng đưa khách vào (gỡ khỏi Service) *nhưng không đuổi đi* (không restart). Lẫn lộn hai câu hỏi này chính là gốc rễ của **CrashLoopBackOff**: dùng liveness để hỏi "sẵn sàng chưa" thì một app chỉ đang bận sẽ bị "hồi sức" oan → restart mãi mãi.
 
-**Requests & Limits — đặt chỗ tài nguyên:**
-- **requests** = mức tối thiểu pod cần (K8s dùng để xếp pod vào máy đủ chỗ).
-- **limits** = trần tối đa. Vượt limit RAM → **OOMKilled** (giết vì hết bộ nhớ); vượt limit CPU → bị bóp chậm.
-Không đặt limits → 1 pod ngốn RAM có thể làm chết cả máy.
+**requests và limits như đặt bàn ở nhà hàng.** `requests` là số ghế bạn đặt trước — nhà hàng (scheduler) dùng con số này để xếp bạn vào bàn còn đủ chỗ. `limits` là trần bạn không được vượt: ăn quá phần RAM thì bị mời ra ngay (**OOMKilled**), dùng quá CPU thì bị phục vụ chậm lại (**throttle**, không chết). Không đặt `limits` chẳng khác nào để một khách ăn sạch đồ cả nhà hàng — một pod ngốn RAM có thể làm đói cả node.
 
-**HPA — tự co giãn theo tải.**
-"Nếu CPU > 60% thì tự tăng pod (2→5), tải giảm thì giảm lại". (Cần cài **Metrics Server** trước, nếu không HPA hiện `<unknown>`.)
-
-> 🧠 **Một câu để nhớ:** liveness fail = **restart**; readiness fail = **ngừng nhận traffic** (không restart). Hiểu khác biệt này tránh được lỗi CrashLoopBackOff.
+**HPA là thuê thêm người vào giờ cao điểm.** Tải tăng thì tự thêm pod, tải giảm thì cho bớt. Nhưng muốn "thuê theo nhu cầu" thì phải có **đồng hồ đo** (Metrics Server) và phải biết *mức chuẩn của một pod* (`requests`) để tính đang dùng bao nhiêu phần trăm. Thiếu một trong hai, HPA "mù" và chỉ hiện `<unknown>`.
 
 ### 🧪 Lab cơ bản
 
@@ -2126,17 +2210,13 @@ Không đặt limits → 1 pod ngốn RAM có thể làm chết cả máy.
 3. **HPA dựa trên metric thật** (CPU, hoặc custom metric như request/s).
 4. **PodDisruptionBudget** để khi bảo trì node không tắt quá nhiều pod cùng lúc.
 
-### 💡 Bổ sung thực tế: liveness vs readiness (lỗi cấu hình hay gặp)
+### 💡 Bổ sung thực tế: những cái đi làm mới thấm
 
-- **Phân biệt sống còn:**
-  | Probe | Hỏi gì | Fail thì sao |
-  |---|---|---|
-  | **readiness** | "sẵn sàng nhận traffic chưa?" | tạm gỡ pod khỏi Service (không nhận request), KHÔNG restart |
-  | **liveness** | "còn sống không, hay treo?" | **restart pod** |
-  | **startup** | "khởi động xong chưa?" | hoãn 2 probe kia cho app khởi động chậm |
-- **Lỗi cấu hình kinh điển:** đặt liveness probe quá gắt → app đang bận xử lý bị tưởng "chết" → K8s restart → vòng lặp restart vô tận (CrashLoopBackOff). Readiness mới là cái dùng để "tạm ngừng nhận traffic".
-- **requests vs limits:** **requests** = K8s dùng để **đặt chỗ** (scheduling). **limits** = trần cứng. Vượt limit RAM → pod bị **OOMKilled**; vượt limit CPU → bị **throttle** (chậm, không chết).
-- **HPA cần Metrics Server** — không cài thì HPA hiện `<unknown>` và không scale. Đây là lỗi đầu tiên ai cũng gặp khi thử HPA.
+- **livenessProbe KHÔNG nên phụ thuộc DB hay service ngoài:** nếu `/health` của liveness kiểm luôn cả database, thì DB chập chờn → liveness fail → K8s restart app (dù app chẳng sao) → biến sự cố nhỏ thành bão restart. Quy tắc: **liveness chỉ hỏi "tiến trình này còn tự phục vụ được không"; readiness mới được phép kiểm dependency**.
+- **`requests` đặt sai theo cả hai hướng đều hại:** đặt cao thì node "đầy ảo" trong khi thực tế còn rảnh → tốn tiền; đặt thấp thì pod bị dồn, tranh CPU, throttle. Chỉnh theo số liệu quan sát thật (VPA có thể gợi ý mức phù hợp), đừng đoán.
+- **Trường phái phổ biến: luôn đặt memory limit, cân nhắc bỏ CPU limit:** vượt RAM là bị giết ngay (OOMKilled) nên *phải* có memory limit; nhưng CPU limit dễ gây throttle oan khi node đang rảnh, nên nhiều team production chỉ đặt CPU *requests*. (Tuỳ hệ thống — biết đánh đổi này để chọn.)
+- **HPA theo CPU không phải lúc nào cũng đúng "tải":** app nghẽn ở I/O hay hàng đợi thì CPU vẫn thấp trong khi user đã chờ dài. Khi đó scale theo **custom metric** (độ dài hàng đợi, request/s, p95 latency) mới đúng. HPA lại phản ứng có độ trễ → spike dốc cần đệm sẵn `minReplicas` cao hơn.
+- **PodDisruptionBudget cứu bạn lúc bảo trì:** khi drain node để nâng cấp, không có PDB thì K8s có thể tắt *cùng lúc* mọi pod của một app → downtime. PDB đặt "luôn giữ tối thiểu N pod sống" trong các thao tác tự nguyện.
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -2213,6 +2293,22 @@ Không đặt limits → 1 pod ngốn RAM có thể làm chết cả máy.
 | **Metrics Server** | Nguồn số liệu cho HPA |
 | **Taints & tolerations** | Điều khiển pod chạy ở node nào |
 
+### 🎯 Đúc kết Ngày 41
+
+**3 điều phải mang theo:**
+1. **Ba probe, hai câu hỏi:** liveness ("còn sống?" → restart) vs readiness ("sẵn sàng nhận traffic?" → gỡ khỏi Service, KHÔNG restart); startup cho app khởi động chậm. Lẫn lộn = CrashLoopBackOff.
+2. **requests = đặt chỗ để scheduler xếp pod; limits = trần cứng** (vượt RAM → OOMKilled, vượt CPU → throttle). Luôn đặt để một pod không làm chết node.
+3. **HPA tự co giãn số pod theo tải**, nhưng cần Metrics Server + `requests` để tính phần trăm.
+
+> 🧠 **Một câu để nhớ:** liveness fail = **restart**; readiness fail = **ngừng nhận traffic** (không restart). Hiểu khác biệt này tránh được lỗi CrashLoopBackOff.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
+- [ ] Thêm đúng liveness / readiness / startup probe và giải thích fail mỗi loại
+- [ ] Đặt requests/limits và phân biệt OOMKilled vs throttle
+- [ ] Cài Metrics Server và tạo HPA scale theo CPU
+- [ ] Tái hiện CrashLoopBackOff do liveness quá gắt rồi sửa bằng startupProbe
+- [ ] Giải thích vì sao liveness không nên phụ thuộc DB
+
 ✅ **Kết quả đạt được:** Cấu hình health check, giới hạn tài nguyên và autoscaling — vận hành K8s production.
 
 ---
@@ -2264,20 +2360,13 @@ Helm đóng gói toàn bộ YAML của app thành 1 **Chart** có biến. Bạn 
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Vấn đề: quản lý cả đống file YAML rất mệt.**
-Một app trên K8s có chục file YAML (deployment, service, configmap, ingress...). Mỗi môi trường (dev/prod) lại cần giá trị khác (số replica, image tag). Copy-sửa thủ công = dễ sai, khó quản.
+> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
 
-**Helm — "trình quản lý gói" cho Kubernetes (như apt cho Linux).**
-Helm đóng gói toàn bộ YAML của app thành 1 **Chart** có biến. Bạn điền giá trị qua file `values.yaml` → Helm "điền vào khuôn" và tạo YAML thật.
-- 1 chart + `values-dev.yaml` → deploy dev.
-- Cùng chart + `values-prod.yaml` → deploy prod.
-Một khuôn, nhiều môi trường.
+**Chart như một khuôn bánh có chỗ để điền.** `templates/` là chiếc khuôn có sẵn các ô trống (`{{ .Values.x }}`); `values.yaml` là tờ giấy điền *"bánh này 3 cái, nhân sô cô la"*. Cùng một khuôn, đổi tờ điền là ra bánh dev (nhỏ, 1 bản) hay bánh prod (to, 5 bản) — không phải khắc lại khuôn cho mỗi lần. Đây chính là lối thoát khỏi cảnh copy-sửa cả chục file YAML mỗi khi đổi môi trường.
 
-**Lệnh chính:**
-- `helm install` = cài app · `helm upgrade` = nâng cấp · `helm rollback` = quay về bản cũ.
-- `helm repo add ...` = thêm kho chart → cài Prometheus/Grafana/Postgres chỉ 1 lệnh.
+**"apt cho Kubernetes" — vì sao đáng giá đến thế.** Trước Helm, muốn cài Prometheus lên cụm bạn phải tự tải/ghép hàng chục file YAML rồi cầu nguyện chúng khớp nhau. Với Helm, `helm install` một dòng — y hệt `apt install`. Và cả một hệ sinh thái chart công khai (Prometheus, Postgres, ingress-nginx...) nghĩa là bạn *đứng trên vai người khác*, không dựng lại từ số 0. Ngày 44 bạn sẽ cài nguyên bộ monitoring chỉ bằng một lệnh nhờ điều này.
 
-> 🧠 **Một câu để nhớ:** `helm upgrade` áp dụng ngay — luôn xem trước bằng `helm diff upgrade` (plugin) hoặc `--dry-run`. Và `helm rollback` cứu bạn khi upgrade hỏng.
+**Điểm ngầm quan trọng: Helm nhớ từng "revision".** Helm không chỉ sinh YAML rồi quên. Mỗi lần `install`/`upgrade` là một **revision** của một **release** được ghi lại. Nhờ vậy `helm rollback` đưa bạn về bản cũ như một cỗ máy thời gian — khác hẳn `kubectl apply` (apply xong là không còn khái niệm "bản trước").
 
 ### 🧪 Lab cơ bản
 
@@ -2300,16 +2389,13 @@ Một khuôn, nhiều môi trường.
 3. **`helm lint` + `helm template`** để validate chart trước khi deploy.
 4. **Versioning chart** (`Chart.yaml`) + đẩy lên chart repo riêng cho team.
 
-### 💡 Bổ sung thực tế: Helm vs Kustomize & bẫy upgrade
+### 💡 Bổ sung thực tế: những cái đi làm mới thấm
 
-- **Helm giải quyết:** YAML lặp lại + tham số hóa + đóng gói + version + rollback. 1 chart deploy được dev/staging/prod chỉ bằng values khác nhau.
-- **Helm vs Kustomize** (2 cách quản YAML phổ biến):
-  | | Cách tiếp cận | Phù hợp |
-  |---|---|---|
-  | **Helm** | template + biến | app phức tạp, đóng gói phân phối, nhiều môi trường |
-  | **Kustomize** | overlay/patch YAML thuần | đơn giản hơn, tích hợp sẵn `kubectl -k` |
-- **Bẫy `helm upgrade`:** nó áp dụng thay đổi ngay — luôn `helm diff upgrade` hoặc `--dry-run` trước. Và `helm rollback <release> <revision>` cứu bạn khi upgrade hỏng.
-- **Cài app phổ biến trong 1 lệnh:** Prometheus, Grafana, PostgreSQL, ingress-nginx... đều có chart sẵn. Đây là cách bạn sẽ cài monitoring stack ở Ngày 44.
+- **`helm rollback` không phải cỗ máy thời gian hoàn hảo:** nó khôi phục *manifest* về revision cũ, nhưng những gì đã xảy ra bên ngoài — dữ liệu trong DB, PVC, thay đổi do hook tạo — thì không quay lại. Rollback code/config thì được; rollback dữ liệu thì không.
+- **Đừng commit values chứa mật khẩu vào Git:** `values.yaml` rất tiện để nhét cấu hình, nhưng nó là file thường → password trong đó là lộ. Tách secret ra (helm-secrets + SOPS, hoặc External Secrets) đúng tinh thần Ngày 39.
+- **`version` (chart) ≠ `appVersion` (app):** trong `Chart.yaml`, `version` là phiên bản của *chart* (khuôn), `appVersion` là phiên bản của *app* bên trong. Bump nhầm chỗ là nguồn lú lẫn kinh điển — nhớ tăng `version` mỗi lần sửa chart.
+- **Dùng `--atomic` cho upgrade production:** kèm `--atomic --timeout` thì nếu upgrade fail giữa chừng, Helm **tự rollback** về bản đang chạy, thay vì để lại release "dở dang" (`pending-upgrade`) rất khó gỡ.
+- **Helm 3 lưu lịch sử release trong Secret của namespace** (không còn Tiller như Helm 2): xoá nhầm các Secret `sh.helm.release.*` là mất lịch sử revision → `rollback`/`history` mất tác dụng. Trạng thái bám theo namespace, nên cùng một release name ở hai namespace là hai release độc lập.
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -2387,6 +2473,22 @@ Một khuôn, nhiều môi trường.
 | **Repository** | Kho chart (Artifact Hub) |
 | **Kustomize** | Cách quản YAML bằng overlay (đối thủ nhẹ hơn) |
 
+### 🎯 Đúc kết Ngày 42
+
+**3 điều phải mang theo:**
+1. **Helm = "apt cho K8s":** đóng gói YAML thành Chart có biến; một chart + nhiều values → nhiều môi trường, thoát cảnh copy-paste.
+2. **Cấu trúc chart:** `Chart.yaml` (metadata) + `values.yaml` (giá trị) + `templates/` (YAML có `{{ .Values.x }}`). Cài app phổ biến chỉ bằng một lệnh.
+3. **Helm nhớ release theo revision → `helm rollback` quay về bản cũ;** nhưng luôn `diff`/`--dry-run` trước vì `upgrade` áp dụng ngay.
+
+> 🧠 **Một câu để nhớ:** `helm upgrade` áp dụng ngay — luôn xem trước bằng `helm diff upgrade` (plugin) hoặc `--dry-run`; và `helm rollback` cứu bạn khi upgrade hỏng.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
+- [ ] Tạo chart bằng `helm create` và hiểu Chart.yaml / values / templates
+- [ ] Deploy một chart cho 2 môi trường bằng values khác nhau
+- [ ] `helm upgrade` rồi `helm rollback` + xem `helm history`
+- [ ] Cài một app có sẵn từ repo bằng một lệnh
+- [ ] Biết `helm rollback` không khôi phục dữ liệu DB/PVC
+
 ✅ **Kết quả đạt được:** Đóng gói và quản lý ứng dụng K8s bằng Helm — chuẩn công nghiệp.
 
 ---
@@ -2451,19 +2553,13 @@ flowchart LR
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**GitOps là gì? — "Git là nguồn chân lý duy nhất".**
-Ý tưởng: trạng thái cluster K8s phải **luôn khớp đúng những gì ghi trong Git**. Muốn đổi gì → sửa file trong Git (qua PR) → một công cụ tự đồng bộ vào cluster. Không ai `kubectl` sửa tay trực tiếp nữa.
+> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
 
-**ArgoCD — "người gác" sống trong cluster.**
-ArgoCD liên tục so sánh "Git nói gì" với "cluster đang thế nào":
-- Bạn sửa file trong Git → ArgoCD tự **kéo về** và áp dụng.
-- Ai đó lỡ sửa tay trên cluster (drift) → ArgoCD phát hiện và **kéo về đúng Git** (self-heal).
+**Git là bản thiết kế treo tường luôn được thi công đúng.** Không có GitOps, cluster giống một căn nhà bị sửa lung tung mà chẳng ai cập nhật bản vẽ — tới lúc sự cố, không ai biết *thật sự* nhà đang thế nào. GitOps lật ngược: **bản vẽ (Git) là chân lý**, và có một giám sát công trình (ArgoCD) liên tục so bản vẽ với thực địa, thấy lệch là sửa cho khớp. Muốn đổi nhà thì sửa bản vẽ (PR vào Git), không ai được cầm búa đục tường trực tiếp.
 
-**Push vs Pull — khác biệt cốt lõi:**
-- CI/CD truyền thống = **push**: pipeline có *chìa khóa cluster*, đẩy vào (rủi ro lộ chìa khóa).
-- GitOps = **pull**: ArgoCD *trong* cluster tự kéo từ Git → cluster không lộ credential ra ngoài. An toàn hơn.
+**Push vs pull: "giao chìa khoá cho thợ" hay "thợ sống trong nhà".** CI/CD truyền thống là *push* — CI đứng ngoài, cầm chìa khoá cluster thò vào đẩy; chìa lộ là toang. GitOps là *pull* — ArgoCD sống *bên trong* cluster, tự thò tay ra Git kéo bản vẽ về. Không phải đưa chìa khoá cluster ra ngoài cho bất kỳ pipeline nào → bề mặt tấn công co lại rõ rệt.
 
-> 🧠 **Một câu để nhớ:** với GitOps, **rollback = `git revert`** (quay lại commit cũ), và mọi thay đổi production đều có dấu vết trong lịch sử Git (ai, lúc nào, vì sao) — tuyệt cho audit.
+**Hết thời "cấu hình ma".** Ai từng `kubectl edit` giữa đêm để chữa cháy rồi sáng ra quên mất đã đổi gì — đó là *cấu hình ma*, thứ không ai truy được nguồn. Với self-heal, sửa tay bị kéo về Git ngay, buộc **mọi thay đổi phải đi qua Git**. Hệ quả đẹp: mỗi thay đổi là một commit có tác giả, thời gian, lý do (PR) → nhật ký kiểm toán *miễn phí*, và rollback chỉ còn là `git revert`.
 
 ### 🧪 Lab cơ bản
 
@@ -2486,18 +2582,13 @@ ArgoCD liên tục so sánh "Git nói gì" với "cluster đang thế nào":
 3. **App of Apps pattern** — 1 ArgoCD Application quản lý nhiều app con.
 4. **Tách quyền:** CI chỉ build/push image + cập nhật tag trong repo config; **không** CI nào có quyền vào cluster → bảo mật tốt hơn push-based.
 
-### 💡 Bổ sung thực tế: GitOps khác CI/CD truyền thống thế nào
+### 💡 Bổ sung thực tế: những cái đi làm mới thấm
 
-- **Push vs Pull:**
-  | | CI/CD truyền thống (push) | GitOps (pull) |
-  |---|---|---|
-  | Ai deploy | CI có credential vào cluster, đẩy lên | Agent (ArgoCD) **trong** cluster tự kéo từ Git |
-  | Bảo mật | CI cần quyền cluster (rủi ro) | Cluster không lộ credential ra ngoài |
-  | Drift | không tự phát hiện | tự phát hiện + sửa (self-heal) |
-  | Rollback | re-run pipeline | `git revert` → tự sync về |
-- **Git là nguồn chân lý:** trạng thái cluster = đúng những gì trong Git. Ai đó sửa tay trên cluster (`kubectl edit`) → ArgoCD phát hiện **drift** và kéo về đúng Git. → không còn "cấu hình bí ẩn không ai biết từ đâu".
-- **Audit miễn phí:** mọi thay đổi production = 1 commit Git, có tác giả, thời gian, lý do (PR). Khi sự cố: `git log` trên repo config cho biết chính xác ai đổi gì lúc nào.
-- **Rollback = git revert:** quay về trạng thái cũ chỉ là revert commit → ArgoCD tự sync. Đơn giản và an toàn nhất trong các phương pháp.
+- **Bật `selfHeal` thì `kubectl edit` tay sẽ bị "nuốt":** đang chữa cháy khẩn mà sửa trực tiếp trên cluster, ArgoCD kéo về Git ngay lập tức → mất thay đổi. Khi cần can thiệp gấp, phải biết *tạm tắt auto-sync/self-heal* (hoặc sửa thẳng trong Git), đừng vật lộn với ArgoCD.
+- **`selfHeal` dễ "đánh nhau" với HPA:** HPA đổi `spec.replicas`, còn Git ghi một con số cứng → ArgoCD thấy lệch, kéo về, HPA lại đổi... thành vòng lặp. Giải pháp chuẩn: khai `ignoreDifferences` cho `spec.replicas` để ArgoCD *bỏ qua* field mà controller khác sở hữu.
+- **Mắt xích hay hỏng: ai cập nhật image tag vào repo config?** CI build ra image `:sha-mới` rồi *phải* ghi tag đó vào repo config thì ArgoCD mới deploy. Việc này do CI mở PR bump tag, hoặc **Argo CD Image Updater** làm tự động — quên bước này thì ArgoCD vẫn "Synced" nhưng chạy image cũ.
+- **Secret vẫn là bài toán nhức nhối của GitOps:** manifest nằm trong Git nên không được để secret trần → dùng **Sealed Secrets / SOPS / External Secrets** (như Ngày 39, 42). Đây là thứ người mới hay bỏ quên khi hào hứng "mọi thứ vào Git".
+- **Không phải app nào cũng nên auto-sync:** môi trường nhạy cảm thường để **manual sync** (người review diff rồi bấm nút), còn dev/staging thì auto-sync cho nhanh. Và `prune: true` (tự xoá tài nguyên không còn trong Git) mạnh nhưng nguy hiểm — chỉ bật khi đã thật sự tin repo là chân lý.
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -2573,6 +2664,22 @@ ArgoCD liên tục so sánh "Git nói gì" với "cluster đang thế nào":
 | **Application (CRD)** | Đối tượng ArgoCD trỏ repo→cluster |
 | **App of Apps** | 1 app quản nhiều app con |
 
+### 🎯 Đúc kết Ngày 43
+
+**3 điều phải mang theo:**
+1. **GitOps: Git là nguồn chân lý duy nhất** — mọi thay đổi đi qua PR, ArgoCD tự đồng bộ cluster về đúng Git.
+2. **Pull an toàn hơn push:** ArgoCD sống trong cluster tự kéo từ Git → không đưa credential cluster ra ngoài; tự phát hiện & sửa drift (self-heal).
+3. **Rollback = `git revert`**, và mỗi thay đổi là một commit có tác giả/lý do → nhật ký kiểm toán miễn phí.
+
+> 🧠 **Một câu để nhớ:** với GitOps, **rollback = `git revert`**, và mọi thay đổi production đều có dấu vết trong lịch sử Git (ai, lúc nào, vì sao) — tuyệt cho audit.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
+- [ ] Cài ArgoCD, tạo Application trỏ repo → thấy `Synced` + `Healthy`
+- [ ] Sửa manifest trên Git và thấy ArgoCD tự áp dụng
+- [ ] Gây drift bằng `kubectl edit` và thấy `OutOfSync` / self-heal
+- [ ] Rollback bằng `git revert` → ArgoCD tự sync về
+- [ ] Giải thích push vs pull và vì sao pull an toàn hơn
+
 ✅ **Kết quả đạt được:** Áp dụng GitOps với ArgoCD — phương pháp triển khai hiện đại nhất.
 
 ---
@@ -2639,23 +2746,13 @@ flowchart LR
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Observability ("khả năng quan sát") — 3 trụ cột:**
-Khi hệ thống có vấn đề, bạn cần "nhìn vào trong":
-- **Metrics** (số đo) → *"có gì đó sai không?"* (CPU 95%, lỗi tăng vọt).
-- **Logs** (nhật ký) → *"sai cái gì cụ thể?"* (Ngày 46).
-- **Traces** (dấu vết) → *"sai ở đâu trong chuỗi service?"*.
+> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
 
-**Prometheus — "máy thu thập số đo".**
-Chuyên lưu metric theo thời gian. Điểm đặc biệt: Prometheus **chủ động đi "hỏi"** (pull/scrape) từng dịch vụ qua đường `/metrics`, thay vì chờ chúng gửi tới. Lợi: dịch vụ chết → scrape fail → biết ngay là "down".
+**Ví như đi khám sức khỏe:** Prometheus giống **y tá đi từng phòng đo nhịp tim** cho bệnh nhân (pull — chủ động đi hỏi), thay vì ngồi chờ bệnh nhân tự gọi điện báo (push). Vì y tá tự đi đo, nên **phòng nào không mở cửa là biết ngay bệnh nhân có vấn đề** — đó chính là lợi thế "target chết → scrape fail → biết liền" của pull model.
 
-**4 loại metric cần phân biệt:**
-- **Counter** = chỉ tăng (tổng số request) → dùng với `rate()` mới có nghĩa.
-- **Gauge** = lên xuống (RAM đang dùng, nhiệt độ).
-- **Histogram/Summary** = phân phối (để tính p95, p99 latency).
+**3 trụ cột — hiểu theo câu bạn tự hỏi khi có sự cố:** *"Có gì sai không?"* → nhìn **Metrics**. *"Sai cái gì?"* → đọc **Logs**. *"Sai ở khúc nào trong chuỗi service?"* → lần theo **Traces**. Ba câu hỏi đi từ *cảnh báo* → *chi tiết* → *định vị*.
 
-**PromQL** = ngôn ngữ hỏi Prometheus: `rate(http_requests_total[5m])` = "số request/giây trong 5 phút qua".
-
-> 🧠 **Một câu để nhớ:** đừng alert mọi dao động nhỏ → "alert fatigue" (nhiều quá hóa nhờn, người ta tắt cả cái thật). Alert dựa trên thứ người dùng *thực sự cảm nhận*.
+**Vì sao Counter phải bọc `rate()`:** counter chỉ tăng, nên con số thô (vd "đã có 3 triệu request") gần như vô nghĩa. Cái bạn thật sự quan tâm là **tốc độ** — "giờ đang bao nhiêu request/giây" — và đó là việc của `rate()`.
 
 ### 🧪 Lab cơ bản
 
@@ -2682,18 +2779,13 @@ Chuyên lưu metric theo thời gian. Điểm đặc biệt: Prometheus **chủ 
    ```
 4. **Alert rule có ý nghĩa** (dựa trên triệu chứng người dùng thấy, không phải mọi dao động nhỏ).
 
-### 💡 Bổ sung thực tế: pull model & loại metric
+### 💡 Bổ sung thực tế: những cái đi làm mới thấm (sách cơ bản hay bỏ quên)
 
-- **Vì sao Prometheus dùng pull (kéo):** Prometheus tự đi "hỏi" từng target qua HTTP `/metrics`. Lợi: tự biết target nào chết (scrape fail = down), không cần target biết địa chỉ Prometheus, dễ debug (mở `/metrics` xem trực tiếp). Push model (như StatsD) hợp cho job ngắn hạn → dùng Pushgateway.
-- **4 loại metric:**
-  | Loại | Ý nghĩa | Ví dụ |
-  |---|---|---|
-  | **Counter** | chỉ tăng | tổng số request, tổng lỗi |
-  | **Gauge** | lên xuống | RAM dùng, số kết nối hiện tại, nhiệt độ |
-  | **Histogram** | phân phối theo bucket | phân bố latency (tính p95, p99) |
-  | **Summary** | tương tự histogram, tính quantile phía client | |
-- **Counter dùng với `rate()`:** counter luôn tăng nên giá trị thô vô nghĩa; `rate(counter[5m])` = tốc độ tăng/giây = thứ bạn thực sự quan tâm.
-- **Đừng alert mọi thứ:** alert quá nhiều = "alert fatigue", người ta tắt thông báo. Alert dựa trên **4 golden signals** (Ngày 45) và triệu chứng người dùng cảm nhận được.
+- **Cardinality explosion — thứ làm *sập* Prometheus thật sự:** mỗi tổ hợp label tạo ra 1 chuỗi time-series riêng. Nếu bạn đặt label động vô tội vạ (vd `user_id`, `request_id`, `email`) → hàng triệu chuỗi → Prometheus ngốn RAM rồi chết. **Quy tắc vàng:** label chỉ dùng cho giá trị *hữu hạn, ít* (status code, method, service) — TUYỆT ĐỐI không nhét ID/giá trị vô hạn vào label.
+- **Retention & lưu trữ:** Prometheus mặc định chỉ giữ metric ~15 ngày trên đĩa local. Muốn giữ lâu / gộp nhiều cụm → gắn thêm **Thanos** hoặc **Mimir**. Người mới hay tưởng metric được giữ mãi mãi.
+- **Recording rules:** query nặng (nhiều `rate()` lồng nhau) chạy lại mỗi lần mở dashboard rất tốn. **Recording rule** tính sẵn, lưu thành metric mới → dashboard nhẹ và mượt.
+- **Pushgateway chỉ cho job ngắn:** cronjob/batch chạy vài giây rồi tắt thì Prometheus không kịp scrape. CHỈ trường hợp này mới dùng **Pushgateway** để job tự đẩy metric ra — đừng lạm dụng cho service thường.
+- **Khung đặt alert:** dùng **RED** (Rate / Errors / Duration — cho service) hoặc **USE** (Utilization / Saturation / Errors — cho tài nguyên) làm khung nghĩ, thay vì alert theo cảm tính.
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -2710,7 +2802,7 @@ Chuyên lưu metric theo thời gian. Điểm đặc biệt: Prometheus **chủ 
 
 ⚠️ **Dễ sai:** alert mọi dao động nhỏ → "alert fatigue", người ta tắt cả alert thật. Alert theo golden signals/SLO.
 
-💡 **Hiểu sâu:** 4 loại metric: Counter (chỉ tăng — tổng request), Gauge (lên xuống — RAM), Histogram (phân phối — tính p95), Summary. 3 trụ cột observability: metric + log + trace.
+💡 **Hiểu sâu:** khi `rate()` ra số lạ, nhớ `rate()` chỉ áp cho **counter** (chỉ tăng) — dùng nhầm trên gauge sẽ ra kết quả vô nghĩa. Quên loại metric thì xem lại bảng ở mục 📘.
 
 ### 🐛 Gỡ lỗi nhanh
 
@@ -2770,6 +2862,22 @@ Chuyên lưu metric theo thời gian. Điểm đặc biệt: Prometheus **chủ 
 | **Counter/Gauge/Histogram** | Các loại metric |
 | **Alertmanager** | Gửi cảnh báo khi vượt ngưỡng |
 
+### 🎯 Đúc kết Ngày 44
+
+**3 điều phải mang theo:**
+1. **Metrics trả lời "có sai không?"** — trụ cột đầu trong 3 trụ cột (Metrics → Logs → Traces: cảnh báo → chi tiết → định vị).
+2. **Prometheus = pull model:** tự đi scrape `/metrics`, nên target chết là biết ngay.
+3. **Chọn đúng loại metric + bọc `rate()` cho counter**, và đặt label cẩn thận (tránh *cardinality explosion*).
+
+> 🧠 **Một câu để nhớ:** đừng alert mọi dao động nhỏ → *"alert fatigue"* (báo nhiều quá hoá nhờn, người ta tắt cả cái thật). Chỉ alert theo thứ người dùng **thực sự cảm nhận**.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
+- [ ] Giải thích được pull vs push và vì sao Prometheus chọn pull
+- [ ] Phân biệt Counter / Gauge / Histogram và biết khi nào dùng cái nào
+- [ ] Viết được 1 query `rate(...)` và 1 query `histogram_quantile(...)`
+- [ ] Cài được `kube-prometheus-stack` và thấy Targets `UP`
+- [ ] Nói được 1 lý do khiến Prometheus "nổ" (cardinality) và cách tránh
+
 ✅ **Kết quả đạt được:** Thu thập và truy vấn metric với Prometheus — nền tảng giám sát.
 
 ---
@@ -2816,21 +2924,13 @@ Prometheus *lưu + tính* số liệu; nhìn số thô thì khó. **Grafana** v�
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Grafana — "màn hình quan sát" cho hệ thống.**
-Prometheus *lưu + tính* số liệu, nhưng nhìn số thô thì khó. **Grafana** vẽ chúng thành biểu đồ đẹp, dashboard real-time. Phân vai rõ: Prometheus = kho dữ liệu; Grafana = người vẽ + cảnh báo. (Grafana không lưu metric, nó *hỏi* Prometheus.)
+> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
 
-**4 Golden Signals — nếu chỉ theo dõi 4 thứ, chọn 4 cái này (Google SRE):**
-- **Latency** = request mất bao lâu?
-- **Traffic** = đang chịu tải bao nhiêu? (request/s)
-- **Errors** = tỉ lệ request lỗi?
-- **Saturation** = tài nguyên "đầy" tới đâu? (CPU/RAM/disk %)
-4 cái này cho biết sức khỏe hệ thống chỉ trong vài giây.
+**Prometheus là kho + kế toán, Grafana là bảng đồng hồ trên xe.** Prometheus giữ số và tính toán; Grafana *không tự chế ra số nào* — nó chỉ hiển thị đẹp và bấm còi (alert) khi cần. Hiểu rạch ròi vai này giúp bạn khỏi hoảng khi thấy panel "No data": lỗi gần như luôn nằm ở Prometheus hoặc câu query, chứ không phải Grafana "hỏng". Grafana chỉ hỏi lại những gì Prometheus có.
 
-**Mẹo thực tế:**
-- Import dashboard có sẵn bằng **ID** (vd `1860` cho Node Exporter) → khỏi vẽ từ đầu.
-- Dùng **variable** (`$instance`) → 1 dashboard xem được mọi server qua dropdown.
+**4 golden signals như 4 dấu hiệu sinh tồn khi khám bệnh.** Bác sĩ không đo 100 thứ — chỉ cần mạch, huyết áp, nhiệt độ, nhịp thở là nắm được đại thể. Với một dịch vụ, bốn "dấu hiệu sinh tồn" là **Latency** (chờ bao lâu), **Traffic** (tải bao nhiêu), **Errors** (bao nhiêu lỗi), **Saturation** (tài nguyên đầy tới đâu). Bắt đầu từ bốn cái này, chỉ đào sâu khi một trong số chúng bất thường.
 
-> 🧠 **Một câu để nhớ:** dashboard tốt **kể một câu chuyện** (khỏe hay không trong 5 giây), không nhồi 50 biểu đồ rối mắt. Bắt đầu từ golden signals, đào sâu khi cần.
+**Dashboard là để cứu hoả, không phải triển lãm.** Một dashboard 50 panel là phòng triển lãm số liệu — đẹp nhưng lúc 3 giờ sáng sự cố thì không ai đọc nổi. Dashboard tốt trả lời đúng một câu trong 5 giây: *"hệ thống khoẻ hay không?"*. Hãy thiết kế nó cho **người đang hoảng giữa sự cố**, không phải cho người rảnh rỗi ngắm biểu đồ.
 
 ### 🧪 Lab cơ bản
 
@@ -2850,18 +2950,13 @@ Prometheus *lưu + tính* số liệu, nhưng nhìn số thô thì khó. **Grafa
 3. **Dùng variable** (`$instance`, `$namespace`) để 1 dashboard xem được mọi service.
 4. **Provisioning dashboard bằng code** (JSON trong Git) — dashboard cũng nên là IaC, không tạo tay.
 
-### 💡 Bổ sung thực tế: 4 golden signals & dashboard cho người, không cho máy
+### 💡 Bổ sung thực tế: những cái đi làm mới thấm
 
-- **4 Golden Signals (Google SRE)** — nếu chỉ theo dõi 4 thứ, hãy chọn 4 cái này:
-  | Tín hiệu | Trả lời câu hỏi |
-  |---|---|
-  | **Latency** | request mất bao lâu? (tách thành công vs lỗi) |
-  | **Traffic** | hệ thống đang chịu tải bao nhiêu? |
-  | **Errors** | tỉ lệ request thất bại? |
-  | **Saturation** | tài nguyên "đầy" đến đâu? (CPU/RAM/disk/queue) |
-- **Grafana + Prometheus phối hợp:** Prometheus **lưu + truy vấn** số liệu; Grafana **vẽ + cảnh báo**. Grafana không lưu metric, nó hỏi Prometheus.
-- **Dashboard tốt kể một câu chuyện:** nhìn vào là biết "hệ thống có khỏe không" trong 5 giây. Dashboard 50 panel lộn xộn = không ai nhìn. Bắt đầu từ golden signals, đào sâu khi cần.
-- **Alert nên gắn với SLO** (Ngày 51): alert khi sắp vi phạm cam kết với người dùng, không phải khi CPU nhích lên 60%.
+- **Dashboard cũng nên là code, không phải click chuột:** tạo tay thì mất khi Grafana đổi/khởi động lại và không ai tái lập được. Provisioning bằng JSON trong Git (như 🚀 đã nêu) để dashboard là IaC — versioned, review được, khôi phục được.
+- **Đừng nhìn trung bình (mean) — nhìn percentile:** latency trung bình long lanh vẫn có thể giấu một p99 thảm hoạ (1% user chờ 10 giây). Panel latency luôn nên có **p95/p99**, không chỉ avg. "Trung bình" là cách nói dối tử tế nhất của số liệu.
+- **KHÔNG được lấy trung bình của các percentile:** p95 của 3 instance rồi `avg()` lại **không** ra p95 toàn hệ thống. Với histogram phải gộp bucket trước rồi mới tính quantile: `histogram_quantile(0.95, sum(rate(...bucket[5m])) by (le))`. Đây là lỗi PromQL tinh vi mà rất nhiều dashboard mắc.
+- **Alert có thể đặt ở hai nơi — biết để chọn:** Grafana có hệ alerting riêng, nhưng nhiều team để **Prometheus + Alertmanager** lo alert (gần dữ liệu, độc lập với UI — Grafana sập vẫn còn cảnh báo). Dùng Grafana alert cho tiện, Alertmanager cho hạ tầng nghiêm túc.
+- **Time range rộng + auto-refresh dày = đè Prometheus:** một dashboard mở 30 ngày, refresh mỗi 5 giây, nhân với nhiều panel nặng có thể làm Prometheus è cổ. Dùng **recording rule** (Ngày 44) cho query nặng và đặt refresh hợp lý.
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -2938,6 +3033,22 @@ Prometheus *lưu + tính* số liệu, nhưng nhìn số thô thì khó. **Grafa
 | **Contact point** | Kênh nhận alert (Slack/email) |
 | **Provisioning** | Cấu hình dashboard bằng code |
 
+### 🎯 Đúc kết Ngày 45
+
+**3 điều phải mang theo:**
+1. **Phân vai rõ:** Prometheus lưu + tính số liệu; Grafana chỉ vẽ + cảnh báo (không lưu metric) → panel "No data" thường là lỗi query/Prometheus, không phải Grafana.
+2. **4 golden signals (Latency / Traffic / Errors / Saturation)** là dấu hiệu sinh tồn của dịch vụ — bắt đầu từ đây, đào sâu khi bất thường.
+3. **Dashboard tốt kể một câu chuyện** (khoẻ/không trong 5 giây), nhìn **percentile** chứ không nhìn trung bình, và nên là code (JSON trong Git).
+
+> 🧠 **Một câu để nhớ:** dashboard tốt **kể một câu chuyện** (khỏe hay không trong 5 giây), không nhồi 50 biểu đồ rối mắt. Bắt đầu từ golden signals, đào sâu khi cần.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
+- [ ] Kết nối Grafana với data source Prometheus
+- [ ] Import dashboard có sẵn bằng ID + tự tạo panel PromQL
+- [ ] Dựng dashboard theo 4 golden signals
+- [ ] Cấu hình alert gửi tới kênh thật (Slack/email)
+- [ ] Giải thích vì sao nhìn p95/p99 thay vì trung bình
+
 ✅ **Kết quả đạt được:** Xây dashboard giám sát trực quan (4 golden signals) với Grafana — kỹ năng SRE/DevOps.
 
 ---
@@ -2984,18 +3095,13 @@ Log text thô (`"Error tại dòng 5"`) khó lọc. Log JSON (`{"level":"error",
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Vấn đề: log nằm rải rác khắp nơi.**
-Với hàng chục container trên nhiều máy, log mỗi nơi một kiểu. Khi sự cố, bạn không thể SSH vào từng container đọc log. → Cần **gom log về một chỗ** để tìm kiếm.
+> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
 
-**Loki — "Prometheus cho log".**
-Loki thu log từ mọi container về 1 nơi, để bạn tìm/lọc trong Grafana. Nó **chỉ đánh index theo nhãn (label)** (như `app="api"`) chứ không index toàn bộ nội dung → nhẹ, rẻ, nhanh. (Đối thủ nặng hơn: ELK/Elasticsearch — mạnh nhưng tốn tài nguyên.)
-- **Promtail** = "người đưa thư" gom log đẩy về Loki.
-- **LogQL** = ngôn ngữ truy vấn: `{app="api"} |= "error"` = "log của app, dòng nào chứa error".
+**Không gom log thì debug hệ phân tán như lục 30 ngăn kéo lúc nửa đêm.** Với 30 container trên 5 máy, đi tìm một lỗi bằng cách SSH đọc log từng cái là ác mộng — mỗi nơi một định dạng, một múi giờ. Gom log về một chỗ giống đổ tất cả vào **một hộp thư tìm kiếm được**: một ô nhập, lọc ra đúng thứ cần. Đây là điều kiện tiên quyết, không có nó thì mọi thứ khác về log đều vô nghĩa.
 
-**Log có cấu trúc (JSON) — vì sao nên dùng:**
-Log text thô (`"Error tại dòng 5"`) khó lọc. Log JSON (`{"level":"error","user_id":123}`) cho phép lọc chính xác theo field. App production nên log JSON.
+**Loki "dán nhãn thùng" thay vì "lập mục lục từng trang".** ELK/Elasticsearch đọc và index *mọi từ* trong mọi log — tìm kiếm rất mạnh nhưng ngốn tài nguyên khủng khiếp. Loki đi đường khác: chỉ dán nhãn *bên ngoài thùng* (`app`, `level`), còn nội dung thì nén và cất nguyên; khi tìm, bạn lọc theo nhãn để thu hẹp còn vài thùng rồi quét nhanh bên trong. Rẻ hơn nhiều, và đủ dùng cho phần lớn nhu cầu — nhất là khi đã có sẵn Grafana/Prometheus.
 
-> 🧠 **Một câu để nhớ:** 3 trụ cột phối hợp: **Metric** báo "có sự cố" → **Log** cho biết "lỗi gì" → **Trace** chỉ "lỗi ở đâu". Và TUYỆT ĐỐI không log mật khẩu/thông tin cá nhân (log lưu lâu, ai cũng đọc).
+**Log JSON + `request_id` biến "nhật ký tâm sự" thành bảng dữ liệu.** Dòng `"lỗi rồi huhu"` chỉ người đọc mới hiểu; log JSON (`{"level":"error","user_id":123}`) cho *máy* lọc chính xác theo field. Gắn thêm một `request_id` chung là bạn có **sợi chỉ đỏ** xuyên qua mọi service để lần xem một request đã đi đâu, hỏng ở đâu — chính là cây cầu nối sang trụ cột thứ ba (Trace).
 
 ### 🧪 Lab cơ bản
 
@@ -3021,12 +3127,13 @@ Log text thô (`"Error tại dòng 5"`) khó lọc. Log JSON (`{"level":"error",
 3. **Correlation:** thêm `request_id`/`trace_id` vào log → lần theo 1 request qua nhiều service.
 4. **Retention + giới hạn dung lượng** — log vô hạn = đầy đĩa; đặt chính sách giữ log hợp lý.
 
-### 💡 Bổ sung thực tế: Loki vs ELK & vì sao log có cấu trúc
+### 💡 Bổ sung thực tế: những cái đi làm mới thấm
 
-- **Loki khác Elasticsearch ở triết lý index:** Loki **chỉ index label** (như Prometheus), nội dung log không index → nhẹ, rẻ, nhanh để vận hành. ELK index **toàn văn** → tìm kiếm mạnh hơn nhưng nặng, tốn tài nguyên. Loki hợp khi đã dùng Grafana/Prometheus; ELK hợp khi cần phân tích log sâu.
-- **Vì sao log JSON có cấu trúc:** log text thô (`"Error: something at line 5"`) khó query. Log JSON cho phép lọc theo field chính xác (`level=error AND user_id=123`). → app production nên log JSON.
-- **3 trụ cột phối hợp:** **Metric** cho biết *"có gì đó sai"* (alert), **Log** cho biết *"sai cái gì"* (chi tiết lỗi), **Trace** cho biết *"sai ở đâu trong chuỗi service"*. Gom cả 3 vào Grafana = debug nhanh.
-- **Đừng log secret/PII:** log thường lưu lâu, ai cũng đọc được — không bao giờ log mật khẩu, token, thông tin cá nhân.
+- **Cẩn thận cardinality — đúng bài học của Prometheus, lặp lại ở Loki:** đừng biến `request_id`, `user_id`, `email` thành **label** của Loki → mỗi giá trị tạo một stream, hàng triệu stream làm Loki chậm/sập. Cứ để chúng trong *nội dung* log (JSON) rồi lọc bằng `| json`; label chỉ dành cho thứ ít giá trị (app, env, level).
+- **Log không phải chỗ để đếm:** muốn biết "bao nhiêu lỗi/giây" thì dùng metric (Prometheus) — rẻ; bắt Loki đếm rate trên hàng triệu dòng thì đắt và chậm. Nguyên tắc: **metric để đếm & cảnh báo, log để điều tra chi tiết**.
+- **Lỡ log secret = coi như đã lộ, phải xoay:** log được nhân bản khắp nơi (Loki, backup, màn hình dev) nên không "xoá sạch" được. Đã in mật khẩu/token ra log thì việc đúng là **xoay (rotate) ngay bí mật đó**, chứ không phải cố đi xoá log.
+- **Retention phân tầng để vừa nhanh vừa rẻ:** giữ log nóng ngắn ngày (query nhanh) rồi đẩy phần dài hạn xuống object storage (S3/GCS) giá rẻ — Loki lưu chunk trên object store rất hợp mô hình này. Log vô hạn trên đĩa nhanh = cháy túi.
+- **Đồng bộ giờ + chuẩn UTC nếu không muốn phát điên khi correlate:** log từ nhiều máy mà lệch múi giờ/lệch đồng hồ thì ghép một request qua các service thành ác mộng. Chuẩn hoá timestamp UTC và bật NTP trên mọi node.
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -3102,6 +3209,22 @@ Log text thô (`"Error tại dòng 5"`) khó lọc. Log JSON (`{"level":"error",
 | **Correlation** | Lần theo request qua `request_id`/`trace_id` |
 | **Retention** | Chính sách giữ/xoá log |
 
+### 🎯 Đúc kết Ngày 46
+
+**3 điều phải mang theo:**
+1. **Gom log tập trung** là điều kiện tiên quyết để debug hệ phân tán — không SSH đọc log từng container.
+2. **Loki chỉ index label (nhẹ/rẻ) vs ELK index toàn văn (mạnh/nặng);** và cẩn thận cardinality label y như ở Prometheus.
+3. **Log JSON + `request_id`** biến log thành dữ liệu lọc được và lần theo một request qua nhiều service — nối metric → log → trace.
+
+> 🧠 **Một câu để nhớ:** 3 trụ cột phối hợp: **Metric** báo "có sự cố" → **Log** cho biết "lỗi gì" → **Trace** chỉ "lỗi ở đâu". Và TUYỆT ĐỐI không log mật khẩu/thông tin cá nhân (log lưu lâu, ai cũng đọc).
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
+- [ ] Chạy Loki + Promtail + Grafana và thấy log chạy về Explore
+- [ ] Viết LogQL lọc theo label + `|= "error"` + `| json`
+- [ ] Giải thích Loki index label vs ELK index toàn văn
+- [ ] Biết vì sao KHÔNG đưa `request_id` thành label Loki
+- [ ] Nói được 3 trụ cột phối hợp thế nào khi debug
+
 ✅ **Kết quả đạt được:** Tập trung và truy vấn log toàn hệ thống (Loki + LogQL) — hoàn thiện observability.
 
 ---
@@ -3151,20 +3274,13 @@ Ansible chỉ cần **SSH + Python** trên máy đích, **không cài agent** (k
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Ansible là gì? — "ra lệnh cho hàng loạt server cùng lúc".**
-Bạn có 50 server cần cài nginx + cấu hình giống nhau. SSH vào từng cái gõ tay = ác mộng. Ansible làm việc đó *tự động, đồng loạt*: bạn viết 1 file mô tả "muốn server thế nào", Ansible SSH vào tất cả và làm cho khớp.
+> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
 
-**Terraform vs Ansible — bổ trợ, không cạnh tranh:**
-- **Terraform** = *tạo* hạ tầng ("dựng 3 máy ảo, 1 network").
-- **Ansible** = *cấu hình bên trong* máy ("cài nginx, sửa config, chạy service").
-→ Luồng thật: Terraform dựng máy → Ansible cấu hình.
+**Ansible như một quản lý cầm bảng phân công cho cả đội làm y hệt.** Thay vì đến từng người dặn dò (SSH vào từng server gõ tay — ác mộng với 50 máy), bạn viết một bảng phân công (playbook) rồi Ansible SSH vào tất cả và làm đồng loạt. Sức mạnh thật ra không chỉ ở *nhanh*, mà ở **đồng nhất**: 50 server giống hệt nhau, không còn con nào "đặc biệt" mà chẳng ai nhớ tại sao — thứ gây ra hầu hết sự cố bí ẩn trong hạ tầng thủ công.
 
-**Các khái niệm:** **Inventory** (danh sách server) · **Playbook** (file YAML mô tả việc cần làm) · **Module** (`apt`, `service`, `copy`... — đơn vị tác vụ, khai báo trạng thái mong muốn).
+**Terraform xây nhà, Ansible bài trí nội thất.** Terraform dựng cái khung (VM, network, disk); Ansible bước vào bên trong lắp đặt (cài phần mềm, sửa config, chạy service). Đây không phải chọn một-trong-hai — luồng thật là Terraform xây xong thì Ansible trang trí. Nhớ vậy để khỏi băn khoăn "học cái nào" — bạn cần cả hai cho hai việc khác nhau.
 
-**Idempotent — đặc tính quan trọng:**
-Chạy playbook 10 lần vẫn ra cùng kết quả; lần 2+ báo `changed=0` (không đổi gì vì đã đúng). Đây là lý do dùng module chuyên dụng thay vì `shell` — module tự kiểm tra "đã đúng chưa" trước khi làm.
-
-> 🧠 **Một câu để nhớ:** Ansible **agentless** — chỉ cần SSH + Python trên máy đích, không cài "agent" gì cả. Đó là lý do nó dễ áp dụng cho server có sẵn.
+**Idempotent = mô tả *đích*, không mô tả *bước*.** Đây là ý khó ngấm nhất. Bạn không ra lệnh *"chạy `apt install nginx`"* (một mệnh lệnh — chạy lần hai thì sao?); bạn khai *"nginx phải **có mặt**"* (một trạng thái). Module tự kiểm tra: đã có thì thôi (`changed=0`), chưa có thì cài. Nhờ vậy chạy 10 lần vẫn an toàn — đúng cái tinh thần *declarative* bạn đã gặp ở Kubernetes (Ngày 36).
 
 ### 🧪 Lab cơ bản
 
@@ -3196,17 +3312,13 @@ Chạy playbook 10 lần vẫn ra cùng kết quả; lần 2+ báo `changed=0` (
 3. **Cấu trúc role chuẩn** (`roles/web/{tasks,templates,handlers,defaults}`) để tái dùng.
 4. **`--check` (dry-run) + `--diff`** xem thay đổi trước khi áp dụng thật.
 
-### 💡 Bổ sung thực tế: Terraform vs Ansible & "agentless"
+### 💡 Bổ sung thực tế: những cái đi làm mới thấm
 
-- **Terraform và Ansible bổ trợ, không cạnh tranh:**
-  | | Vai trò | Câu hỏi |
-  |---|---|---|
-  | **Terraform** | provisioning hạ tầng | "tạo 3 VM, 1 network, 1 load balancer" |
-  | **Ansible** | configuration management | "cài nginx + cấu hình + chạy service trên 3 VM đó" |
-  - Luồng thật: Terraform dựng máy → Ansible cấu hình bên trong. (Thời container/K8s, vai trò Ansible giảm cho app mới, nhưng vẫn rất mạnh cho cấu hình OS/server truyền thống.)
-- **Agentless là lợi thế lớn:** Ansible chỉ cần SSH + Python trên target, **không cài agent**. Khác Puppet/Chef (cần agent + master). → dễ bắt đầu, dễ áp dụng cho server có sẵn.
-- **Idempotent là cốt lõi:** chạy playbook 10 lần phải ra cùng kết quả, lần 2+ báo `changed=0`. Đây là lý do dùng module (`apt`, `service`) thay vì `shell` — module biết kiểm tra trạng thái trước khi hành động.
-- **Khi nào dùng Ansible thời K8s:** cấu hình node OS, cài đặt bootstrap cluster, quản lý server không-container, chạy các tác vụ vận hành hàng loạt (patch 50 server).
+- **`shell`/`command` phá vỡ idempotency:** hai module này Ansible không biết "đã đúng chưa" nên mặc định luôn báo `changed` và chạy lại mỗi lần. Khi buộc phải dùng, tự bảo vệ bằng `creates:`, `when:` hoặc `changed_when:` — còn không thì ưu tiên module chuyên dụng (`apt`, `copy`, `service`).
+- **Ansible là "push theo lô", không phải luôn-đúng liên tục:** cấu hình chỉ khớp *tại thời điểm bạn chạy playbook*. Giữa hai lần chạy, ai đó sửa tay là máy **drift** mà không có gì tự kéo về (khác agent kiểu Puppet chạy định kỳ, hay ArgoCD self-heal ở K8s). Muốn chống drift phải chạy lại đều đặn (cron/CI).
+- **`--check --diff` để xem trước, nhưng có giới hạn:** dry-run rất hữu ích như `terraform plan`, song task dùng `shell`/`command` thường không mô phỏng được trong check mode → đừng tin tuyệt đối vào `--check` nếu playbook nhiều shell.
+- **Ansible chậm dần khi nhiều host — có cách tăng tốc:** nó SSH ra các host theo lô (`forks`, mặc định 5). Vài trăm server thì bật `pipelining=True`, tăng `forks`, hoặc dùng `mitogen` để rút thời gian đáng kể.
+- **Secret: Ansible Vault là mức tối thiểu, không phải đích đến:** Vault mã hoá file secret trong repo là tốt, nhưng team chín thường kéo secret từ **secret manager** (HashiCorp Vault, cloud secret manager) lúc chạy để khỏi giữ bí mật (dù đã mã hoá) trong Git.
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -3283,6 +3395,22 @@ Chạy playbook 10 lần vẫn ra cùng kết quả; lần 2+ báo `changed=0` (
 | **Idempotent** | Chạy lại ra cùng kết quả |
 | **Ansible Vault** | Mã hoá secret trong playbook |
 
+### 🎯 Đúc kết Ngày 47
+
+**3 điều phải mang theo:**
+1. **Ansible = cấu hình hàng loạt server tự động & đồng nhất qua SSH**, agentless (chỉ cần SSH + Python trên máy đích).
+2. **Terraform tạo hạ tầng (xây nhà), Ansible cấu hình bên trong (bài trí)** — bổ trợ, không cạnh tranh.
+3. **Idempotent = mô tả *đích* (trạng thái) chứ không mô tả *bước*** → chạy 10 lần vẫn an toàn; dùng module chuyên dụng, tránh `shell` bừa.
+
+> 🧠 **Một câu để nhớ:** Ansible **agentless** — chỉ cần SSH + Python trên máy đích, không cài agent gì cả. Đó là lý do nó dễ áp dụng cho server có sẵn.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
+- [ ] Tạo inventory + `ansible all -m ping` thành công
+- [ ] Viết playbook cài + chạy nginx bằng module chuyên dụng
+- [ ] Chạy 2 lần và thấy lần 2 báo `changed=0` (idempotent)
+- [ ] Dùng `template` đẩy config có biến + handler reload
+- [ ] Giải thích Terraform vs Ansible và vì sao agentless là lợi thế
+
 ✅ **Kết quả đạt được:** Tự động cấu hình server hàng loạt bằng Ansible — bổ trợ hoàn hảo cho Terraform.
 
 ---
@@ -3333,19 +3461,13 @@ terraform {
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Khi dự án lớn lên, Terraform cần tổ chức tốt hơn.**
+> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
 
-**Module — "hàm" cho hạ tầng (DRY).**
-Thay vì copy-paste cấu hình 1 máy ảo 10 lần, bạn viết 1 **module** (vd `compute`) rồi gọi lại với tham số khác nhau. Sửa 1 chỗ, áp dụng mọi nơi — như viết hàm trong lập trình.
+**Module là "bản thiết kế chuẩn" của cả công ty.** Thay vì mỗi kỹ sư tự vẽ một kiểu VM (người quên mã hoá đĩa, người quên gắn tag), cả đội dùng chung một bản thiết kế "VM chuẩn" đã gói sẵn best-practice. Gọi module nghĩa là nói *"cho tôi một cái theo mẫu chuẩn, cỡ này"*. Cái lợi lớn hơn cả DRY: sửa bản mẫu một lần là **cả công ty được nâng cấp** — vá một lỗ hổng ở module, mọi nơi dùng nó đều an toàn theo.
 
-**Remote state — bắt buộc khi làm nhóm.**
-Nhớ file `.tfstate` (Ngày 29)? Để trên máy cá nhân thì cả team không dùng chung được, dễ mất, dễ xung đột. **Remote state** = lưu `.tfstate` ở nơi chung (S3...) + **khóa (lock)** khi ai đó đang `apply` → 2 người không "giẫm chân" làm hỏng state.
+**Remote state + lock — điều tối quan trọng khi rời khỏi việc làm một mình.** `.tfstate` là *tấm bản đồ* Terraform vẽ về hạ tầng, và nó **tin tấm bản đồ này tuyệt đối**. Để bản đồ trên laptop một người thì cả team mù. Tệ hơn: hai người `apply` cùng lúc là hai người vẽ đè lên một bản đồ → rách nát (state corruption), rất khó cứu. `lock` chính là quy tắc *"tại một thời điểm chỉ một người được cầm bút"*.
 
-**Workspace vs thư mục riêng — quản nhiều môi trường:**
-- *Workspace*: cùng code, khác state cho dev/prod — gọn nhưng dễ nhầm "apply nhầm môi trường".
-- *Thư mục riêng* (`environments/dev`, `/prod`): rõ ràng hơn, nhiều team production chọn cách này.
-
-> 🧠 **Một câu để nhớ:** đưa `terraform plan` vào CI = "code review cho hạ tầng" — reviewer thấy chính xác PR sẽ tạo/xóa gì *trước khi* merge, chặn được những lệnh xóa nhầm thảm họa.
+**Tách môi trường là để giới hạn thiệt hại, không chỉ cho gọn.** Một thao tác Terraform sai có thể xoá sạch cả một môi trường trong vài giây — nên câu hỏi thật sự là *"làm sao để không lỡ tay apply nhầm vào prod?"*. Dùng **thư mục riêng** (`environments/dev`, `/prod`) buộc bạn phải `cd` vào đúng chỗ mới chạm tới prod → khó nhầm hơn hẳn **workspace** (chỉ khác một lệnh `switch` rất dễ quên). Đây là lý do nhiều team production chọn folder.
 
 ### 🧪 Lab cơ bản
 
@@ -3371,14 +3493,13 @@ Nhớ file `.tfstate` (Ngày 29)? Để trên máy cá nhân thì cả team khô
 3. **Tách môi trường:** mỗi env một state key/folder + tfvars riêng (nhiều team dùng folder thay vì workspace cho rõ ràng).
 4. **Terraform trong CI/CD:** PR chạy `fmt` + `validate` + `plan` (comment plan vào PR); merge main chạy `apply` (có approval). Quét `tfsec`/`checkov` tìm cấu hình sai bảo mật.
 
-### 💡 Bổ sung thực tế: tổ chức Terraform khi dự án lớn lên
+### 💡 Bổ sung thực tế: những cái đi làm mới thấm
 
-- **Module = hàm cho hạ tầng:** thay vì copy-paste cấu hình VM 10 lần, viết 1 module `compute` rồi gọi với tham số khác nhau. DRY (Don't Repeat Yourself) cho hạ tầng.
-- **Remote state giải quyết bài toán team:** state local = chỉ 1 người dùng được, dễ mất, dễ xung đột. Remote state (S3/GCS/Terraform Cloud) + **locking** = cả team làm chung an toàn, không ai apply đè ai.
-- **Workspace vs thư mục riêng** (tranh luận thật trong ngành):
-  - **Workspace:** nhẹ, cùng code khác state — dễ nhầm apply nhầm môi trường.
-  - **Thư mục riêng** (`environments/dev`, `environments/prod`): rõ ràng hơn, khó nhầm, nhiều team production chọn cách này.
-- **`plan` trong CI là "code review cho hạ tầng":** reviewer thấy chính xác PR sẽ tạo/xóa gì trên cloud trước khi merge — chặn được những `destroy` thảm họa.
+- **Đọc kỹ `plan`: `~` (sửa tại chỗ) rất khác `-/+` (xoá rồi tạo lại):** một số thay đổi buộc Terraform **thay thế** tài nguyên (mất dữ liệu, đổi IP). Đổi tên một resource trong code cũng bị coi là xoá cái cũ + tạo cái mới — dùng block `moved` (hoặc `terraform state mv`) để đổi tên mà không phá.
+- **`.tfstate` là dữ liệu nhạy cảm, không chỉ là file kỹ thuật:** nó lưu *plaintext* nhiều giá trị (password, key sinh ra). Vì vậy remote backend phải bật mã hoá + siết quyền truy cập, và tuyệt đối **không commit lên Git**. Coi tfstate như một secret.
+- **Ghim version provider & module:** dùng `required_version` và `~>` cho provider/module — một bản provider mới bất ngờ có thể đổi cách sinh tài nguyên, làm `plan` ra khác hẳn, thậm chí đòi replace. Nâng cấp có chủ đích, đừng để tự trôi.
+- **Chia nhỏ state để thu hẹp "blast radius":** đừng nhét cả công ty vào một state khổng lồ — tách theo tầng (networking / data / app). Một `apply` khi đó chỉ đụng một mảng, khoá ngắn hơn, và một lỗi không kéo sập mọi thứ. Nối các state bằng `data source`/remote state outputs.
+- **Terraform phát hiện drift nhưng không tự sửa:** ai đó bấm sửa trên console cloud → lần `plan` sau Terraform báo lệch, nhưng nó chỉ *reconcile khi bạn `apply`* (giống Ansible push, khác ArgoCD self-heal). Chạy `plan` định kỳ trong CI để bắt drift sớm.
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -3455,6 +3576,22 @@ Nhớ file `.tfstate` (Ngày 29)? Để trên máy cá nhân thì cả team khô
 | **Data source** | Đọc tài nguyên đã tồn tại |
 | **DRY** | Don't Repeat Yourself |
 
+### 🎯 Đúc kết Ngày 48
+
+**3 điều phải mang theo:**
+1. **Module = bản thiết kế chuẩn tái dùng** (DRY cho hạ tầng): sửa một chỗ, cả nơi dùng đều được nâng cấp.
+2. **Remote state + locking bắt buộc khi làm team:** một bản đồ chung, một người cầm bút tại một thời điểm; và `.tfstate` là secret, không commit Git.
+3. **Tách môi trường (folder riêng an toàn hơn workspace) để giới hạn "blast radius";** đưa `plan` vào CI = code review cho hạ tầng.
+
+> 🧠 **Một câu để nhớ:** đưa `terraform plan` vào CI = "code review cho hạ tầng" — reviewer thấy chính xác PR sẽ tạo/xóa gì *trước khi* merge, chặn được những lệnh xóa nhầm thảm họa.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
+- [ ] Tách hạ tầng thành module và gọi lại với tham số khác nhau
+- [ ] Cấu hình remote state (S3) + locking
+- [ ] Quản dev/prod bằng workspace hoặc folder + tfvars riêng
+- [ ] Đọc `plan` và phân biệt `~` (update) vs `-/+` (replace)
+- [ ] Thêm `fmt` + `validate` + `plan` vào CI
+
 ✅ **Kết quả đạt được:** Quản lý hạ tầng quy mô lớn với Terraform module, remote state, đa môi trường.
 
 ---
@@ -3501,21 +3638,13 @@ Log mọi thay đổi, quét cấu hình sai định kỳ (`tfsec`, `kube-bench`
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**DevSecOps = nhét bảo mật vào MỌI bước, càng sớm càng tốt.**
-Tư duy cũ: làm xong hết rồi mới kiểm tra bảo mật (cuối cùng). Tư duy mới **"shift-left"** (đẩy sang trái = về phía sớm): kiểm tra bảo mật ngay khi viết code/mở PR. Vì sao? Lỗ hổng phát hiện càng muộn càng **đắt** để sửa (gấp hàng nghìn lần khi đã lên production).
+> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
 
-**5 loại "quét" tự động trong pipeline:**
-- **SCA** = quét thư viện/dependency có lỗ hổng đã biết (Trivy, Dependabot).
-- **SAST** = quét code của bạn tìm lỗi bảo mật (Semgrep).
-- **Image scan** = quét lỗ hổng trong Docker image (Trivy).
-- **IaC scan** = quét cấu hình hạ tầng sai (tfsec — vd "S3 để public").
-- **Secret scan** = bắt secret lỡ commit (gitleaks).
+**Sửa lỗi càng muộn càng như đục lại tường đã xây.** Sửa một lỗ hổng lúc đang code giống như tẩy một dòng viết chì; sửa nó khi đã lên production giống như phải đục lại bức tường đã trát vữa. "Shift-left" chỉ có nghĩa: kéo khâu kiểm tra về phía *trái* (sớm) trên dòng thời gian, nơi sửa còn rẻ. Bởi vậy bảo mật không phải cái cổng gác duy nhất ngay trước lúc release, mà là **một dãy cảm biến đặt dọc suốt con đường** từ lúc gõ dòng code đầu tiên.
 
-**Bảo vệ trong cluster:**
-- **NetworkPolicy** = quy định pod nào được nói chuyện với pod nào (vd: chỉ backend được gọi DB).
-- **RBAC** = phân quyền tối thiểu cho từng tài khoản (không cấp `cluster-admin` bừa bãi).
+**5 loại quét = 5 cánh cửa có thể bị đột nhập.** Mỗi loại canh một cửa: **SCA** (thư viện bên thứ ba bạn kéo về), **SAST** (code do chính bạn viết), **image scan** (nền OS bên trong container), **IaC scan** (cấu hình hạ tầng — cửa hay bị quên nhất, kiểu "lỡ để S3 public"), **secret scan** (chìa khoá rơi trong commit). Kẻ xấu không cần mọi cửa hở — **chỉ một** là đủ, nên bạn phải canh cả năm.
 
-> 🧠 **Một câu để nhớ:** bảo mật là **nhiều lớp** (defense in depth): firewall → NetworkPolicy → RBAC → least privilege → quét → quản secret. Không lớp nào đủ một mình.
+**Nguyên tắc ngầm: "giả định sẽ bị chọc thủng".** Bảo mật tốt không đặt cược vào một bức tường duy nhất; nó giả định kẻ xấu *sẽ* vào được một lớp, nên khoanh sẵn để thiệt hại không lan. **NetworkPolicy deny-by-default** = mặc định cấm mọi pod nói chuyện, chỉ mở đúng đường thật sự cần. **RBAC least privilege** = không phát "chìa khoá vạn năng" (`cluster-admin`) cho ai bừa. Vào được một phòng không có nghĩa vào được cả toà nhà.
 
 ### 🧪 Lab cơ bản
 
@@ -3539,19 +3668,13 @@ Tư duy cũ: làm xong hết rồi mới kiểm tra bảo mật (cuối cùng). 
 3. **RBAC least privilege** — mỗi service account chỉ quyền tối thiểu; không dùng `cluster-admin` bừa.
 4. **Ký image (cosign) + SBOM** — đảm bảo image chạy đúng là image bạn build, biết rõ thành phần bên trong.
 
-### 💡 Bổ sung thực tế: shift-left & 4 loại quét
+### 💡 Bổ sung thực tế: những cái đi làm mới thấm
 
-- **Shift-left nghĩa là gì:** đẩy bảo mật **sớm** về phía dev (trái của pipeline) thay vì kiểm tra cuối (phải). Phát hiện lỗ hổng lúc code/PR rẻ hơn nghìn lần so với lúc đã lên production. Lỗ hổng nằm càng lâu càng đắt để sửa.
-- **4 loại quét trong pipeline:**
-  | Loại | Quét gì | Công cụ |
-  |---|---|---|
-  | **SCA** | thư viện/dependency có CVE | Trivy, Dependabot, Snyk |
-  | **SAST** | lỗ hổng trong code của bạn | Semgrep, CodeQL |
-  | **Image scan** | lỗ hổng trong image OS/lib | Trivy, Grype |
-  | **IaC scan** | cấu hình hạ tầng sai (S3 public...) | tfsec, checkov, kube-bench |
-  | **Secret scan** | secret lỡ commit | gitleaks, trufflehog |
-- **Defense in depth (phòng thủ nhiều lớp):** firewall (SG/UFW) → NetworkPolicy → RBAC → least privilege → image scan → secret management. Không lớp nào đủ một mình; nhiều lớp cộng lại mới an toàn.
-- **Supply chain là mặt trận mới:** tấn công qua dependency/image bị nhiễm độc ngày càng nhiều. Ghim version, quét, ký image, dùng SBOM để biết chính xác bạn đang chạy gì.
+- **Scanner ồn sẽ bị dev tắt — phải phân loại, đừng fail vì mọi CVE:** một lần quét ra hàng trăm CVE, phần lớn không khai thác được trong ngữ cảnh của bạn. Chỉ **fail build với CRITICAL/HIGH có bản vá**, dùng file bỏ qua (vd `.trivyignore`) *có review* cho những cái đã đánh giá là chấp nhận được. Không thì "alert fatigue" lặp lại đúng như với monitoring.
+- **CVE ở base image thì đổi base tốt hơn vá từng cái:** rất nhiều lỗ hổng nằm trong OS nền của image. Chuyển sang base nhỏ (alpine/distroless) cắt phần lớn bề mặt tấn công một phát, thay vì đuổi theo vá từng gói.
+- **Secret bị gitleaks bắt = đã lộ, xoá commit KHÔNG đủ:** nó vẫn nằm trong history, các bản clone và fork. Việc đúng là **xoay (rotate) ngay** bí mật đó, rồi mới dọn history. (Bài học lặp lại từ logging — vì nó quá quan trọng.)
+- **SBOM biến "mình có dính không?" thành câu trả lời trong vài giây:** khi một lỗ hổng lớn được công bố (kiểu Log4Shell), có SBOM (+ ký image bằng cosign) là tra ra ngay image nào chứa thành phần đó — không phải build lại tất cả để quét.
+- **Bảo mật là quá trình liên tục, không phải một lần quét lúc build:** CVE mới xuất hiện mỗi ngày trên chính image *đang chạy* mà bạn chẳng đổi gì. Phải quét định kỳ cả image đã deploy, và áp least privilege cho *cả* token CI và con người, không riêng service account.
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -3629,6 +3752,22 @@ Tư duy cũ: làm xong hết rồi mới kiểm tra bảo mật (cuối cùng). 
 | **cosign / SBOM** | Ký image / danh mục thành phần |
 | **Defense in depth** | Phòng thủ nhiều lớp |
 
+### 🎯 Đúc kết Ngày 49
+
+**3 điều phải mang theo:**
+1. **Shift-left:** kiểm bảo mật ngay khi code/PR — sửa sớm rẻ hơn nghìn lần so với lúc đã lên production.
+2. **5 loại quét canh 5 cửa:** SCA (thư viện), SAST (code bạn viết), image scan (nền OS), IaC scan (cấu hình), secret scan (chìa khoá lỡ commit) — kẻ xấu chỉ cần một cửa hở.
+3. **Defense in depth + least privilege:** NetworkPolicy deny-by-default, RBAC quyền tối thiểu — giả định sẽ bị chọc thủng, khoanh vùng thiệt hại.
+
+> 🧠 **Một câu để nhớ:** bảo mật là **nhiều lớp** (defense in depth): firewall → NetworkPolicy → RBAC → least privilege → quét → quản secret. Không lớp nào đủ một mình.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
+- [ ] Tích hợp Trivy quét image trong CI, fail khi có CVE nghiêm trọng
+- [ ] Chạy tfsec/checkov quét cấu hình IaC sai
+- [ ] Tạo NetworkPolicy deny-by-default rồi mở đúng đường cần
+- [ ] Cấu hình RBAC least privilege (Role + RoleBinding)
+- [ ] Giải thích 5 loại quét và vì sao secret lộ phải xoay chứ không chỉ xoá
+
 ✅ **Kết quả đạt được:** Tích hợp bảo mật vào pipeline và hạ tầng (shift-left, quét, NetworkPolicy, RBAC) — tư duy DevSecOps.
 
 ---
@@ -3659,8 +3798,6 @@ Không phải nhớ từng công cụ, mà hiểu **chúng ghép vào nhau thế
 - Giai đoạn 1: gõ lệnh tay trên 1 server.
 - Giai đoạn 2: đóng gói + đưa lên cloud bằng code.
 - Giai đoạn 3 (giờ): **toàn bộ tự động + tự phục hồi + tự giám sát** ở quy mô lớn.
-
-> 🧠 **Một câu để nhớ:** chuẩn hiện đại là **GitOps** — không ai có chìa khóa cluster để push tay; mọi thay đổi qua Git, ArgoCD tự kéo. An toàn + có dấu vết + rollback dễ.
 
 ### 🧪 Lab cơ bản (Milestone)
 
@@ -3759,6 +3896,22 @@ flowchart TD
 | **Observability** | Metric + Log + Trace |
 | **DevSecOps** | Bảo mật xuyên suốt pipeline |
 | **IaC** | Hạ tầng dưới dạng code |
+
+### 🎯 Đúc kết Ngày 50 (Tổng kết Giai đoạn 3)
+
+**3 điều phải mang theo:**
+1. **Cả Giai đoạn 3 là MỘT vòng khép kín:** code → CI (test + scan) → build image (SHA) → GitOps deploy K8s (probe/HPA) → observability (metric/log + alert) → phát hiện → cải tiến → lặp. Giá trị nằm ở cách các mắt xích *ghép vào nhau*, không phải ở từng công cụ rời.
+2. **Ba trụ tư duy xuyên suốt:** *declarative* (khai đích, để máy giữ — K8s/Terraform/Ansible/GitOps), *bất biến* (image/tag SHA → rollback nhẹ nhàng), và *shift-left* (chất lượng + bảo mật đẩy về sớm).
+3. **GitOps là chuẩn hiện đại:** Git là nguồn chân lý, không ai cầm chìa khoá cluster push tay — an toàn, có dấu vết, rollback = `git revert`.
+
+> 🧠 **Một câu để nhớ:** chuẩn hiện đại là **GitOps** — không ai có chìa khóa cluster để push tay; mọi thay đổi qua Git, ArgoCD tự kéo. An toàn + có dấu vết + rollback dễ.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
+- [ ] Dựng vòng khép kín push → CI/CD → GitOps deploy K8s → monitoring và demo end-to-end
+- [ ] Giải thích vì sao GitOps (pull) an toàn hơn CI push thẳng vào cluster
+- [ ] App K8s có probe + resource limits + HPA + Ingress
+- [ ] Monitoring đủ metric + log, có ít nhất 1 alert gửi tới kênh thật
+- [ ] Hạ tầng bằng Terraform (module + remote state), mọi thứ khai báo trong Git
 
 ✅ **Kết quả đạt được — MỐC 6:** Làm chủ toàn bộ stack DevOps hiện đại — sẵn sàng cho dự án tốt nghiệp.
 
