@@ -94,19 +94,13 @@ flowchart LR
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Git là gì? Vì sao ai làm IT cũng phải biết?**
-Git là "cỗ máy thời gian cho code". Mỗi lần bạn lưu (commit), Git chụp lại toàn bộ trạng thái dự án → bạn có thể quay về bất kỳ điểm nào trong quá khứ, xem ai sửa gì, khi nào. Khác hẳn kiểu lưu `baocao_final_v2_thatsu_cuoicung.docx` — Git quản lý lịch sử sạch sẽ và cho nhiều người làm chung 1 dự án mà không đè lên nhau.
+> 📘 đã mô tả 3 vùng và các lệnh. Mục này cho bạn **hình dung** để nhớ lâu — không lặp lại bảng.
 
-**3 vùng — chìa khóa hiểu Git (hơi lạ lúc đầu nhưng rất logic):**
-1. **Working Directory** = bàn làm việc, nơi bạn sửa file.
-2. **Staging Area** = khay "chuẩn bị đóng gói" — bạn chọn file nào sẽ được lưu (`git add`).
-3. **Repository** = kho lịch sử — đóng dấu lưu vĩnh viễn (`git commit`).
-→ Vòng đời: sửa file (Working) → `git add` (vào Staging) → `git commit` (vào Repo).
+**Vì sao có tận 3 vùng, không phải "lưu" một phát là xong?** Vì Git tách bạch *"tôi đã sửa gì"* và *"tôi muốn ghi lại gì"*. Staging Area (khay đóng gói) là chỗ bạn **chọn lọc**: sửa 5 file nhưng chỉ 2 file thuộc về cùng một ý nghĩa → `git add` đúng 2 file đó rồi commit riêng. Nhờ vậy mỗi commit là một "câu chuyện" gọn, chứ không phải đống hỗn độn. Người mới hay khó chịu với bước `add` tưởng như thừa, nhưng chính nó cho bạn quyền biên tập lịch sử *trước khi* đóng dấu.
 
-**`.gitignore` — danh sách "đừng theo dõi cái này".**
-Có những file không nên đưa vào Git: secret (`.env`), file rác (`*.log`), thư mục nặng (`node_modules/`). Liệt kê chúng trong `.gitignore` để Git bỏ qua.
+**"Phân tán" (distributed) nghĩa là gì và vì sao quan trọng?** Mỗi bản `git clone` là một bản sao **đầy đủ** cả lịch sử, không phải chỉ bản mới nhất. Server GitHub sập? Bất kỳ máy nào từng clone đều dựng lại được toàn bộ. Đây là khác biệt lớn với các hệ cũ (SVN) phải luôn online mới làm việc được.
 
-> 🧠 **Một câu để nhớ:** Git gần như **không bao giờ mất thứ đã commit** — kể cả khi bạn tưởng đã xóa, `git reflog` thường tìm lại được. Nên cứ mạnh dạn commit thường xuyên.
+**Vì sao nên commit thường xuyên?** Commit giống một "điểm lưu game" — càng nhiều điểm lưu, càng dễ quay lui khi hỏng. Và Git gần như không đánh mất thứ đã commit: kể cả khi bạn `reset` nhầm, dấu vết vẫn còn trong `reflog`. Thứ đáng sợ là những gì *chưa* commit — thay đổi chưa lưu thì Git chẳng cứu được.
 
 ### 🧪 Lab cơ bản
 
@@ -288,6 +282,22 @@ cat a.txt                 # dòng "sai" biến mất
 | **HEAD** | Con trỏ "đang ở commit nào" |
 | **reflog** | Sổ ghi mọi thao tác — nơi cứu commit mất |
 
+### 🎯 Đúc kết Ngày 13
+
+**3 điều phải mang theo:**
+1. **3 vùng:** Working (sửa) → Staging (`git add`, chọn lọc) → Repository (`git commit`, đóng dấu). Staging cho bạn commit gọn, có ý nghĩa.
+2. **`.gitignore` trước, commit sau:** secret (`.env`), rác (`*.log`), thư mục nặng (`node_modules/`) không bao giờ vào Git.
+3. **Cứu vãn theo vùng:** `restore` (bỏ sửa), `restore --staged` (gỡ khỏi staging), `reset`/`revert`/`reflog` (mức repo). Biết file đang ở vùng nào là biết dùng lệnh nào.
+
+> 🧠 **Một câu để nhớ:** Git gần như **không bao giờ mất thứ đã commit** — kể cả khi tưởng đã xóa, `git reflog` thường tìm lại được. Nên cứ mạnh dạn commit thường xuyên.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Mô tả vòng đời 1 file qua 3 vùng bằng lời của mình
+- [ ] Tạo repo, commit ≥3 lần, xem lịch sử bằng `git log --oneline`
+- [ ] Dùng `.gitignore` để giấu `.env` khỏi `git status`
+- [ ] Dùng `git restore` bỏ thay đổi chưa commit
+- [ ] Giải thích `reflog` cứu commit "đã mất" như thế nào
+
 ✅ **Kết quả đạt được:** Quản lý phiên bản code cục bộ thành thạo với Git (3 vùng, commit, gitignore, cứu vãn).
 
 ---
@@ -341,19 +351,13 @@ Mỗi tính năng 1 nhánh (`feature/login`), làm xong merge về `main` (qua r
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Branch (nhánh) — như vũ trụ song song của code.**
-Tưởng tượng bạn muốn thử một tính năng mới nhưng sợ làm hỏng code đang chạy. Bạn tạo 1 **nhánh** — bản sao song song để thử thoải mái. Làm xong: hỏng thì vứt nhánh đó đi; ổn thì **merge** (gộp) trở lại nhánh chính (`main`). Code chính luôn an toàn.
+> 📘 đã có bảng lệnh và cách xử lý conflict. Mục này giúp bạn **hình dung** để bớt sợ.
 
-**Vì sao nên dùng nhánh cho mỗi tính năng?**
-Trong team, mỗi người làm 1 nhánh riêng → không giẫm chân nhau. Tạo/xóa nhánh trong Git cực rẻ (chỉ là 1 con trỏ), nên đừng ngại tạo.
+**Nhánh rẻ đến mức nào?** Trong Git, nhánh chỉ là một *con trỏ* trỏ tới một commit — tạo nhánh không copy file, không tốn dung lượng. Vì vậy đừng tiếc: mỗi ý tưởng, mỗi thử nghiệm một nhánh riêng. Hỏng thì xoá con trỏ, `main` không hề hấn gì. Tư duy này khác hẳn kiểu "sao lưu cả thư mục ra chỗ khác cho chắc".
 
-**Conflict (xung đột) — nghe đáng sợ nhưng đơn giản.**
-Khi 2 nhánh sửa **cùng một dòng**, Git không biết giữ bản nào → nhờ bạn quyết định. Nó đánh dấu `<<<<<<<` (phần của bạn) `=======` `>>>>>>>` (phần của họ). Bạn chỉ việc xóa các dấu, giữ lại đoạn đúng, rồi `git add` + `git commit`. Xong.
+**Conflict không phải lỗi — là Git lịch sự hỏi ý bạn.** Khi hai nhánh sửa *cùng một dòng*, Git đủ thông minh để biết nó **không được tự quyết** thay bạn, nên nó dừng lại, đánh dấu cả hai phiên bản và giao quyền quyết định. Bạn chỉ cần đọc, giữ đoạn đúng, xoá mấy dấu `<<<`/`===`/`>>>`, rồi commit. Càng luyện tạo conflict giả để tự giải, cảm giác sợ càng biến mất.
 
-**`git stash` — "cất tạm".**
-Đang sửa dở mà cần chuyển nhánh gấp? `git stash` cất tạm thay đổi vào ngăn kéo; chuyển nhánh xong `git stash pop` lấy lại.
-
-> 🧠 **Một câu để nhớ:** nhánh sống **càng ngắn càng tốt**. Nhánh để cả tháng = hội conflict khủng khiếp khi merge. Làm xong tính năng → merge ngay.
+**Vì sao nhánh nên "sống ngắn"?** `main` liên tục tiến lên. Nhánh của bạn đứng yên càng lâu thì càng "trôi" xa khỏi `main` → lúc merge càng nhiều điểm đụng nhau. Nhánh 2 giờ merge êm ru; nhánh 2 tuần là cả buổi chiều vật lộn với conflict.
 
 ### 🧪 Lab cơ bản
 
@@ -526,6 +530,22 @@ git switch main                  # quay lại nhánh
 | **Detached HEAD** | Đang ở 1 commit, không trên nhánh nào |
 | **Feature branch** | Nhánh riêng cho mỗi tính năng |
 
+### 🎯 Đúc kết Ngày 14
+
+**3 điều phải mang theo:**
+1. **Nhánh chỉ là con trỏ** → tạo/xoá cực rẻ. Mỗi tính năng một nhánh (`feature/...`), `main` luôn sạch.
+2. **Conflict = Git hỏi "giữ phần nào"**: xoá dấu `<<< === >>>`, giữ đoạn đúng, `git add` + `git commit`. Hết.
+3. **`git stash`** cất tạm khi cần đổi nhánh gấp mà chưa muốn commit; **`merge --abort`** huỷ merge đang conflict.
+
+> 🧠 **Một câu để nhớ:** nhánh sống **càng ngắn càng tốt**. Nhánh để cả tháng = hội conflict khủng khiếp khi merge. Làm xong tính năng → merge ngay.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Tạo nhánh, commit, merge về `main` và đọc được `git log --graph`
+- [ ] Cố tình tạo 1 conflict rồi tự giải quyết trọn vẹn
+- [ ] Dùng `git stash` / `stash pop` để đổi nhánh giữa chừng
+- [ ] Phân biệt fast-forward và 3-way merge
+- [ ] Nói được vì sao không nên để nhánh sống quá lâu
+
 ✅ **Kết quả đạt được:** Làm việc với nhánh, merge và xử lý conflict tự tin — kỹ năng cộng tác thiết yếu.
 
 ---
@@ -576,19 +596,13 @@ branch → commit → push → mở PR → review → merge → xoá nhánh
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Git vs GitHub — khác nhau (nhiều người nhầm):**
-- **Git** = công cụ chạy trên máy bạn, quản lý lịch sử code (offline vẫn dùng được).
-- **GitHub** = dịch vụ web *lưu trữ* repo Git trên mây + thêm tính năng cộng tác (PR, issue, CI/CD). Ví von: Git là Word, GitHub là Google Docs (lưu online + chia sẻ).
+> 📘 đã phân biệt Git/GitHub và liệt kê lệnh remote. Mục này cho bạn **góc nhìn** để nhớ.
 
-**Remote, push, pull — đồng bộ code lên mây:**
-- `git remote add origin <url>` = "kết nối repo trên máy với repo trên GitHub" (`origin` là biệt danh mặc định).
-- `git push` = đẩy commit từ máy **lên** GitHub.
-- `git pull` = kéo thay đổi **về** máy (= `fetch` tải về + `merge` gộp).
+**Git vẫn chạy tốt khi mất mạng — GitHub thì không.** Đây là mấu chốt hay nhầm: commit, branch, merge, xem lịch sử... đều là việc *local*, không cần Internet. GitHub chỉ vào cuộc khi bạn `push`/`pull` — tức là **đồng bộ và chia sẻ**. Nói cách khác, GitHub chỉ là *một* remote (điểm hẹn chung trên mây), không phải "bộ não" của Git; bạn có thể thay bằng GitLab, Bitbucket hay server riêng mà Git không đổi tí nào.
 
-**Pull Request (PR) — trái tim của cộng tác.**
-Thay vì sửa thẳng nhánh chính, bạn mở 1 **PR** = "đề nghị gộp nhánh của tôi vào main, mọi người xem giúp". Người khác review, góp ý, duyệt → rồi mới merge. Đây là cách team đảm bảo chất lượng code.
+**Pull Request là một cuộc trò chuyện, không phải cái nút "gộp".** Giá trị thật của PR không nằm ở lúc merge, mà ở khoảng thời gian *trước khi* merge: đồng đội đọc, hỏi, gợi ý, chặn lại nếu thấy rủi ro. Nó biến "code của một người" thành "code cả team chịu trách nhiệm" — và là nơi bạn học nhanh nhất khi mới vào nghề.
 
-> 🧠 **Một câu để nhớ:** lỡ đẩy secret (mật khẩu/token) lên GitHub = coi như **lộ vĩnh viễn** (còn trong lịch sử). Việc cần làm không phải xóa commit, mà **đổi (rotate) secret đó ngay**.
+**Vì sao secret lỡ push là "mất vĩnh viễn"?** Vì Git lưu *cả lịch sử*, không chỉ bản hiện tại. Xoá file trong commit mới không xoá nó khỏi các commit cũ — và một khi đã lên GitHub công khai, bot quét được trong vài giây, người khác có thể đã fork/clone. Đó là lý do việc cần làm không phải "xoá cho khuất mắt" mà là **xoay (rotate) secret ngay**.
 
 ### 🧪 Lab cơ bản
 
@@ -733,6 +747,22 @@ Settings → Branches → thêm rule cho `main` (bắt buộc PR). Thử `git pu
 | **Fork** | Sao chép repo người khác về tài khoản mình |
 | **Branch protection** | Quy tắc bảo vệ nhánh chính |
 
+### 🎯 Đúc kết Ngày 15
+
+**3 điều phải mang theo:**
+1. **Git = local, GitHub = remote để chia sẻ.** `push` đẩy lên, `pull` (= `fetch` + `merge`) kéo về, `fetch` chỉ tải để xem trước.
+2. **GitHub Flow:** branch → commit → push → PR → review → merge → xoá nhánh. PR là nơi đảm bảo chất lượng, không sửa thẳng `main`.
+3. **Branch protection** cho `main` (bắt buộc PR + review) để không ai push thẳng phá nhánh chính.
+
+> 🧠 **Một câu để nhớ:** lỡ đẩy secret lên GitHub = coi như **lộ vĩnh viễn** (còn trong lịch sử/fork/cache). Việc cần làm không phải xoá commit, mà **đổi (rotate) secret đó ngay**.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Kết nối repo local với GitHub và `push -u` lần đầu
+- [ ] Đi trọn 1 vòng Pull Request (tạo nhánh → PR → merge)
+- [ ] Phân biệt `fetch` và `pull`
+- [ ] Bật branch protection cho `main` và thử push thẳng (bị chặn)
+- [ ] Nói được việc đầu tiên phải làm khi lỡ push secret
+
 ✅ **Kết quả đạt được:** Cộng tác qua GitHub, đi trọn vòng PR, viết README — sẵn sàng làm việc nhóm thực tế.
 
 ---
@@ -810,19 +840,13 @@ flowchart TB
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Vấn đề Docker giải quyết — "works on my machine".**
-App chạy ngon trên máy bạn nhưng lên server thì lỗi vì thiếu thư viện, khác phiên bản, khác cấu hình. **Docker** đóng gói app *cùng tất cả thứ nó cần* (thư viện, runtime, cấu hình) vào 1 "hộp" gọi là **container** — hộp này chạy giống hệt nhau ở mọi nơi.
+> 📘 đã có bảng so sánh VM/container và image/container. Mục này cho bạn **hình dung** để nhớ.
 
-**Container vs Máy ảo (VM) — vì sao container nhẹ?**
-- **VM** = một máy tính ảo hoàn chỉnh, mỗi VM cõng cả 1 hệ điều hành riêng → nặng (GB), khởi động vài phút.
-- **Container** = chỉ đóng gói app + thư viện, **dùng chung kernel** máy chủ → nhẹ (MB), khởi động vài giây.
-Hình dung: VM là *căn nhà riêng* (móng, tường, mái riêng); container là *căn hộ chung cư* (dùng chung hạ tầng tòa nhà).
+**"Dùng chung kernel" — chìa khoá giải thích mọi thứ.** Container không phải máy ảo tí hon; nó là các *tiến trình* chạy thẳng trên kernel của máy chủ, chỉ được Linux "quây" lại cho tưởng mình ở riêng (nhờ namespace + cgroup). Vì không phải khởi động cả một hệ điều hành, container lên trong *tích tắc* và chỉ nặng bằng app + thư viện. Đây là lý do một laptop chạy được 20 container nhưng chật vật với 3 VM.
 
-**Image vs Container — khái niệm dễ nhầm nhất:**
-- **Image** = khuôn mẫu, chỉ đọc (như khuôn bánh, hoặc file cài đặt).
-- **Container** = một bản đang chạy của image (như cái bánh làm ra từ khuôn). Từ 1 image chạy được nhiều container.
+**Image và container giống class và object trong lập trình.** Image là bản thiết kế *bất biến, chỉ đọc*; container là một *thực thể đang chạy* sinh ra từ nó. Từ một image bạn bật được nhiều container y hệt nhau — và mỗi container khi chạy có thêm một lớp ghi riêng bên trên (xoá container là mất lớp ghi đó, nên dữ liệu quan trọng phải để ra volume — Ngày 19).
 
-> 🧠 **Một câu để nhớ:** container sống nhờ "tiến trình chính" của nó. Khi tiến trình đó kết thúc, container tắt. Đây là lý do `docker run ubuntu` thoát ngay (không có gì chạy) còn nginx thì sống.
+**Docker giết "works on my machine" bằng cách gói cả môi trường.** Trước đây bạn giao *code* rồi cầu mong server có đúng thư viện/phiên bản. Với Docker bạn giao *cả cái hộp* đã chứa sẵn mọi thứ — máy nào có Docker là chạy giống hệt. Bài toán "máy tôi chạy được" chuyển thành "cái hộp chạy được ở đâu cũng thế".
 
 ### 🧪 Lab cơ bản
 
@@ -986,6 +1010,22 @@ docker system df        # xem Docker đang chiếm bao nhiêu đĩa
 | **Daemon** (dockerd) | Tiến trình nền chạy Docker |
 | **detached** (`-d`) | Chạy container ở chế độ nền |
 
+### 🎯 Đúc kết Ngày 16
+
+**3 điều phải mang theo:**
+1. **Container nhẹ vì dùng chung kernel host** (không cõng OS riêng như VM) → khởi động giây, nặng MB.
+2. **Image (khuôn, chỉ đọc) ≠ Container (bản đang chạy).** Một image → nhiều container.
+3. **Container sống nhờ tiến trình PID 1**: tiến trình chính thoát → container tắt. `-p host:container` map cổng, `-d` chạy nền, `docker logs`/`exec` để soi.
+
+> 🧠 **Một câu để nhớ:** container sống nhờ tiến trình chính của nó. Khi tiến trình đó kết thúc, container tắt — đó là lý do `docker run ubuntu` thoát ngay còn `nginx` thì sống.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Giải thích vì sao container nhẹ hơn VM
+- [ ] Phân biệt image và container bằng ví dụ
+- [ ] Chạy nginx nền, map cổng, mở được trên trình duyệt
+- [ ] Vào trong container bằng `docker exec -it` và xem `docker logs`
+- [ ] Nói được vì sao `docker run ubuntu` thoát ngay
+
 ✅ **Kết quả đạt được:** Hiểu container vs VM, chạy được container đầu tiên, map cổng, xem log và dọn dẹp Docker.
 
 ---
@@ -1043,19 +1083,13 @@ Sai thứ tự = mỗi lần sửa 1 dòng code phải cài lại toàn bộ th�
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Dockerfile — "công thức nấu ăn" để tạo image.**
-Thay vì tải image có sẵn, bạn viết 1 file tên `Dockerfile` mô tả *từng bước* tạo image của riêng app mình. Mỗi dòng là 1 chỉ thị:
-- `FROM` = chọn nền móng (vd `node:20` — đã có sẵn Node).
-- `WORKDIR` = chọn thư mục làm việc trong hộp.
-- `COPY` = chép code của bạn vào hộp.
-- `RUN` = chạy lệnh *lúc xây hộp* (vd cài thư viện).
-- `CMD` = lệnh chạy *khi hộp khởi động*.
-Rồi `docker build` = "nấu theo công thức" → ra image.
+> 📘 đã liệt kê các chỉ thị và layer cache. Mục này cho bạn **hình dung** để nhớ.
 
-**Layer & cache — vì sao thứ tự dòng lệnh quan trọng:**
-Mỗi chỉ thị tạo 1 "lớp" (layer) và Docker **nhớ lại (cache)** các lớp không đổi. Mẹo vàng: chép file thư viện (`package.json`) + cài *trước*, chép code *sau*. Vì code đổi liên tục còn thư viện ít đổi → lần build sau Docker tái dùng lớp cài thư viện → nhanh hơn nhiều.
+**Dockerfile là công thức, `docker build` là nấu, image là món đã đóng hộp.** Điểm hay: công thức nằm trong Git, ai chạy cũng ra đúng một image — không còn "cài tay theo trí nhớ". Khác biệt lớn nhất người mới cần khắc cốt: có chỉ thị chạy lúc *nấu* (build) và có chỉ thị chỉ chạy khi *mở hộp ra dùng* (start container).
 
-> 🧠 **Một câu để nhớ:** `RUN` chạy lúc *build* (tạo image), `CMD` chạy lúc *start* (chạy container). Đừng nhầm — đây là câu hỏi phỏng vấn kinh điển.
+**`RUN` vs `CMD` — nhầm là hỏng.** `RUN` thực thi *khi build* để tạo ra các lớp trong image (vd cài thư viện) — làm một lần rồi đóng băng vào image. `CMD` chỉ định *lệnh mặc định khi container khởi động* — chạy lại mỗi lần bật container. Cùng một Dockerfile: `RUN npm install` đóng gói thư viện sẵn; `CMD ["node","server.js"]` mới là thứ khởi động app.
+
+**Layer cache — vì sao thứ tự dòng lệnh quyết định tốc độ.** Mỗi chỉ thị tạo một *lớp*, và Docker tái dùng lớp nào chưa đổi. Nếu bạn `COPY . .` trước rồi mới cài thư viện, thì sửa *một dòng code* cũng làm đổi lớp copy → mọi lớp sau (kể cả cài thư viện) phải làm lại. Đảo thứ tự — copy `package.json` + cài trước, copy code sau — thì thư viện được cache, build lần sau nhanh gấp nhiều lần. Đây không phải mẹo vặt mà là cách bạn tiết kiệm hàng giờ mỗi tuần.
 
 ### 🧪 Lab cơ bản
 
@@ -1238,6 +1272,22 @@ docker history my-app:1.0
 | **Tag** | Nhãn phiên bản của image (`:1.0`) |
 | **`.dockerignore`** | Danh sách file bỏ khỏi build context |
 
+### 🎯 Đúc kết Ngày 17
+
+**3 điều phải mang theo:**
+1. **`RUN` chạy lúc build** (đóng vào image), **`CMD`/`ENTRYPOINT` chạy lúc start** (khởi động container). Đừng nhầm.
+2. **Thứ tự layer = tốc độ build:** `COPY package*.json` + cài dependency TRƯỚC `COPY . .` để cache thư viện.
+3. **`.dockerignore`** loại `.git`/`node_modules`/`.env` khỏi build context → nhanh, gọn, không lộ secret.
+
+> 🧠 **Một câu để nhớ:** `RUN` chạy lúc *build*, `CMD` chạy lúc *start*. Đừng nhầm — đây là câu hỏi phỏng vấn kinh điển.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Viết Dockerfile đóng gói 1 app nhỏ và `docker build` thành công
+- [ ] Giải thích khác biệt `RUN` vs `CMD`
+- [ ] Sắp xếp layer đúng để tận dụng cache (thấy `CACHED` khi build lại)
+- [ ] Tạo `.dockerignore` và biết nó giúp gì
+- [ ] Đọc `docker history` để thấy từng layer
+
 ✅ **Kết quả đạt được:** Tự build image từ Dockerfile, hiểu layer cache, đẩy image lên registry.
 
 ---
@@ -1291,21 +1341,13 @@ Kết quả: image cuối nhỏ gọn (vd 1.2GB → 150MB).
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Vấn đề: image dễ bị "béo phì".**
-Để build app, bạn cần compiler, thư viện dev, công cụ... nhưng khi *chạy* thì không cần mấy thứ đó. Nếu nhét hết vào image, nó nặng cả GB — chậm tải, nhiều lỗ hổng.
+> 📘 đã có bảng base image và kỹ thuật tối ưu. Mục này cho bạn **hình dung** để nhớ.
 
-**Multi-stage build — "nấu ở bếp lớn, dọn ra đĩa nhỏ".**
-Bạn dùng nhiều `FROM` trong 1 Dockerfile:
-- *Stage 1 (bếp)*: image to, đầy đủ công cụ → build ra sản phẩm.
-- *Stage 2 (đĩa)*: image nhỏ tinh gọn → chỉ **copy sản phẩm** từ stage 1 sang, vứt hết công cụ build.
-Kết quả: image cuối nhỏ gọn (vd 1.2GB → 150MB), chạy nhanh, an toàn hơn.
+**Vì sao image hay "béo phì"?** Vì đồ *để build* và đồ *để chạy* rất khác nhau. Muốn build bạn cần compiler, thư viện dev, công cụ — nhưng khi app đã chạy thì chẳng dùng đến. Nếu build và chạy trong cùng một image, mọi công cụ build đó bị kéo theo mãi mãi, phình lên cả GB.
 
-**Vì sao image nhỏ quan trọng (không chỉ tiết kiệm chỗ):**
-- Tải/khởi động nhanh hơn → scale nhanh.
-- **Ít gói = ít lỗ hổng bảo mật** (bề mặt tấn công nhỏ).
-- Thêm `USER` thường (không chạy bằng root) → bị hack cũng hạn chế thiệt hại.
+**Multi-stage = "nấu ở bếp lớn, bưng ra đĩa nhỏ".** Bạn dùng một stage đầy đủ công cụ để *nấu* ra sản phẩm (binary/dist), rồi mở một stage mới với base tí hon và chỉ `COPY --from` đúng sản phẩm sang — toàn bộ "gian bếp" bị bỏ lại. Kết quả: image cuối chỉ còn thứ cần để *chạy*, nhỏ đi nhiều lần.
 
-> 🧠 **Một câu để nhớ:** image production lý tưởng **không có** compiler, `git`, hay cả shell nếu không cần. Mỗi thứ thừa là 1 rủi ro.
+**Image nhỏ không chỉ để tiết kiệm ổ đĩa — nó là chuyện tốc độ và an ninh.** Nhỏ thì pull/khởi động nhanh → scale kịp lúc tải tăng. Ít gói thì *ít CVE* → bề mặt tấn công hẹp. Thêm `USER` không-root thì kẻ đột nhập cũng khó leo quyền. Ba lợi ích này đi cùng nhau, nên "làm image nhỏ" là một thói quen production chứ không phải cầu toàn.
 
 ### 🧪 Lab cơ bản
 
@@ -1483,6 +1525,22 @@ docker history --no-trunc my-app:slim
 | **CVE** | Lỗ hổng bảo mật đã được ghi nhận |
 | **`USER`** | Chỉ thị chạy container bằng user không-root |
 
+### 🎯 Đúc kết Ngày 18
+
+**3 điều phải mang theo:**
+1. **Multi-stage build:** stage "bếp" build ra artifact, stage cuối base nhỏ chỉ `COPY --from` artifact → image gọn nhiều lần.
+2. **Base nhỏ + `USER` không-root** (`alpine`/`slim`/`distroless`) → chạy bằng user thường để giới hạn thiệt hại khi bị hack.
+3. **Pin tag rõ ràng** (`1.0.2`/SHA) thay `latest`; **quét CVE** (`trivy`/`docker scout`) trước khi push.
+
+> 🧠 **Một câu để nhớ:** image production lý tưởng **không có** compiler, `git`, hay cả shell nếu không cần. Mỗi thứ thừa là 1 rủi ro.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Viết Dockerfile multi-stage và thấy image nhỏ hơn bản 1-stage rõ rệt
+- [ ] Giải thích vì sao image nhỏ = an toàn hơn (không chỉ nhẹ hơn)
+- [ ] Chạy container bằng `USER` thường và kiểm bằng `whoami`
+- [ ] Nói được vì sao tránh tag `latest` ở production
+- [ ] Dùng `docker history` tìm layer phình
+
 ✅ **Kết quả đạt được:** Tối ưu image nhỏ gọn, bảo mật, chạy bằng user thường — kỹ năng Docker chuyên nghiệp.
 
 ---
@@ -1530,17 +1588,13 @@ Volume nằm **ngoài** vòng đời container → xoá container, dữ liệu v
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Vấn đề: container "khỏe nhưng hay quên".**
-Container được thiết kế để *dùng xong vứt* (ephemeral). Xóa container = mất sạch dữ liệu bên trong. Vậy database chạy trong container thì sao? → Cần **Volume**.
+> 📘 đã có bảng 3 cách lưu trữ và các network mode. Mục này cho bạn **hình dung** để nhớ.
 
-**Volume — "ổ cứng gắn ngoài" cho container.**
-- **Volume** = vùng lưu trữ do Docker quản lý, **nằm ngoài** vòng đời container. Xóa container, dữ liệu trong volume vẫn còn. → Dùng cho database, dữ liệu quan trọng.
-- **Bind mount** = gắn thẳng 1 thư mục trên máy bạn vào container → tiện cho **dev** (sửa code trên máy, container thấy ngay).
+**Container "hay quên" là cố ý, không phải lỗi.** Triết lý container là *dùng xong vứt* (ephemeral): xoá và tạo lại thoải mái để dễ scale, dễ nâng cấp. Nhưng dữ liệu thì không được "vứt" theo. Volume tách phần *dữ liệu cần giữ* ra khỏi phần *container dùng một lần* — nhờ đó bạn xoá/thay container mà database vẫn nguyên. Hình dung volume là ổ cứng gắn ngoài, còn container là chiếc laptop có thể đổi bất cứ lúc nào.
 
-**Network — cách các container "nói chuyện".**
-Khi nhiều container ở **cùng một network**, chúng gọi nhau bằng **tên** (không cần IP). Ví dụ app gọi database bằng `db:5432` — Docker tự dịch tên `db` thành IP container database. Đây là nền tảng để ghép nhiều container thành 1 hệ thống.
+**Volume vs bind mount — cùng "gắn ổ" nhưng khác mục đích.** Volume do Docker quản lý (backup/di chuyển được, hợp cho database production). Bind mount trỏ thẳng vào một thư mục trên máy bạn — tiện cho *dev* vì sửa code trên máy là container thấy ngay, nhưng phụ thuộc đường dẫn máy nên không hợp production.
 
-> 🧠 **Một câu để nhớ:** dữ liệu quan trọng (nhất là database) **bắt buộc** để trong volume. Và cẩn thận `docker compose down -v` — chữ `-v` xóa luôn cả volume = mất dữ liệu thật.
+**Đặt tên là có DNS — nền tảng của microservice.** Khi các container ở *cùng một network do bạn tạo*, Docker cấp cho mỗi container một "cái tên gọi được": app cứ kết nối tới `db:5432`, Docker tự dịch tên `db` ra IP hiện thời. Bạn không bao giờ phải hard-code IP (vốn đổi mỗi lần tạo lại). Lưu ý cái bẫy: mạng `bridge` *mặc định* KHÔNG có DNS theo tên — phải tự tạo network mới có.
 
 ### 🧪 Lab cơ bản
 
@@ -1697,6 +1751,22 @@ docker network inspect mynet | grep Name
 | **Persistent data** | Dữ liệu bền vững (giữ qua restart) |
 | **tmpfs** | Lưu trong RAM, không bền vững |
 
+### 🎯 Đúc kết Ngày 19
+
+**3 điều phải mang theo:**
+1. **Container ephemeral → dữ liệu quan trọng BẮT BUỘC ra volume** (nhất là database). Xoá container, volume vẫn còn.
+2. **Volume** (Docker quản lý, cho production) khác **bind mount** (trỏ thư mục máy, cho dev).
+3. **Cùng network tự tạo → gọi nhau bằng tên** (DNS nội bộ). `bridge` mặc định không có DNS theo tên.
+
+> 🧠 **Một câu để nhớ:** dữ liệu quan trọng (nhất là database) **bắt buộc** để trong volume. Và cẩn thận `docker compose down -v` — chữ `-v` xoá luôn volume = mất dữ liệu thật.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Chứng minh volume giữ dữ liệu qua việc xoá & tạo lại container
+- [ ] Phân biệt khi nào dùng volume, khi nào bind mount
+- [ ] Cho 2 container gọi nhau qua tên trong network tự tạo
+- [ ] Giải thích vì sao `bridge` mặc định không gọi được theo tên
+- [ ] Nói được `docker compose down -v` nguy hiểm ở đâu
+
 ✅ **Kết quả đạt được:** Quản lý dữ liệu bền vững (volume) và mạng giữa các container — 2 mảnh để ghép hệ thống thật.
 
 ---
@@ -1744,16 +1814,13 @@ Các khoá chính: `services` (danh sách dịch vụ), mỗi service có `image
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Vấn đề: app thật có nhiều mảnh.**
-Một web app thật thường gồm: frontend + backend + database + cache... Chạy từng `docker run` cho mỗi mảnh (kèm cả tá tham số `-p`, `-v`, `--network`) rất cực và dễ sai.
+> 📘 đã có bảng lệnh và cấu trúc file Compose. Mục này cho bạn **hình dung** để nhớ.
 
-**Docker Compose — "1 file mô tả cả dàn nhạc".**
-Bạn viết 1 file `docker-compose.yml` (dạng YAML) liệt kê mọi dịch vụ, mạng, volume. Rồi chỉ 1 lệnh `docker compose up` → tất cả cùng lên đúng thứ tự. `docker compose down` → tắt hết. Như nhạc trưởng điều khiển cả dàn nhạc thay vì gọi từng nhạc công.
+**Compose biến "trí nhớ trong đầu" thành "file trong Git".** Chạy tay 4 container nghĩa là bạn phải nhớ đúng 4 lệnh `docker run` kèm cả tá cờ `-p -v --network` — sai một cờ là hỏng, và không ai khác lặp lại được. Compose gói tất cả vào một file `docker-compose.yml`: cả hệ thống trở thành *tài liệu chạy được*, ai clone về gõ `up` cũng ra y hệt. Đây chính là tinh thần "mọi thứ là code" áp cho môi trường dev.
 
-**`depends_on` — cái bẫy người mới hay dính:**
-`depends_on` chỉ đảm bảo container khởi động *theo thứ tự*, KHÔNG đảm bảo dịch vụ bên trong đã *sẵn sàng*. Database "đã start" nhưng còn đang khởi tạo → app kết nối lỗi. Giải pháp: thêm **healthcheck** + `condition: service_healthy`.
+**Nhạc trưởng, không phải nhạc công.** Một lệnh `up` dựng cả dàn (tạo network, volume, khởi động service đúng thứ tự); một lệnh `down` dẹp gọn. Bạn điều khiển *cả hệ thống* như một khối, thay vì bấm nút từng container.
 
-> 🧠 **Một câu để nhớ:** Compose tuyệt cho **dev và app nhỏ**. Khi cần tự scale, tự phục hồi, chạy nhiều máy → đó là việc của Kubernetes (Giai đoạn 3). Đừng ép Compose làm việc của K8s.
+**Cái bẫy `depends_on` mà gần như ai cũng dính.** `depends_on` chỉ đảm bảo thứ tự *bật* container — nó KHÔNG biết dịch vụ bên trong đã *sẵn sàng nhận kết nối* chưa. Database container "đã lên" nhưng Postgres còn đang khởi tạo vài giây → app lao vào kết nối và ăn lỗi. Cách đúng: gắn `healthcheck` cho DB rồi để app chờ `condition: service_healthy` (hoặc để app tự retry). "Đã chạy" và "đã sẵn sàng" là hai chuyện khác nhau.
 
 ### 🧪 Lab cơ bản
 
@@ -1942,6 +2009,22 @@ docker compose down -v    # ⚠️ chỉ khi muốn XOÁ sạch cả dữ liệu
 | **`condition: service_healthy`** | Chờ service kia khoẻ mới start |
 | **profiles** | Bật/tắt nhóm service theo môi trường |
 
+### 🎯 Đúc kết Ngày 20
+
+**3 điều phải mang theo:**
+1. **Compose = cả hệ thống trong 1 file YAML**, `up`/`down` một lệnh, tái lập & version hoá được.
+2. **`depends_on` chỉ đảm bảo thứ tự bật, KHÔNG đảm bảo sẵn sàng** → cần `healthcheck` + `condition: service_healthy` hoặc app tự retry.
+3. **`.env` Compose tự đọc** (đừng hard-code mật khẩu); `docker compose config` để validate trước khi `up`.
+
+> 🧠 **Một câu để nhớ:** Compose tuyệt cho **dev và app nhỏ**. Khi cần tự scale, tự phục hồi, chạy nhiều máy → đó là việc của Kubernetes (Giai đoạn 3). Đừng ép Compose làm việc của K8s.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Viết `docker-compose.yml` dựng ≥2 service liên kết nhau
+- [ ] Dùng `.env` cho biến, và `docker compose config` để kiểm
+- [ ] Giải thích `depends_on` đảm bảo gì / không đảm bảo gì
+- [ ] Thêm `healthcheck` + `condition: service_healthy`
+- [ ] Phân biệt `down` và `down -v`
+
 ✅ **Kết quả đạt được:** Định nghĩa và chạy ứng dụng đa container bằng 1 lệnh, hiểu healthcheck & thứ tự khởi động.
 
 ---
@@ -1969,9 +2052,7 @@ Ghép kiến thức Docker (Ngày 16–20) thành 1 app **3 tầng** hoàn chỉ
 - **database** = kho dữ liệu (có volume để bền vững).
 
 **Tách network = bảo mật.**
-Mẹo quan trọng: đặt database ở network **riêng** mà Internet không thấy. Chỉ nginx ở "ngoài"; database "trong cùng" → kẻ tấn công không chọc thẳng vào DB được. Đây là tư duy phân lớp an toàn.
-
-> 🧠 **Một câu để nhớ:** mục tiêu milestone là *"người khác clone repo về, gõ `docker compose up` là chạy được ngay"*. Đạt được điều đó = bạn đã thực sự giải quyết "works on my machine".
+Mẹo quan trọng: đặt database ở network **riêng** mà Internet không thấy. Chỉ nginx ở "ngoài"; database "trong cùng" → kẻ tấn công không chọc thẳng vào DB được. Đây là tư duy phân lớp an toàn (defense in depth) — cùng một app này bạn sẽ deploy lên cloud (Ngày 28) rồi lên Kubernetes (GĐ3), nên hiểu kỹ ở đây là nền cho mọi thứ sau.
 
 ### 🧪 Lab cơ bản (Milestone)
 
@@ -2084,6 +2165,22 @@ flowchart TD
 | **`.env.example`** | File mẫu biến (không chứa secret thật) |
 | **restart: unless-stopped** | Tự khởi động lại container khi lỗi/reboot |
 
+### 🎯 Đúc kết Ngày 21
+
+**3 điều phải mang theo:**
+1. **Kiến trúc 3 tầng:** Internet → nginx (reverse proxy) → backend API → database — khuôn của ~90% web app.
+2. **Tách network = bảo mật:** DB chỉ ở network backend, Internet không thấy; nginx ở frontend. Phân lớp mạng.
+3. **Chuẩn "chạy 1 lệnh":** healthcheck + `depends_on: service_healthy` + named volume + secret qua `.env` (`.gitignore`).
+
+> 🧠 **Một câu để nhớ:** mục tiêu milestone là *"người khác clone repo về, gõ `docker compose up` là chạy được ngay"*. Đạt được điều đó = bạn đã thực sự giải quyết "works on my machine".
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Dựng stack 3 tầng (nginx + backend + db) chỉ bằng `docker compose up`
+- [ ] Viết Dockerfile multi-stage cho backend
+- [ ] Tách 2 network để DB không lộ ra Internet
+- [ ] DB có named volume + healthcheck, backend chờ DB healthy
+- [ ] Đẩy repo lên GitHub với README chạy được bằng 1 lệnh
+
 ✅ **Kết quả đạt được — MỐC 2:** Đóng gói được ứng dụng full-stack đa container (3 tầng, tách mạng, volume, healthcheck) — kỹ năng Docker thực chiến.
 
 ---
@@ -2143,19 +2240,13 @@ services:
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**YAML & JSON là gì, vì sao cả khóa học đụng tới?**
-Đây là 2 cách *viết cấu hình* (config) cho máy đọc. Gần như mọi công cụ DevOps đều dùng:
-- **YAML** = ngôn ngữ cấu hình chính (Docker Compose, Kubernetes, CI/CD, Ansible). Dễ đọc cho người, dùng **thụt lề** để thể hiện cấp bậc.
-- **JSON** = thường là *đầu ra* của API và các lệnh (`docker inspect`, `kubectl ... -o json`). Dùng dấu ngoặc nhọn.
+> 📘 đã có bảng so sánh YAML/JSON và cạm bẫy. Mục này cho bạn **hình dung** để nhớ.
 
-**`jq` và `yq` — "dao mổ" cho JSON/YAML.**
-Output của các lệnh thường rất dài và lộn xộn. `jq` giúp *lọc/trích* đúng phần cần từ JSON (vd lấy mỗi địa chỉ IP); `yq` làm tương tự cho YAML. Thạo 2 cái này = tự động hóa được rất nhiều việc.
+**Vì sao học YAML lại "đáng tiền" đến vậy?** Vì nó là *ngôn ngữ chung* của gần như mọi công cụ bạn sẽ gặp: Docker Compose, Kubernetes, GitHub Actions, Ansible... đều viết bằng YAML. Nắm chắc một lần, xài lại cả sự nghiệp. JSON thì thường xuất hiện ở chiều ngược lại — là *đầu ra* của các lệnh (`docker inspect`, `kubectl -o json`, API) để máy khác đọc.
 
-**Cạm bẫy YAML (ai cũng dính 1 lần):**
-- **TAB bị cấm** — phải thụt lề bằng dấu cách (space). Lỗi #1.
-- **"Norway problem":** `country: NO` bị hiểu thành `false`! (cùng với `yes/on/off`). → quote chuỗi dễ nhầm: `"NO"`.
+**`jq`/`yq` biến "biển chữ" thành đúng một dòng bạn cần.** Output của công cụ DevOps thường dài hàng trăm dòng JSON. Thay vì mắt dò, bạn "hỏi" đúng phần cần: `... | jq '.[0].NetworkSettings.IPAddress'`. Đây là kỹ năng tự động hoá then chốt — hầu hết script vận hành đều có một khúc lọc JSON như vậy.
 
-> 🧠 **Một câu để nhớ:** khi YAML báo lỗi khó hiểu, đừng soi mắt thường — dùng `yamllint` hoặc `docker compose config` để máy chỉ ra lỗi.
+**Vì sao YAML hay "cắn" người mới?** Vì nó dựa vào *khoảng trắng* để hiểu cấp bậc — thứ mắt người rất khó soi. Hai thủ phạm kinh điển: (1) lỡ dùng **TAB** thay space; (2) "Norway problem" — `NO`, `yes`, `on`, `off` không quote bị hiểu thành boolean. Cách sống sót không phải căng mắt nhìn, mà là để máy kiểm: `yamllint`, `docker compose config`, `kubectl --dry-run`.
 
 ### 🧪 Lab cơ bản
 
@@ -2322,6 +2413,22 @@ echo 'country: "NO"' | yq '.country'    # ra "NO" (đúng)
 | **Lint** | Kiểm tra cú pháp tự động (`yamllint`) |
 | **Norway problem** | Bẫy `NO` → `false` khi không quote |
 
+### 🎯 Đúc kết Ngày 22
+
+**3 điều phải mang theo:**
+1. **YAML = ngôn ngữ cấu hình của cả ngành** (Compose/K8s/CI/CD/Ansible); JSON = đầu ra của API & CLI. JSON hợp lệ cũng là YAML hợp lệ.
+2. **Thụt lề bằng SPACE, không bao giờ TAB**; nhớ khoảng trắng sau `:`; quote chuỗi dễ nhầm (`"NO"`, `"3.10"`).
+3. **`jq`/`yq`** để lọc/sửa JSON/YAML từ dòng lệnh — công cụ tự động hoá hằng ngày.
+
+> 🧠 **Một câu để nhớ:** khi YAML báo lỗi khó hiểu, đừng soi mắt thường — dùng `yamllint` hoặc `docker compose config` để máy chỉ ra lỗi.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Viết YAML nhiều cấp đúng cú pháp và `yamllint` sạch
+- [ ] Lọc JSON có điều kiện bằng `jq` (dùng `select`)
+- [ ] Chuyển YAML ↔ JSON bằng `yq`
+- [ ] Nhận diện & sửa lỗi TAB và "Norway problem"
+- [ ] Nói được khi nào gặp YAML, khi nào gặp JSON trong công việc
+
 ✅ **Kết quả đạt được:** Đọc/viết YAML và JSON thành thạo, dùng jq/yq — ngôn ngữ cấu hình của toàn bộ DevOps.
 
 ---
@@ -2381,21 +2488,13 @@ upstream backend {
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Reverse proxy là gì? (khái niệm hay gây bối rối)**
-"Proxy" = người trung gian. Có 2 loại:
-- **Forward proxy** đứng trước *client* (giấu người dùng — như VPN).
-- **Reverse proxy** đứng trước *server* (giấu máy chủ). nginx ở đây là reverse proxy: là "lễ tân" nhận mọi request từ Internet rồi chuyển vào backend phía trong.
+> 📘 đã có bảng chức năng và cấu trúc config. Mục này cho bạn **hình dung** để nhớ.
 
-**Reverse proxy làm được gì hay ho?**
-1. **Che giấu** backend (Internet chỉ thấy nginx).
-2. **Cân bằng tải** (load balancing): nhiều backend → nginx chia request luân phiên.
-3. **SSL/HTTPS**: nginx lo mã hóa, backend nhẹ gánh; chứng chỉ quản 1 chỗ (Let's Encrypt + Certbot — miễn phí).
-4. **Phục vụ file tĩnh + cache** → nhanh hơn.
+**"Forward" hay "reverse" — nhìn xem nó đứng che cho ai.** Forward proxy đứng trước *client*, che người dùng (như VPN: server thấy proxy, không thấy bạn). Reverse proxy đứng trước *server*, che máy chủ (client thấy nginx, không thấy backend thật phía sau). Cùng là "trung gian", nhưng quay mặt về hai phía khác nhau — nhớ được điều này là hết bối rối.
 
-**Quy tắc kỷ luật: luôn `nginx -t` trước khi reload.**
-Sửa config sai mà `restart` = nginx không lên lại = **website chết**. `nginx -t` kiểm tra cú pháp trước; `reload` chỉ nạp config mới nếu hợp lệ, giữ kết nối liên tục.
+**Một nginx làm được việc của nhiều thứ.** Cùng một con nginx vừa là cửa ngõ nhận request, vừa chia tải cho nhiều backend, vừa gánh phần mã hoá HTTPS (SSL termination) để backend nhẹ đi, vừa phục vụ file tĩnh và cache. Vì "đa năng" như vậy nên kiến thức nginx theo bạn rất xa — ở Kubernetes (GĐ3), thứ đứng ngoài nhận traffic (Ingress Controller) thường *chính là* nginx.
 
-> 🧠 **Một câu để nhớ:** nginx là "dao đa năng" (web server, reverse proxy, load balancer, cache). Kiến thức này dùng lại nguyên ở Kubernetes — Ingress Controller thường chính là nginx.
+**"Test trước, nạp sau" là kỷ luật, không phải lời khuyên.** Config nginx sai cú pháp mà bạn `restart` thì nginx tắt và *không lên lại được* = website chết ngay. Vì thế luôn `nginx -t` để máy soi cú pháp trước; hợp lệ mới `reload` (nạp nóng, giữ kết nối đang chạy liên tục). Một dấu `;` quên có thể là khác biệt giữa "êm ru" và "sự cố lúc nửa đêm".
 
 ### 🧪 Lab cơ bản
 
@@ -2562,6 +2661,22 @@ for i in 1 2 3 4; do curl -s localhost:8080 | grep -i "server address"; done
 | **`nginx -t`** | Test cú pháp config |
 | **Ingress Controller** | "nginx của Kubernetes" (GĐ3) |
 
+### 🎯 Đúc kết Ngày 23
+
+**3 điều phải mang theo:**
+1. **Reverse proxy đứng trước server** (che backend, load balance, SSL termination, cache); forward proxy đứng trước client.
+2. **`nginx -t` TRƯỚC, rồi `reload` (không `restart`)** — config lỗi + restart = web chết.
+3. **`proxy_pass` + header** (`X-Real-IP`, `X-Forwarded-For`) để backend biết IP thật của client; `upstream` để chia tải.
+
+> 🧠 **Một câu để nhớ:** nginx là "dao đa năng" (web server, reverse proxy, load balancer, cache). Kiến thức này dùng lại nguyên ở Kubernetes — Ingress Controller thường chính là nginx.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Cấu hình nginx reverse proxy `proxy_pass` tới 1 backend
+- [ ] Dùng `upstream` chia tải 2 backend và quan sát round-robin
+- [ ] Luôn `nginx -t` trước khi `reload`
+- [ ] Giải thích vì sao cần `X-Real-IP`/`X-Forwarded-For`
+- [ ] Phân biệt lỗi `502` và `504`
+
 ✅ **Kết quả đạt được:** Cấu hình reverse proxy, load balancing, hiểu SSL termination — kỹ năng vận hành web quan trọng.
 
 ---
@@ -2619,18 +2734,13 @@ gunzip -c mydb.sql.gz | docker exec -i db psql -U postgres mydb                 
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**DevOps cần biết gì về database? (không cần thành DBA)**
-Bạn không cần là chuyên gia tối ưu query. Việc của DevOps là: **triển khai, backup, khôi phục, giám sát, bảo mật** database. Hiểu đủ để vận hành an toàn.
+> 📘 đã có bảng SQL/NoSQL và các lệnh backup. Mục này cho bạn **hình dung** để nhớ.
 
-**SQL vs NoSQL — chọn cái nào?**
-- **SQL** (PostgreSQL, MySQL) = dữ liệu có cấu trúc bảng, có quan hệ, đảm bảo giao dịch chính xác (ACID). **Mặc định nên chọn cái này.** Vd: user, đơn hàng, tài chính.
-- **Redis** = siêu nhanh, dữ liệu trong RAM → cache, session, hàng đợi.
-- **MongoDB** = lưu document linh hoạt, schema hay đổi.
+**Vai trò DevOps với database: người gác cổng, không phải kiến trúc sư dữ liệu.** Bạn không cần tối ưu truy vấn tinh vi (việc của DBA/dev). Việc của bạn là giữ nó *sống an toàn và cứu được khi hỏng*: triển khai, backup, khôi phục, giám sát, khoá cửa bảo mật. Chọn loại DB cũng theo tư duy đơn giản: mặc định SQL (Postgres/MySQL) cho dữ liệu có quan hệ; Redis khi cần *nhanh và tạm* (cache/session); MongoDB khi schema hay đổi.
 
-**Backup database — KHÁC backup file thường:**
-Không được copy thẳng file dữ liệu của DB đang chạy (sẽ ra bản *không nhất quán*, dùng không được). Phải dùng công cụ riêng: `pg_dump` (Postgres) / `mysqldump` (MySQL) — chúng "chụp" trạng thái nhất quán.
+**Vì sao không copy thẳng file dữ liệu để backup?** Vì DB đang chạy *liên tục ghi* — chép file lúc đó chẳng khác nào chụp ảnh người đang chạy: nhoè, nửa vời, restore không lên. `pg_dump`/`mysqldump` (với `--single-transaction`) "chụp" một ảnh *nhất quán* tại một thời điểm mà không cần khoá bảng. Đây là khác biệt cốt lõi giữa backup DB và backup file thường.
 
-> 🧠 **Một câu để nhớ:** 3 việc PHẢI làm với mọi DB: (1) backup tự động + **test restore**, (2) **không** expose cổng DB ra Internet, (3) mật khẩu mạnh. Sửa cấu trúc bảng thì dùng *migration tool*, không sửa tay trên production.
+**Backup chưa test restore = chưa có backup.** Rất nhiều người ngủ ngon với đống file dump để rồi phát hiện chúng hỏng đúng lúc cần nhất. Vòng đời thật phải là: dump → *thử* drop → restore → kiểm dữ liệu khớp. Và tuyệt đối đừng sửa cấu trúc bảng bằng tay trên production — dùng *migration tool* (Flyway/Liquibase/Alembic) để mọi thay đổi được version hoá và rollback được.
 
 ### 🧪 Lab cơ bản
 
@@ -2784,6 +2894,22 @@ docker exec -it db psql -U postgres -c "SELECT * FROM users;"
 | **Managed DB** | DB do cloud vận hành (RDS/Cloud SQL) |
 | **Replication** | Nhân bản DB để HA/đọc mở rộng |
 
+### 🎯 Đúc kết Ngày 24
+
+**3 điều phải mang theo:**
+1. **DevOps lo vận hành DB** (triển khai, backup, restore, giám sát, bảo mật) — không cần thành DBA. Mặc định chọn SQL.
+2. **Backup DB phải dùng `pg_dump`/`mysqldump`** (ảnh chụp nhất quán), KHÔNG copy file thẳng. Và **luôn test restore**.
+3. **Bảo mật DB:** không expose cổng ra Internet, mật khẩu mạnh, sửa schema qua migration tool (không sửa tay production).
+
+> 🧠 **Một câu để nhớ:** 3 việc PHẢI làm với mọi DB: (1) backup tự động + **test restore**, (2) **không** expose cổng DB ra Internet, (3) mật khẩu mạnh. Sửa cấu trúc bảng thì dùng *migration tool*, không sửa tay trên production.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Chạy Postgres có volume và tạo dữ liệu
+- [ ] Backup bằng `pg_dump --single-transaction`
+- [ ] Đi trọn vòng drop → restore → kiểm dữ liệu khớp
+- [ ] Giải thích vì sao không copy file DB để backup
+- [ ] Nói được 3 việc bảo mật bắt buộc với mọi DB
+
 ✅ **Kết quả đạt được:** Triển khai, backup/restore database trong container, hiểu bảo mật & migration — vận hành DB an toàn.
 
 ---
@@ -2838,21 +2964,13 @@ feat!: đổi format API (breaking)  → tăng MAJOR
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Merge vs Rebase — 2 cách gộp nhánh, khác ở "lịch sử".**
-- **Merge** = nối 2 nhánh lại, tạo 1 "commit gộp" → lịch sử có hình cây phân nhánh (giữ nguyên sự thật).
-- **Rebase** = "dời" các commit của nhánh bạn lên trên cùng nhánh chính → lịch sử thẳng tắp, sạch đẹp.
-**Quy tắc vàng:** chỉ rebase nhánh **của riêng bạn** (chưa chia sẻ). Rebase nhánh người khác đang dùng = phá lịch sử của họ → hỗn loạn.
+> 📘 đã có bảng merge/rebase và SemVer. Mục này cho bạn **hình dung** để nhớ.
 
-**Tag & Semantic Versioning — đánh số phiên bản có ý nghĩa.**
-`git tag v1.2.3` đánh dấu 1 mốc phát hành. Số `MAJOR.MINOR.PATCH`:
-- **PATCH** (1.2.3→1.2.4) = sửa lỗi nhỏ, an toàn nâng cấp.
-- **MINOR** (1.2→1.3) = thêm tính năng, vẫn tương thích.
-- **MAJOR** (1.x→2.0) = **thay đổi phá vỡ** (breaking) → phải đọc kỹ trước khi nâng.
+**Merge kể sự thật, rebase kể chuyện gọn.** Merge giữ nguyên lịch sử đúng như đã xảy ra — có nhánh, có "merge commit", nhìn như cái cây. Rebase *viết lại* các commit của bạn cho nằm thẳng hàng trên `main`, lịch sử phẳng và dễ đọc như một dòng thời gian. Không cái nào "đúng" tuyệt đối: rebase để dọn nhánh *riêng* trước khi mở PR; merge để giữ ngữ cảnh thật trên nhánh *chung*.
 
-**Conventional Commits — commit message có quy tắc.**
-Viết `feat:`, `fix:`, `docs:`... → công cụ tự sinh changelog + tự tăng version. Vừa gọn vừa tự động hóa được.
+**Quy tắc vàng gói trong một câu: đừng bao giờ rebase thứ đã công khai.** Rebase tạo ra các commit *mới* (hash khác) thay cho commit cũ. Nếu nhánh đó người khác đã pull về, lịch sử của họ và của bạn "lệch pha" → hỗn loạn. Cứ nhánh nào *chỉ mình bạn* thì rebase thoải mái; nhánh đã push/chia sẻ thì đừng đụng.
 
-> 🧠 **Một câu để nhớ:** `git bisect` là phép màu khi "không biết bug từ đâu" — dùng nhị phân tìm đúng commit gây lỗi trong vài bước. Nhớ tới nó khi bí.
+**Version không phải số cho đẹp — nó là lời hứa với người dùng.** `MAJOR.MINOR.PATCH`: tăng PATCH nghĩa "chỉ sửa lỗi, nâng cấp yên tâm"; MINOR "có thêm đồ mới nhưng vẫn tương thích"; MAJOR "có breaking change, đọc kỹ trước khi nâng". Viết commit theo *Conventional Commits* (`feat:`/`fix:`/`feat!:`) thì công cụ tự suy ra số version và tự sinh changelog cho bạn.
 
 ### 🧪 Lab cơ bản
 
@@ -3009,6 +3127,22 @@ git bisect reset
 | **cherry-pick** | Lấy 1 commit cụ thể sang nhánh khác |
 | **bisect** | Tìm commit gây bug bằng nhị phân |
 
+### 🎯 Đúc kết Ngày 25
+
+**3 điều phải mang theo:**
+1. **Merge (giữ lịch sử thật) vs rebase (viết thẳng, sạch)** — rebase để dọn nhánh riêng trước PR.
+2. **KHÔNG rebase nhánh đã push/chia sẻ** — phá lịch sử của người khác.
+3. **SemVer là lời hứa tương thích** (PATCH/MINOR/MAJOR); Conventional Commits → tự sinh version + changelog. Bí bug thì nhớ `git bisect`.
+
+> 🧠 **Một câu để nhớ:** `git bisect` là phép màu khi "không biết bug từ đâu" — dùng nhị phân tìm đúng commit gây lỗi trong vài bước. Nhớ tới nó khi bí.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Squash nhiều commit bằng `rebase -i`
+- [ ] Nói được khi nào KHÔNG được rebase
+- [ ] Tạo annotated tag và push thành Release
+- [ ] Giải thích 1.4.2 lên số nào khi thêm tính năng tương thích
+- [ ] Mô tả `git bisect` tìm commit gây bug
+
 ✅ **Kết quả đạt được:** Dùng Git như chuyên gia — rebase, tag, versioning, workflow chuẩn, tìm bug bằng bisect.
 
 ---
@@ -3059,22 +3193,13 @@ Region = khu vực địa lý (vd `ap-southeast-1` Singapore). Chọn region ả
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Cloud là gì? — "thuê" thay vì "mua".**
-Thay vì bỏ tiền mua server vật lý (đắt, phải bảo trì), bạn **thuê** tài nguyên tính toán của AWS/Google/Azure theo nhu cầu, trả tiền theo lượng dùng — như thuê phòng khách sạn thay vì xây nhà.
+> 📘 đã có bảng IaaS/PaaS/SaaS và dịch vụ AWS. Mục này cho bạn **hình dung** để nhớ.
 
-**IaaS / PaaS / SaaS — 3 mức "ăn sẵn":**
-- **IaaS** = thuê đất + vật liệu, tự xây nhà (thuê máy ảo EC2, tự cài mọi thứ).
-- **PaaS** = thuê nhà có sẵn nội thất (chỉ đẩy code, nền tảng lo phần còn lại — vd App Engine).
-- **SaaS** = ở khách sạn, dùng luôn (Gmail, Notion).
+**Cloud là đổi "mua tài sản" lấy "thuê theo dùng".** Trước đây muốn có server phải bỏ tiền lớn mua máy, tự lo điện/mạng/bảo trì — mua thừa thì phí, mua thiếu thì kẹt. Cloud biến nó thành hoá đơn kiểu tiền điện: cần bao nhiêu bật bấy nhiêu, không dùng thì tắt cho khỏi tốn. Nhưng chính sự tiện đó là con dao hai lưỡi — *quên tắt là vẫn cứ bị tính tiền*.
 
-**Vài dịch vụ AWS cốt lõi (tên khác giữa các hãng nhưng ý giống):**
-EC2 (máy ảo), S3 (kho lưu trữ file), VPC (mạng riêng), IAM (quản lý quyền), RDS (database).
+**IaaS/PaaS/SaaS = bạn tự lo bao nhiêu phần.** Càng lên cao càng "ăn sẵn": IaaS cho bạn máy trần tự cài mọi thứ (EC2/VM); PaaS lo sẵn nền tảng, bạn chỉ đẩy code (App Engine); SaaS thì dùng luôn sản phẩm hoàn chỉnh (Gmail). Chọn mức nào là chọn đánh đổi giữa *quyền kiểm soát* và *công sức vận hành*.
 
-**⚠️ 2 thứ phải làm NGAY khi tạo tài khoản cloud:**
-1. **Bật MFA + tạo IAM user** (đừng dùng tài khoản root hàng ngày).
-2. **Đặt cảnh báo chi phí (Billing Alert)** — quên tắt máy hoặc lộ access key = hóa đơn nghìn đô.
-
-> 🧠 **Một câu để nhớ:** *Shared Responsibility* — nhà cung cấp lo bảo mật *của* cloud (phần cứng); **BẠN** lo bảo mật *trong* cloud (cấu hình, mật khẩu, dữ liệu). "Lên cloud" không tự an toàn.
+**Hai nỗi đau lớn nhất của người mới lên cloud — và đều phòng được ngay ngày đầu.** Một là *hoá đơn sốc*: quên tắt máy, hoặc access key lỡ commit lên GitHub bị bot lợi dụng đào tiền ảo → đặt Billing Alert và không bao giờ commit key. Hai là *bị chiếm tài khoản*: dùng root hằng ngày, không bật MFA → bật MFA, tạo IAM user quyền tối thiểu. Nhớ *Shared Responsibility*: nhà cung cấp lo an toàn phần cứng, còn cấu hình/khoá cửa là việc của **bạn**.
 
 ### 🧪 Lab cơ bản
 
@@ -3175,6 +3300,22 @@ EC2 (máy ảo), S3 (kho lưu trữ file), VPC (mạng riêng), IAM (quản lý 
 | **Billing Alert** | Cảnh báo chi phí |
 | **Shared Responsibility** | Chia trách nhiệm bảo mật cloud |
 
+### 🎯 Đúc kết Ngày 26
+
+**3 điều phải mang theo:**
+1. **Cloud = thuê theo dùng** — tiện nhưng quên tắt là vẫn tính tiền. IaaS/PaaS/SaaS khác nhau ở "bạn tự lo bao nhiêu".
+2. **2 việc làm NGAY khi tạo tài khoản:** bật MFA + tạo IAM user (đừng dùng root hằng ngày); đặt Billing Alert.
+3. **Shared Responsibility:** nhà cung cấp lo an toàn *của* cloud; BẠN lo an toàn *trong* cloud (IAM, cấu hình, dữ liệu). Không commit access key.
+
+> 🧠 **Một câu để nhớ:** *Shared Responsibility* — nhà cung cấp lo bảo mật *của* cloud (phần cứng); **BẠN** lo bảo mật *trong* cloud (cấu hình, mật khẩu, dữ liệu). "Lên cloud" không tự an toàn.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Phân biệt IaaS/PaaS/SaaS qua ví dụ
+- [ ] Nói được EC2/S3/VPC/IAM/RDS mỗi cái làm gì
+- [ ] Bật MFA và tạo IAM user quyền hạn chế
+- [ ] Đặt Billing Alert nhiều mức
+- [ ] Giải thích Shared Responsibility và vì sao không commit access key
+
 ✅ **Kết quả đạt được:** Hiểu mô hình cloud (IaaS/PaaS/SaaS), có tài khoản an toàn với MFA, IAM user và cảnh báo chi phí.
 
 ---
@@ -3223,20 +3364,13 @@ Khi tạo EC2, tải về file khoá `.pem` (chỉ tải được **1 lần** �
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**EC2 là gì?**
-EC2 = một **máy ảo (server) thuê trên cloud** của AWS. Bạn chọn hệ điều hành (Ubuntu...), kích thước (CPU/RAM), rồi SSH vào dùng như một server Linux thật. (Tương đương: Compute Engine của GCP, Virtual Machines của Azure.)
+> 📘 đã có bảng Security Group vs UFW và stop vs terminate. Mục này cho bạn **hình dung** để nhớ.
 
-**Key pair — chìa khóa vào máy.**
-Khi tạo EC2, bạn tải về 1 file khóa `.pem`. Đây là chìa khóa SSH duy nhất để vào máy → **giữ kỹ** (mất là không vào được). Bắt buộc `chmod 400 key.pem` (chỉ mình đọc), nếu không SSH từ chối.
+**EC2 chỉ là "một máy Linux ở xa" — mọi kỹ năng GĐ1 dùng lại nguyên.** Đừng thấy chữ "cloud" mà sợ: sau khi SSH vào, nó y hệt server bạn đã luyện. Cái mới chỉ là *lớp vỏ cloud* bọc quanh: cách tạo máy, chìa khoá vào máy (key pair `.pem`), tường lửa tầng cloud (Security Group), và IP có thể đổi.
 
-**Security Group — tường lửa của cloud.**
-Là "người gác cổng" ở tầng cloud (trước cả khi gói tin tới máy). Mặc định chặn hết, bạn mở cổng cần (22, 80). **Cùng với UFW bên trong máy = 2 lớp bảo vệ** (defense in depth).
+**Hai lớp tường lửa, phòng thủ theo chiều sâu.** Security Group chặn ở *tầng cloud* — gói tin bị lọc trước cả khi tới máy; mặc định chặn hết, bạn chỉ mở đúng cổng cần. UFW chặn ở *trong máy* (tầng OS). Có cả hai nghĩa là kẻ tấn công phải qua hai cửa — nếu một lớp lỡ cấu hình sai, lớp kia vẫn đỡ. Đây là lý do vẫn nên bật UFW dù đã có Security Group.
 
-**stop vs terminate — đừng nhầm kẻo mất dữ liệu:**
-- `stop` = tắt máy, **giữ ổ đĩa** (vẫn trả phí lưu trữ), bật lại được.
-- `terminate` = **xóa hẳn** máy + ổ đĩa → mất dữ liệu vĩnh viễn.
-
-> 🧠 **Một câu để nhớ:** ĐỪNG mở SSH (cổng 22) cho `0.0.0.0/0` (cả thế giới) — bot sẽ dò mật khẩu liên tục. Chỉ mở cho IP của bạn.
+**`stop` và `terminate` — nhầm một chữ, mất cả dữ liệu.** `stop` là *tắt máy tạm*: giữ nguyên ổ đĩa (vẫn trả phí lưu trữ), bật lại được, chỉ mất Public IP nếu không dùng Elastic IP. `terminate` là *xoá hẳn*: máy và ổ đĩa đi luôn, dữ liệu không cứu được. Và mẹo sống còn ngay phút đầu: `chmod 400 key.pem` — SSH sẽ *từ chối* chạy nếu chìa khoá để quyền quá mở (người khác đọc được).
 
 ### 🧪 Lab cơ bản
 
@@ -3351,6 +3485,22 @@ Là "người gác cổng" ở tầng cloud (trước cả khi gói tin tới m�
 | **User data** | Script chạy khi khởi tạo máy |
 | **stop / terminate** | Tắt giữ đĩa / xoá hẳn |
 
+### 🎯 Đúc kết Ngày 27
+
+**3 điều phải mang theo:**
+1. **EC2 = máy Linux ở xa** — SSH vào là dùng như GĐ1. Áp checklist hardening (Ngày 9) cho mọi máy mới.
+2. **2 lớp tường lửa:** Security Group (tầng cloud, deny-all mặc định) + UFW (tầng OS) = defense in depth. Chỉ mở SSH cho IP của bạn.
+3. **`stop` (giữ đĩa, bật lại được) ≠ `terminate` (xoá hẳn, mất dữ liệu)**; `chmod 400 key.pem` là bắt buộc.
+
+> 🧠 **Một câu để nhớ:** ĐỪNG mở SSH (cổng 22) cho `0.0.0.0/0` (cả thế giới) — bot sẽ dò mật khẩu liên tục. Chỉ mở cho IP của bạn.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Tạo EC2, tải key `.pem`, `chmod 400` rồi SSH vào
+- [ ] Cấu hình Security Group chỉ mở 22 (từ IP mình) + 80
+- [ ] Giải thích Security Group khác UFW thế nào
+- [ ] Phân biệt `stop` và `terminate` về chi phí & dữ liệu
+- [ ] Dùng User Data tự cài dịch vụ khi khởi tạo máy
+
 ✅ **Kết quả đạt được:** Tạo, kết nối, cấu hình bảo mật (Security Group + UFW) và triển khai dịch vụ trên server cloud thật.
 
 ---
@@ -3398,20 +3548,13 @@ Tách biến môi trường **dev/prod** rõ ràng — đừng để config dev 
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Hôm nay bạn đưa app "ra đời thật" — và cảm nhận nỗi đau của deploy tay.**
-Bạn SSH vào server cloud, cài Docker, kéo app về, `docker compose up` → app của bạn online trên Internet, ai cũng truy cập được. Một cột mốc lớn!
+> 📘 đã liệt kê quy trình và 5 điểm yếu của deploy tay. Mục này cho bạn **góc nhìn** để nhớ.
 
-**Nhưng hãy để ý: deploy thủ công rất mệt và rủi ro.**
-Mỗi lần cập nhật, bạn phải làm lại một chuỗi thao tác. 5 điểm yếu:
-1. **Dễ sai** — gõ nhầm 1 lệnh giữa 20 bước.
-2. **Không lặp lại được** — "máy A chạy, máy B thì không".
-3. **Phụ thuộc 1 người** — chỉ bạn biết quy trình.
-4. **Không dấu vết** — ai deploy gì, lúc nào?
-5. **Rollback chậm** — hỏng thì cuống cuồng sửa tay.
+**Hôm nay có hai cảm xúc, và cả hai đều là bài học.** Cảm xúc thứ nhất: *tự hào* — app của bạn lần đầu online thật, người lạ trên Internet mở được. Cảm xúc thứ hai, quan trọng hơn: *mệt và bất an* — bạn nhận ra để lên tới đó phải gõ tay cả chuỗi lệnh, và lần cập nhật sau lại phải làm lại từ đầu. Hãy để ý kỹ cảm xúc thứ hai: nó chính là động lực để bạn *muốn* học CI/CD và IaC ở các phần sau.
 
-→ Đây chính là **lý do tồn tại của CI/CD (Giai đoạn 3) và IaC (Ngày 29)**: để máy làm thay, lặp lại được, có dấu vết.
+**"Nỗi đau" của deploy tay không phải vì bạn kém — mà vì con người vốn không hợp làm việc lặp.** Một chuỗi 20 bước làm tay thì sớm muộn cũng gõ nhầm, không ai khác lặp lại y hệt được, không có nhật ký ai làm gì lúc nào, và khi hỏng thì cuống. Máy làm những việc này giỏi hơn người — đó là toàn bộ lý do IaC (Ngày 29) và CI/CD (GĐ3) tồn tại.
 
-> 🧠 **Một câu để nhớ:** tư duy *"cattle, not pets"* (gia súc, không phải thú cưng) — đừng nâng niu 1 server. Server hỏng thì thay máy mới bằng code; dữ liệu để ở chỗ bền vững (volume/DB/S3).
+**"Cattle, not pets" — đổi cách nghĩ về server.** Đừng coi server là thú cưng: đặt tên, chăm bẵm, sửa tay, sợ nó "chết". Hãy coi nó như gia súc trong đàn: hỏng thì *thay con mới bằng code*, giống hệt, trong vài phút. Muốn làm được vậy thì dữ liệu phải nằm ở chỗ bền vững (volume/DB/S3), còn bản thân máy phải tái tạo được — đúng thứ Ngày 29 sẽ dạy.
 
 ### 🧪 Lab cơ bản
 
@@ -3516,6 +3659,22 @@ Mỗi lần cập nhật, bạn phải làm lại một chuỗi thao tác. 5 đi
 | **Cattle not pets** | Coi server thay được, không nâng niu |
 | **Egress traffic** | Lưu lượng ra Internet (tốn phí trên cloud) |
 
+### 🎯 Đúc kết Ngày 28
+
+**3 điều phải mang theo:**
+1. **Deploy tay chạy được nhưng không bền:** dễ sai · không lặp lại · phụ thuộc 1 người · không dấu vết · rollback chậm.
+2. **5 điểm yếu đó = lý do tồn tại của IaC (Ngày 29) + CI/CD (GĐ3)** — để máy làm thay, lặp lại được, có dấu vết.
+3. **"Cattle, not pets":** server hỏng thì thay bằng code; dữ liệu để ở chỗ bền vững (volume/DB/S3). Nhớ `restart: unless-stopped` để app tự lên lại.
+
+> 🧠 **Một câu để nhớ:** tư duy *"cattle, not pets"* (gia súc, không phải thú cưng) — đừng nâng niu 1 server. Server hỏng thì thay máy mới bằng code; dữ liệu để ở chỗ bền vững (volume/DB/S3).
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] SSH vào VM, cài Docker, `docker compose up -d` để app online thật
+- [ ] Cấu hình nginx reverse proxy (và HTTPS nếu có domain)
+- [ ] Liệt kê 5 điểm yếu của deploy thủ công
+- [ ] Thêm `restart: unless-stopped` và kiểm app tự lên lại sau reboot
+- [ ] Giải thích "cattle, not pets"
+
 ✅ **Kết quả đạt được:** Triển khai ứng dụng thật lên cloud, truy cập từ Internet, và hiểu vì sao deploy thủ công cần được tự động hoá — cột mốc lớn!
 
 ---
@@ -3570,20 +3729,11 @@ Chạy `apply` nhiều lần ra **cùng** kết quả mong muốn (lần 2 báo 
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Infrastructure as Code (IaC) là gì? — bước nhảy tư duy lớn nhất.**
-Thay vì vào web console *click chuột* tạo server (mệt, dễ quên, không lặp lại được), bạn **mô tả hạ tầng bằng code** trong 1 file. Chạy file → máy tự tạo đúng y. Cần 10 server giống nhau? Đổi 1 con số. Muốn xóa sạch? 1 lệnh.
+> 📘 đã liệt kê khái niệm. Mục này cho bạn **hình dung** để nhớ — không lặp lại bảng.
 
-**Terraform — công cụ IaC phổ biến nhất.**
-Bạn viết file `.tf` (mô tả "tôi muốn 1 máy EC2, 1 security group..."). Vòng làm việc:
-- `terraform init` = chuẩn bị (tải plugin).
-- `terraform plan` = **xem trước** sẽ tạo/sửa/xóa gì (chưa làm gì cả).
-- `terraform apply` = thực hiện thật.
-- `terraform destroy` = xóa sạch (để khỏi tốn tiền sau khi học).
+**IaC như công thức nấu ăn, không phải món ăn sẵn:** click chuột tạo server = tự nấu một lần rồi thôi, lần sau quên mất đã làm gì. Viết Terraform = ghi lại **công thức**: ai cầm công thức cũng nấu ra đúng món đó, muốn 10 phần thì nhân lên, muốn bỏ thì đốt công thức. Hạ tầng của bạn giờ **tái tạo được** và nằm trong Git y như code.
 
-**State file — "trái tim" của Terraform.**
-Terraform lưu 1 file `.tfstate` ghi nhớ "nó đang quản những gì". Nó so sánh: *code bạn viết ↔ state ↔ thực tế trên cloud* để biết cần làm gì. ⚠️ **Không sửa tay** file này, **không** commit nó lên Git (chứa secret).
-
-> 🧠 **Một câu để nhớ:** **luôn đọc `terraform plan` trước khi `apply`** — đặc biệt để ý dòng `destroy`. Nhiều sự cố production do apply mà không đọc plan, vô tình xóa nhầm tài nguyên.
+**State file — vì sao nó là "trái tim":** Terraform không nhớ gì trong đầu; toàn bộ "nó đang quản cái gì" nằm trong file `.tfstate`. Mỗi lần chạy, nó đối chiếu 3 thứ — *code bạn viết* ↔ *state* ↔ *thực tế trên cloud* — rồi mới quyết định tạo/sửa/xoá. Mất hoặc hỏng state = Terraform "mất trí nhớ", có thể tạo trùng hoặc xoá nhầm. Đó là lý do state phải giữ gìn cẩn thận (không sửa tay, không commit, khoá khi làm team).
 
 ### 🧪 Lab cơ bản
 
@@ -3658,15 +3808,13 @@ terraform destroy    # gõ yes
    ```
 4. **Không bao giờ** commit `.tfstate` hay `*.tfvars` chứa secret lên Git (`.gitignore`).
 
-### 💡 Bổ sung thực tế: vì sao state file là "trái tim" của Terraform
+### 💡 Bổ sung thực tế: những cái đi làm mới thấm (sách cơ bản hay bỏ quên)
 
-- **State file = bản đồ** giữa code của bạn và tài nguyên thật trên cloud. Terraform so sánh `code ↔ state ↔ thực tế` để biết cần tạo/sửa/xóa gì.
-- **3 điều cấm kỵ với state:**
-  1. **Sửa tay** `.tfstate` — sai 1 ký tự là Terraform mất dấu tài nguyên.
-  2. **Commit lên Git** — chứa secret dạng plaintext (mật khẩu DB, key...).
-  3. **Không khóa khi làm team** — 2 người `apply` cùng lúc = state hỏng. → dùng remote backend có locking.
-- **`plan` trước `apply` luôn luôn:** `plan` cho bạn xem **chính xác** sẽ tạo/sửa/xóa gì. Đọc kỹ dòng `destroy` — nhiều sự cố production là do `apply` mà không đọc plan, vô tình xóa tài nguyên.
-- **IaC giải quyết "5 điểm yếu" của Ngày 28:** lặp lại được, version trong Git, review qua PR, dấu vết đầy đủ, rollback bằng cách revert code. Đây là bước nhảy tư duy lớn nhất của DevOps.
+- **`terraform import` — cứu tinh khi hạ tầng đã tạo tay:** thực tế bạn hiếm khi bắt đầu từ số 0, thường đã có server tạo tay từ trước. `import` đưa tài nguyên có sẵn vào state để Terraform quản, khỏi phải xoá đi tạo lại.
+- **Dùng remote backend ngay từ ĐẦU, đừng để state local:** S3 + DynamoDB (AWS) hoặc GCS (GCP) để (1) cả team dùng chung 1 state, (2) khoá tránh 2 người apply cùng lúc, (3) không mất state khi hỏng máy.
+- **`terraform plan -out=tfplan` rồi `apply tfplan`:** đảm bảo cái bạn apply đúng y cái đã review — giữa lúc plan và apply, hạ tầng thật có thể đã đổi.
+- **Gói thành module để tái dùng:** đừng copy-paste khối `resource` cho dev/prod. Gói thành **module** rồi truyền biến vào — 1 chỗ sửa, mọi nơi hưởng.
+- **Terraform ≠ cấu hình bên trong máy:** Terraform tạo *hạ tầng* (VM, network, DB). Cài phần mềm & cấu hình *bên trong* VM là việc của Ansible — đừng nhồi script cài đặt dài vào `user_data`.
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -3762,6 +3910,22 @@ terraform destroy
 | **Idempotent** | Chạy lại ra cùng kết quả |
 | **Drift** | Thực tế lệch khỏi code (do sửa tay) |
 
+### 🎯 Đúc kết Ngày 29
+
+**3 điều phải mang theo:**
+1. **IaC = mô tả hạ tầng bằng code** → lặp lại được, version trong Git, review qua PR, rollback bằng revert (giải đúng 5 điểm yếu của deploy tay ở Ngày 28).
+2. **Vòng làm việc:** `init` → `plan` (xem trước) → `apply` (làm thật) → `destroy` (dọn). Idempotent: chạy lại chỉ đổi khi có chênh lệch.
+3. **State file là "trí nhớ" của Terraform** — giữ gìn cẩn thận: không sửa tay, không commit, khoá khi làm team (remote backend).
+
+> 🧠 **Một câu để nhớ:** **luôn đọc `terraform plan` trước khi `apply`** — đặc biệt để ý dòng `destroy`. Nhiều sự cố production do apply mà không đọc plan, vô tình xoá nhầm tài nguyên.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Giải thích được IaC hơn gì so với click chuột (nêu ≥3 lợi ích)
+- [ ] Đi trọn vòng `init → plan → apply → destroy` trên 1 VM thật
+- [ ] Nói được vì sao không sửa tay / không commit `.tfstate`
+- [ ] Giải thích "idempotent" bằng lời của mình
+- [ ] Biết remote backend giải quyết vấn đề gì khi làm team
+
 ✅ **Kết quả đạt được:** Tạo hạ tầng cloud bằng code với Terraform (init→plan→apply→destroy), hiểu state & idempotent — kỹ năng DevOps hiện đại cốt lõi.
 
 ---
@@ -3788,9 +3952,7 @@ Bạn dựng một quy trình hoàn chỉnh, **tất cả bằng code**: `GitHub
 **Cấu trúc repo rõ ràng = chuyên nghiệp:**
 Tách `infra/` (Terraform — hạ tầng) và `app/` (Docker — ứng dụng), kèm README có sơ đồ. Người lạ nhìn vào hiểu ngay, và bạn 6 tháng sau cũng cảm ơn chính mình.
 
-**Đừng quên `terraform destroy` sau khi demo** — để máy chạy 24/7 trên cloud = hóa đơn bất ngờ.
-
-> 🧠 **Một câu để nhớ:** bạn vừa đi trọn *"code → hạ tầng → app, tất cả bằng code"*. Giai đoạn 3 sẽ tự động hóa nốt phần deploy (CI/CD) và điều phối container ở quy mô lớn (Kubernetes).
+**Đừng quên `terraform destroy` sau khi demo** — để máy chạy 24/7 trên cloud = hóa đơn bất ngờ. Đó cũng chính là tinh thần "cattle, not pets": xoá sạch rồi `apply` dựng lại trong một lệnh, không tiếc.
 
 ### 🧪 Lab cơ bản (Milestone)
 
@@ -3890,6 +4052,22 @@ flowchart LR
 | **IaC (Terraform)** | Hạ tầng dưới dạng code |
 | **End-to-end** | Trọn quy trình từ đầu đến cuối |
 | **Single source of truth** | 1 nguồn sự thật (repo Git) |
+
+### 🎯 Đúc kết Giai đoạn 2
+
+**3 điều phải mang theo (cả GĐ2):**
+1. **Mọi thứ nên là code:** lịch sử bằng Git, app đóng gói bằng Docker/Compose, hạ tầng bằng Terraform — tái lập được, review được, version trong Git.
+2. **Mạch end-to-end:** GitHub (code) → Docker (đóng gói) → Cloud/VM (chạy) → IaC (dựng hạ tầng bằng code). Bạn dựng lại cả hệ thống từ 1 repo.
+3. **An toàn & tiết kiệm là mặc định:** secret không vào Git (rotate nếu lỡ), DB có volume, chỉ mở cổng cần, billing alert + `terraform destroy` sau khi học.
+
+> 🧠 **Một câu để nhớ:** bạn vừa đi trọn *"code → hạ tầng → app, tất cả bằng code"*. Giai đoạn 3 sẽ tự động hóa nốt phần deploy (CI/CD) và điều phối container ở quy mô lớn (Kubernetes).
+
+**✅ Tự chấm — năng lực chốt Giai đoạn 2** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Dùng Git thành thạo: nhánh, merge/rebase, PR, xử lý conflict, cứu vãn
+- [ ] Đóng gói app bằng Dockerfile multi-stage và chạy multi-container bằng Compose
+- [ ] Quản lý dữ liệu bền vững (volume) và mạng giữa các container
+- [ ] Tạo & bảo mật 1 VM cloud (Security Group + UFW, SSH bằng key)
+- [ ] Dựng hạ tầng bằng Terraform (init→plan→apply→destroy) và deploy app end-to-end
 
 ✅ **Kết quả đạt được — MỐC 3 (NỬA CHẶNG ĐƯỜNG):** Làm chủ Git + Docker + Cloud + IaC cơ bản, dựng được app lên cloud từ 0 bằng code.
 
