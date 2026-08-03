@@ -86,18 +86,13 @@ flowchart LR
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**SRE là gì? — "DevOps phiên bản Google, đo bằng con số".**
-SRE (Site Reliability Engineering) là cách Google vận hành hệ thống tin cậy ở quy mô khổng lồ. Thay vì nói chung chung "hệ thống phải ổn định", SRE **đo độ tin cậy bằng số** và ra quyết định dựa trên số đó.
+> 📘 ở trên đã liệt kê SLI/SLO/SLA và error budget. Mục này cho bạn **hình dung** để nhớ — không lặp lại bảng.
 
-**SLI / SLO / SLA — 3 từ dễ lẫn (đọc ví dụ là hiểu):**
-- **SLI** = chỉ số *đo thực tế* ("tháng này 99.95% request thành công").
-- **SLO** = *mục tiêu nội bộ* bạn tự đặt ("phải ≥ 99.9%").
-- **SLA** = *cam kết với khách hàng*, có hậu quả nếu vi phạm ("≥ 99.5%, không đạt thì hoàn tiền"). → SLO luôn chặt hơn SLA (để có đệm an toàn).
+**Error budget như "hạn mức thẻ tín dụng" cho sự cố:** đầu tháng bạn được cấp một khoản "được phép lỗi" (vd 43 phút downtime). Mỗi lần hệ thống trục trặc là một lần "quẹt thẻ" trừ dần vào hạn mức đó. Còn hạn mức → cứ tự tin tiêu (deploy nhanh, ra tính năng mới). Cạn hạn mức → **khoá thẻ**: dừng tính năng, dồn sức "trả nợ" ổn định. Cái hay là nó biến câu hỏi cảm tính "có nên deploy tiếp không?" thành một con số ai cũng nhìn thấy và không cãi được.
 
-**Error Budget — ý tưởng thiên tài:**
-`Error budget = 100% − SLO`. Nếu SLO là 99.9% thì bạn được phép "lỗi" 0.1% ≈ **43 phút/tháng**. Đây là "ngân sách lỗi": còn budget → thoải mái ra tính năng mới; cạn budget → dừng lại, tập trung sửa ổn định. Hết cãi nhau cảm tính Dev vs Ops — quyết bằng số.
+**Vì sao 100% uptime là cái bẫy:** trực giác mách bảo "càng ổn định càng tốt, nhắm tới 100%". Nhưng mỗi "số 9" thêm vào (99% → 99.9% → 99.99%) đắt lên khoảng gấp 10 lần, trong khi người dùng gần như không phân biệt nổi. Quan trọng hơn: nếu mục tiêu là 100% thì bạn sẽ **không bao giờ dám thay đổi gì** — mà không thay đổi thì không có tính năng mới. SRE cố tình chấp nhận "lỗi là bình thường" để mua lại quyền được đi nhanh.
 
-> 🧠 **Một câu để nhớ:** đừng theo đuổi 100% uptime — cực đắt và bất khả thi. Error budget thừa nhận "lỗi là bình thường" và biến nó thành công cụ quản lý. Và postmortem phải **blameless** (không đổ lỗi cá nhân, chỉ sửa hệ thống).
+**SLO là "trọng tài" giữa nhanh và bền:** hình dung Dev muốn tống tính năng ra thật nhanh, Ops muốn khoá cứng cho khỏi sập — hai phe vốn cãi nhau triền miên và ai to tiếng hơn thì thắng. SLO + error budget đóng vai trọng tài trung lập: số liệu nói còn budget thì Dev thắng, số liệu nói cạn budget thì Ops thắng. Cảm xúc và chức vụ hết vai trò — chỉ dữ liệu quyết.
 
 ### 🧪 Lab cơ bản
 
@@ -120,16 +115,12 @@ SRE (Site Reliability Engineering) là cách Google vận hành hệ thống tin
 
 ### 💡 Bổ sung thực tế: SLI/SLO/SLA & vì sao blameless
 
-- **3 chữ viết tắt dễ lẫn:**
-  | | Là gì | Ví dụ |
-  |---|---|---|
-  | **SLI** | chỉ số đo thực tế | "99.95% request thành công tháng này" |
-  | **SLO** | mục tiêu nội bộ | "≥ 99.9% request thành công" |
-  | **SLA** | cam kết có ràng buộc với khách | "≥ 99.5%, nếu thấp hơn → hoàn tiền" |
-  - SLO luôn **chặt hơn** SLA (đệm an toàn để không bao giờ vi phạm cam kết).
-- **100% là sai mục tiêu:** theo đuổi 100% uptime là vô nghĩa (cực kỳ đắt, vẫn không đạt). Error budget thừa nhận "lỗi là bình thường" và biến nó thành ngân sách để cân bằng tốc độ vs ổn định.
-- **Vì sao postmortem blameless:** đổ lỗi cá nhân → người ta giấu sự cố → không học được gì → lặp lại. Tập trung vào **hệ thống** ("vì sao 1 lỗi gõ nhầm gây sập production?" → vì thiếu kiểm tra tự động) → sửa gốc rễ. Con người luôn sẽ mắc lỗi; hệ thống tốt phải chịu được lỗi.
-- **SRE vs DevOps:** DevOps là *văn hóa/triết lý* (phá rào Dev-Ops); SRE là *cách triển khai cụ thể* của Google với SLO, error budget, giảm toil. "SRE implements DevOps."
+- **Error budget policy phải ký TRƯỚC khi cháy nhà:** viết ra giấy "cạn budget thì đóng băng feature" và cho cả Dev lẫn quản lý đồng thuận từ lúc còn yên bình. Đợi đến khi sự cố mới bàn "có nên dừng deploy không" thì cảm xúc lấn át, chẳng ai chịu ai. Chính sách có sẵn = không phải tranh luận lúc căng thẳng.
+- **Đo SLO trên "cửa sổ trượt" 28–30 ngày, đừng theo tháng lịch:** nếu budget reset vào ngày 1 hàng tháng, đội dễ "đốt sạch" budget cuối tháng rồi ngồi chờ mùng 1 làm lại — méo mó hành vi. Cửa sổ trượt phản ánh liên tục trải nghiệm 30 ngày gần nhất.
+- **Cảnh báo theo "tốc độ đốt budget" (burn rate), không theo ngưỡng tức thời:** một cú nhảy latency 5 giây rồi tự hồi thì kệ; nhưng nếu đang tiêu budget nhanh gấp chục lần bình thường thì mới đánh thức người trực. Alert theo burn rate giảm hẳn báo động giả so với kiểu "CPU > 80% là hú".
+- **Đo SLI ở nơi người dùng đứng:** cùng một request, đo ở backend có thể ra 99.99% nhưng đo ở edge/load balancer (tính cả timeout, lỗi mạng, DNS) lại chỉ 99.5%. Con số "thật" là con số người dùng cảm nhận, không phải con số đẹp nhất bạn tìm được trong hệ thống.
+- **Postmortem không có action item = văn tế:** phần giá trị nhất của postmortem là danh sách hành động sửa gốc, mỗi cái có **owner + deadline** và được theo dõi đến khi đóng. Thiếu phần đó thì "blameless" chỉ còn là buổi kể khổ, tháng sau lỗi y hệt lặp lại.
+- **SRE vs DevOps (để trả lời phỏng vấn cho gọn):** DevOps là *văn hoá/triết lý* phá rào Dev–Ops; SRE là *cách triển khai cụ thể* của Google bằng SLO, error budget và giảm toil. Một câu: *"SRE implements DevOps."*
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -206,6 +197,22 @@ SRE (Site Reliability Engineering) là cách Google vận hành hệ thống tin
 | **Blameless** | Không đổ lỗi cá nhân |
 | **Availability** | Tỉ lệ thời gian hệ thống hoạt động |
 
+### 🎯 Đúc kết Ngày 51
+
+**3 điều phải mang theo:**
+1. **SLI đo — SLO nhắm — SLA cam kết:** SLI là số thật, SLO là mục tiêu nội bộ (luôn chặt hơn SLA để có đệm), SLA là lời hứa có ràng buộc với khách. Nhầm 3 cái này là nhầm cả tư duy SRE.
+2. **Error budget = 100% − SLO** biến "nên đi nhanh hay giữ ổn định?" thành quyết định bằng dữ liệu: còn budget → ra tính năng, cạn budget → đóng băng và sửa.
+3. **Blameless + giảm toil:** sự cố là lỗi của hệ thống chứ không của cá nhân; việc tay lặp lại (toil) phải bị tự động hoá dần, không chấp nhận là "số phận".
+
+> 🧠 **Một câu để nhớ:** đừng theo đuổi 100% uptime — cực đắt và bất khả thi. Error budget thừa nhận "lỗi là bình thường" và biến nó thành công cụ quản lý bằng dữ liệu; và postmortem phải **blameless** (chỉ sửa hệ thống, không đổ lỗi người).
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Phân biệt rành mạch SLI / SLO / SLA bằng ví dụ của chính mình
+- [ ] Tính được error budget cho 99% / 99.9% / 99.99% ra số phút/tháng
+- [ ] Giải thích được error budget policy điều phối Dev vs Ops thế nào
+- [ ] Chọn được 1 SLI đo từ góc người dùng (không phải CPU%) cho app của mình
+- [ ] Viết được 1 postmortem blameless có action item kèm owner + deadline
+
 ✅ **Kết quả đạt được:** Hiểu tư duy SRE — đo lường độ tin cậy, error budget, giảm toil, postmortem blameless.
 
 ---
@@ -273,19 +280,13 @@ flowchart TB
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**High Availability (HA) — "không có điểm chết duy nhất".**
-**SPOF** (Single Point of Failure) = thành phần mà nếu nó chết thì cả hệ thống chết (vd: chỉ 1 server, chỉ 1 database). HA = loại bỏ SPOF bằng **dự phòng**: nhiều bản sao, nhiều máy, nhiều vùng. Mất 1 cái, cái khác gánh tiếp.
+> 📘 ở trên đã liệt kê SPOF, scaling, RTO/RPO, chaos. Mục này cho bạn **hình dung** để nhớ — không lặp lại bảng.
 
-**Disaster Recovery (DR) — kế hoạch khi thảm họa xảy ra.**
-Khi cả khu vực sập (cháy data center, lỗi lớn), làm sao khôi phục? 2 con số định hình:
-- **RPO** = chấp nhận **mất tối đa bao nhiêu dữ liệu**? (backup mỗi 1h → mất tối đa 1h dữ liệu).
-- **RTO** = khôi phục xong trong **bao lâu**?
-Các mức DR (đắt dần): backup-restore (giờ) → pilot light → warm standby → multi-site (giây).
+**HA giống chiếc máy bay 4 động cơ:** máy bay chở khách không có *một* động cơ khoẻ nhất, mà có nhiều động cơ để **mất một cái vẫn bay tiếp**. SPOF là thứ ngược lại — một bộ phận mà hỏng là cả chuyến bay rơi (chỉ 1 server, chỉ 1 DB). Làm HA thực chất là đi hỏi từng bộ phận một câu: *"Nếu riêng cái này chết thì sao?"* — chỗ nào câu trả lời là "sập hết" thì chỗ đó cần thêm bản sao. Cứ thế cho đến khi không còn chỗ nào một-mình-quyết-định-sống-chết.
 
-**Chaos engineering — chủ động phá để kiểm tra.**
-Nghe ngược đời nhưng rất khôn: chủ động xóa pod/ngắt mạng *khi đang theo dõi* để xem hệ thống có tự phục hồi không. "Chưa test failover = không có failover" — đừng đợi sự cố thật mới biết hệ thống không chịu được.
+**RTO và RPO là hai câu hỏi ở hai phía của một tai nạn:** vẽ mốc "lúc sập" lên trục thời gian. Nhìn về **quá khứ** — "backup gần nhất cách đây bao lâu, tức mất tối đa bao nhiêu **dữ liệu**?" — đó là RPO, và nó quyết định bạn phải backup dày cỡ nào. Nhìn về **tương lai** — "từ lúc sập đến lúc chạy lại mất bao lâu?" — đó là RTO, và nó quyết định bạn phải đầu tư kiến trúc phục hồi nhanh cỡ nào. Muốn cả hai gần 0 thì rất đắt, nên phải chọn theo giá trị dữ liệu.
 
-> 🧠 **Một câu để nhớ:** triết lý của Amazon — *"Everything fails, all the time"* (mọi thứ đều sẽ hỏng). Thiết kế **giả định nó sẽ hỏng** thay vì hy vọng nó không hỏng. App stateless là chìa khóa để scale + chịu lỗi dễ.
+**Chaos engineering — tiêm vắc-xin cho hệ thống:** vắc-xin là cố tình đưa một liều mầm bệnh *có kiểm soát* vào cơ thể để nó tập đề kháng trước khi gặp bệnh thật. Chaos cũng vậy: chủ động giết pod, ngắt mạng, làm chậm DB *ngay khi bạn đang ngồi theo dõi* — để phát hiện điểm yếu lúc còn bình tĩnh, thay vì lúc 3 giờ sáng gặp sự cố thật. Câu thần chú: *"chưa test failover = chưa có failover"*.
 
 ### 🧪 Lab cơ bản
 
@@ -312,12 +313,11 @@ Nghe ngược đời nhưng rất khôn: chủ động xóa pod/ngắt mạng *k
 
 ### 💡 Bổ sung thực tế: RTO vs RPO & "everything fails"
 
-- **RTO vs RPO (vẽ trên trục thời gian sự cố):**
-  - **RPO** = nhìn về **quá khứ**: mất tối đa bao nhiêu **dữ liệu**? (backup mỗi 1h → RPO 1h). Quyết định **tần suất backup**.
-  - **RTO** = nhìn về **tương lai**: khôi phục xong trong bao lâu? Quyết định **kiến trúc phục hồi** (snapshot nhanh vs restore archive chậm).
-- **Triết lý cốt lõi của Amazon:** *"Everything fails, all the time."* Thiết kế giả định mọi thứ **sẽ** hỏng → dự phòng, tự phục hồi, không có SPOF. Đây là khác biệt giữa hệ thống "may mắn chưa sập" và hệ thống "thiết kế để chịu sập".
-- **HA không miễn phí:** mỗi tầng dự phòng = thêm chi phí + phức tạp. Cân bằng với SLO — đừng xây multi-region cho app nội bộ 10 người dùng.
-- **Stateless là chìa khóa scale:** app không lưu trạng thái cục bộ (session ra Redis/DB) → scale ngang thoải mái, pod chết không mất gì. Đây là lý do "cattle not pets" (Ngày 28).
+- **Backup KHÔNG phải DR:** backup chỉ là *dữ liệu nằm đâu đó*. DR là cả gói: hạ tầng để bung lại, quy trình từng bước, người biết bấm nút, và — quan trọng nhất — đã **diễn tập** thành công. Rất nhiều nơi "có backup" nhưng đến lúc cháy nhà mới phát hiện thiếu network, thiếu secret, hoặc không ai từng thử restore bao giờ.
+- **Quy tắc 3-2-1 cho backup:** giữ **3** bản sao, trên **2** loại phương tiện khác nhau, và **1** bản để **off-site** (khác vùng/khác nhà cung cấp). Backup nằm cùng chỗ với bản gốc thì cháy data center là mất cả hai — coi như không có.
+- **"Backup Schrödinger":** một bản backup chưa từng restore thử thì vừa tồn tại vừa không tồn tại — bạn chỉ biết nó hỏng đúng vào lúc cần nó nhất. Vì thế phải **test restore định kỳ** và bấm giờ, đó chính là lúc bạn đo được RTO thật.
+- **HA cần số node LẺ cho hệ bỏ phiếu:** etcd, ZooKeeper, DB cluster... dùng quorum (đa số) để bầu chủ. 3 node chịu mất 1, 5 node chịu mất 2. Chia đôi 2 hoặc 4 node dễ gây **split-brain** (hai nửa cùng tưởng mình là chủ) → hỏng dữ liệu. Nhớ: hệ đồng thuận thích số lẻ.
+- **HA còn là "hỏng một phần vẫn sống":** ngoài dự phòng, hệ tốt biết **graceful degradation** — mất service gợi ý sản phẩm thì vẫn cho xem/mua hàng, chỉ tắt phần gợi ý. Và **load shedding**: quá tải thì chủ động từ chối bớt request để cứu phần lõi, thay vì sập sạch.
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -394,6 +394,22 @@ Nghe ngược đời nhưng rất khôn: chủ động xóa pod/ngắt mạng *k
 | **Disaster Recovery** | Khôi phục sau thảm hoạ |
 | **Chaos engineering** | Chủ động gây lỗi để kiểm tra |
 
+### 🎯 Đúc kết Ngày 52
+
+**3 điều phải mang theo:**
+1. **HA = diệt SPOF bằng dự phòng:** hỏi từng thành phần "nếu riêng cái này chết thì sao?" — chỗ nào "sập hết" thì thêm bản sao/node/vùng. Ưu tiên scale ngang, và điều kiện tiên quyết là app **stateless**.
+2. **DR định hình bằng RTO & RPO:** RPO nhìn quá khứ (mất tối đa bao nhiêu dữ liệu → tần suất backup); RTO nhìn tương lai (phục hồi mất bao lâu → kiến trúc). Backup chưa test restore thì coi như chưa có.
+3. **Chaos engineering để biết trước điểm yếu:** chủ động phá trong môi trường kiểm soát; "chưa test failover = chưa có failover".
+
+> 🧠 **Một câu để nhớ:** triết lý Amazon — *"Everything fails, all the time"*. Thiết kế **giả định nó sẽ hỏng** thay vì hy vọng nó không hỏng; và HA không miễn phí, phải cân với SLO (đừng multi-region cho app nội bộ 10 người).
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Chỉ ra được SPOF trong hệ thống của mình và cách loại bỏ
+- [ ] Phân biệt RTO vs RPO và nói được mỗi cái quyết định điều gì
+- [ ] Giải thích vì sao stateless là điều kiện để scale ngang
+- [ ] Kể được 4 mức DR theo thứ tự đắt dần (backup-restore → active-active)
+- [ ] Chạy được 1 bài chaos (xoá pod khi đang curl) và đọc kết quả
+
 ✅ **Kết quả đạt được:** Thiết kế hệ thống sẵn sàng cao (không SPOF), scale được và có khả năng phục hồi sau thảm hoạ.
 
 ---
@@ -439,20 +455,13 @@ Cost Explorer (soi chi phí), **Billing Alert** (việc đầu tiên khi tạo t
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**FinOps là gì? — "kỹ thuật tối ưu chi phí cloud".**
-Cloud trả tiền theo lượng dùng → rất dễ "vung tay quá trán" (quên tắt máy, mua to hơn cần). FinOps là thực hành **đưa ý thức chi phí vào kỹ thuật**: kỹ sư thấy được mình tiêu bao nhiêu và tối ưu.
+> 📘 ở trên đã liệt kê 3 mô hình giá, quả ngọt dễ hái và bẫy chi phí. Mục này cho bạn **hình dung** để nhớ — không lặp lại bảng.
 
-**3 mô hình giá — chọn đúng tiết kiệm rất nhiều:**
-- **On-demand** = trả theo giờ, linh hoạt nhưng **đắt nhất**. Dùng cho tải thất thường, dev.
-- **Reserved / Savings Plan** = cam kết dùng lâu dài (1–3 năm) → giảm **30–70%**. Dùng cho tải ổn định (database, baseline).
-- **Spot** = dùng tài nguyên "thừa" của cloud, giảm **70–90%** nhưng **có thể bị thu hồi bất cứ lúc nào**. Dùng cho job chịu được gián đoạn (batch, CI).
+**Cloud như hoá đơn điện taxi, không phải mua xe:** mua server vật lý là mua đứt một chiếc xe — trả một lần, dùng thoải mái. Cloud thì như đi taxi bật đồng hồ: **đồng hồ chạy từng giây bạn để máy bật**, quên tắt là cứ thế nhảy số. Chính vì thế "vung tay quá trán" trên cloud dễ đến mức đáng sợ — một cái VM to quên tắt cuối tuần cũng đủ tốn tiền vô ích. FinOps đơn giản là **thói quen nhìn đồng hồ taxi** đó ngay khi ra quyết định kỹ thuật.
 
-**Vài "quả ngọt dễ hái":**
-- **Right-sizing**: đa số máy mua *to hơn cần* (vì sợ). Đo metric thật (Ngày 44) → hạ size → tiết kiệm ngay.
-- **Tắt môi trường dev ngoài giờ** (18h–8h + cuối tuần) ≈ tiết kiệm ~70%.
-- **Tagging** tài nguyên → biết tiền đi đâu (team nào, dự án nào).
+**Ba mô hình giá giống ba cách thuê nhà:** *on-demand* là thuê phòng khách sạn theo đêm — tiện, đi lúc nào cũng được, nhưng đắt nhất; hợp với tải thất thường và môi trường dev. *Reserved/Savings Plan* là ký hợp đồng thuê 1–3 năm — cam kết dài nên rẻ hơn nhiều; hợp với phần tải chạy đều đặn (DB, baseline). *Spot* là ở nhờ phòng trống của khách sạn giá bèo — rẻ nhất nhưng **chủ nhà đòi lại lúc nào cũng phải trả**; chỉ hợp với việc chịu được gián đoạn (batch, CI, worker).
 
-> 🧠 **Một câu để nhớ:** bẫy chi phí ẩn hay quên — egress traffic (đẩy dữ liệu RA internet tốn tiền), NAT Gateway chạy 24/7, volume/snapshot mồ côi. **Billing alert là việc đầu tiên** khi tạo tài khoản cloud.
+**"Quả ngọt dễ hái" — tiền để trên bàn không ai nhặt:** đa số máy được mua to hơn nhu cầu thật vì tâm lý "sợ thiếu", trong khi metric cho thấy CPU chỉ dùng 5%. Right-sizing (hạ đúng size dựa trên số đo thật) và tắt môi trường dev ngoài giờ là hai việc gần như không rủi ro mà cắt được rất nhiều tiền. Điều kiện duy nhất: phải **có tag để biết tiền đi đâu** và **có monitoring để biết máy thực sự dùng bao nhiêu**.
 
 ### 🧪 Lab cơ bản
 
@@ -473,15 +482,11 @@ Cloud trả tiền theo lượng dùng → rất dễ "vung tay quá trán" (qu�
 
 ### 💡 Bổ sung thực tế: chọn mô hình giá & văn hóa FinOps
 
-- **3 mô hình giá — chọn đúng tiết kiệm rất nhiều:**
-  | Mô hình | Khi nào | Tiết kiệm |
-  |---|---|---|
-  | **On-demand** | tải thất thường, ngắn hạn, dev | 0% (đắt nhất) |
-  | **Reserved/Savings Plan** | tải ổn định, chạy lâu dài (DB, baseline) | ~30–70% |
-  | **Spot** | job chịu được gián đoạn (batch, CI, worker) | ~70–90% |
-- **Right-sizing là "quả ngọt dễ hái":** đa số hệ thống over-provision (mua to vì sợ). Đo thật → hạ size → tiết kiệm ngay mà không ảnh hưởng. Nhưng cần monitoring để biết.
-- **Bẫy chi phí ẩn:** egress traffic (dữ liệu ra internet), NAT Gateway 24/7, volume/snapshot mồ côi, log/metric giữ vô hạn. → tagging + Cost Explorer để soi.
-- **FinOps là văn hóa, không phải công cụ:** kỹ sư cần **thấy** chi phí do mình tạo ra (shift-left cost, như shift-left security). Khi dev biết "feature này tốn $500/tháng" họ tự tối ưu. Chi phí là trách nhiệm chung.
+- **Nhìn "chi phí trên mỗi đơn vị" chứ không chỉ tổng hoá đơn (unit economics):** hoá đơn tăng chưa chắc xấu — nếu chi phí *trên mỗi request/khách hàng/đơn hàng* đang giảm thì bạn đang mở rộng hiệu quả. FinOps trưởng thành theo dõi "$ / 1000 request" hay "$ / khách hàng hoạt động", vì đó mới là con số nói lên hệ thống có đang béo lên vô ích hay không.
+- **Reserved/Savings Plan là cam kết TÀI CHÍNH, không phải nút bấm kỹ thuật:** mua RI/SP là ký nợ 1–3 năm — mua thừa (utilization thấp) thì trả tiền cho thứ không dùng, mua thiếu (coverage thấp) thì vẫn đắt. Cách an toàn: phủ RI/SP cho phần **baseline chắc chắn luôn chạy**, để phần tải nhấp nhô cho on-demand/spot gánh.
+- **Egress và traffic cross-AZ là bẫy đắt mà hoá đơn không nói thẳng:** dữ liệu *vào* cloud thường miễn phí nhưng *ra* internet (và cả đi ngang giữa các AZ) thì tính tiền. Một kiến trúc "chatty" giữa các vùng có thể ngốn tiền mạng nhiều hơn cả tiền compute mà không ai để ý.
+- **Trên Kubernetes, requests/limits đặt sai = đốt tiền âm thầm:** đặt request quá cao thì scheduler "giữ chỗ" tài nguyên không ai dùng → phải mua thêm node oan. Kết hợp right-sizing pod + cluster autoscaler + node pool spot cho workload chịu gián đoạn là combo tiết kiệm lớn.
+- **Showback/chargeback biến FinOps thành văn hoá:** định kỳ gửi cho mỗi team đúng "hoá đơn phần của họ" (nhờ tag). Khi kỹ sư *thấy* "feature này tốn $500/tháng" họ tự tối ưu — giống shift-left security, đây là shift-left cost. Và **billing alert / anomaly alert là việc đầu tiên** làm khi mở tài khoản cloud.
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -558,6 +563,22 @@ Cloud trả tiền theo lượng dùng → rất dễ "vung tay quá trán" (qu�
 | **Infracost** | Ước tính chi phí Terraform |
 | **Billing Alert** | Cảnh báo chi phí |
 
+### 🎯 Đúc kết Ngày 53
+
+**3 điều phải mang theo:**
+1. **Chọn đúng mô hình giá:** on-demand (linh hoạt, đắt) cho tải thất thường/dev; reserved/savings plan (−30~70%) cho baseline ổn định; spot (−70~90%) cho job chịu gián đoạn. Chọn sai = trả tiền oan hoặc mất việc giữa chừng.
+2. **Right-sizing + tắt idle là "quả ngọt dễ hái":** hạ size theo metric thật và tắt dev ngoài giờ cắt được rất nhiều tiền gần như không rủi ro — miễn là có monitoring và tag để biết.
+3. **FinOps là văn hoá, không phải công cụ:** khi kỹ sư *thấy* chi phí do mình tạo ra (showback + billing alert), họ tự tối ưu. Chi phí là trách nhiệm chung.
+
+> 🧠 **Một câu để nhớ:** cloud là đồng hồ taxi chạy từng giây — bẫy chi phí ẩn (egress ra internet, NAT Gateway 24/7, volume/snapshot mồ côi, log giữ vô hạn) âm thầm nhảy số. **Billing alert là việc đầu tiên** khi tạo tài khoản cloud.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Nói được khi nào dùng on-demand / reserved / spot
+- [ ] Giải thích right-sizing và vì sao cần monitoring để làm đúng
+- [ ] Kể được ≥3 bẫy chi phí ẩn và cách soi (tag + Cost Explorer)
+- [ ] Dùng Infracost ước tính chênh lệch $/tháng của 1 thay đổi Terraform
+- [ ] Thiết lập được billing alert ngay khi mở tài khoản cloud
+
 ✅ **Kết quả đạt được:** Tối ưu chi phí cloud (mô hình giá, right-sizing, tagging) — kỹ năng ngày càng quan trọng.
 
 ---
@@ -620,16 +641,13 @@ flowchart LR
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Microservices — chia app lớn thành nhiều dịch vụ nhỏ.**
-Thay vì 1 khối code khổng lồ (monolith), bạn chia thành nhiều service nhỏ độc lập (service user, service đơn hàng...). Lợi: dễ phát triển/scale riêng từng phần. Hại: giờ chúng phải *nói chuyện với nhau qua mạng* — sinh ra cả tá vấn đề: mã hóa, retry khi lỗi, theo dõi, định tuyến.
+> 📘 ở trên đã liệt kê microservices, sidecar, các tính năng mesh và khi nào không dùng. Mục này cho bạn **hình dung** để nhớ — không lặp lại bảng.
 
-**Service Mesh — "lớp hạ tầng lo việc giao tiếp".**
-Thay vì code các xử lý đó vào *từng* service (lặp lại, ác mộng), Service Mesh (Istio, Linkerd) đẩy chúng xuống hạ tầng. Cơ chế: tiêm 1 **sidecar** (proxy nhỏ) vào cạnh mỗi pod. **Mọi** traffic vào/ra app đi qua proxy này → proxy tự lo mã hóa (mTLS), retry, đo lường, chia traffic — *app không cần sửa code gì*.
+**Chia monolith thành microservices giống tách một đại gia đình ra ở riêng:** ở chung một nhà (monolith) thì gọi nhau chỉ cần nói vọng sang phòng — nhanh, đơn giản. Tách ra ở riêng mỗi người một nhà (mỗi service) thì tự do phát triển, sửa nhà ai nấy lo — nhưng giờ muốn nói chuyện phải **gọi điện thoại**: cuộc gọi có thể rớt (retry), có thể bị nghe lén (cần mã hoá), phải biết số của nhau (định tuyến), và muốn biết ai gọi ai thì phải ghi log cuộc gọi (observability). Toàn bộ "nỗi đau" của microservices là nỗi đau của việc **giao tiếp qua mạng** mà trước kia không hề có.
 
-**⚠️ Khi nào KHÔNG dùng mesh (quan trọng cho người mới):**
-Mesh thêm **độ phức tạp lớn** (tốn tài nguyên, khó debug, học mất công). Hệ thống nhỏ (vài service) → **không cần** mesh, dùng thẳng K8s Service + Ingress là đủ. Nhiều team thêm Istio quá sớm rồi khổ.
+**Service mesh = thuê một tổng đài lo hết mọi cuộc gọi:** thay vì bắt *từng nhà* tự lắp thiết bị mã hoá, tự viết logic gọi lại khi rớt (lặp lại ở mọi service, mỗi nơi một kiểu), mesh đặt cạnh mỗi nhà một **nhân viên tổng đài riêng** (sidecar proxy). Mọi cuộc gọi ra/vào đều đi qua nhân viên này, và họ lo hết mã hoá, gọi lại, ghi sổ, chia hướng — còn "người trong nhà" (app) thì **không phải sửa gì cả**. Đây là lý do pod chuyển thành `2/2 READY`: một container app + một container proxy.
 
-> 🧠 **Một câu để nhớ:** chỉ thêm service mesh khi "nỗi đau microservices" thực sự xuất hiện (hàng chục service). Bắt đầu bằng Linkerd (nhẹ, dễ) trước Istio (mạnh, phức tạp).
+**Nhưng tổng đài cũng tốn lương — đừng thuê khi nhà bạn chỉ có 2 phòng:** thêm mesh là thêm một lớp hạ tầng tốn tài nguyên, khó debug và phải học. Với hệ thống nhỏ vài service, K8s Service + Ingress đã đủ, thêm Istio vào chỉ tổ khổ. Bài học trưởng thành nhất của ngày này không phải "mesh làm được gì" mà là **biết khi nào CHƯA cần mesh** — rất nhiều đội cài Istio quá sớm rồi trả giá.
 
 ### 🧪 Lab cơ bản
 
@@ -650,10 +668,11 @@ Mesh thêm **độ phức tạp lớn** (tốn tài nguyên, khó debug, học m
 
 ### 💡 Bổ sung thực tế: sidecar pattern & "đừng dùng mesh khi chưa cần"
 
-- **Sidecar pattern hoạt động thế nào:** mỗi pod được tiêm thêm 1 container proxy (Envoy/linkerd-proxy). **Mọi** traffic vào/ra app đi qua proxy này → proxy lo mTLS, retry, metric, routing — app không biết gì. Pod thành `2/2 READY` (app + sidecar).
-- **Mesh giải quyết bài toán của microservices:** khi có 30 service gọi nhau, bạn cần mã hóa + retry + observability + traffic control **đồng nhất** cho tất cả. Tự code vào từng service = ác mộng. Mesh đẩy việc đó xuống hạ tầng.
-- **⚠️ Cảnh báo quan trọng — khi nào KHÔNG dùng mesh:** mesh thêm **độ phức tạp lớn** (sidecar tốn tài nguyên, khó debug, học mất công). Hệ thống nhỏ (vài service) → **không cần** mesh, dùng thẳng K8s Service + Ingress. Nhiều team thêm Istio quá sớm rồi khổ. Quy tắc: chỉ thêm mesh khi nỗi đau microservices thực sự xuất hiện.
-- **Linkerd vs Istio:** Linkerd nhẹ, đơn giản, dễ vận hành — bắt đầu từ đây. Istio mạnh, nhiều tính năng, nhưng phức tạp — chỉ khi cần.
+- **Sidecar có "thuế" latency và tài nguyên:** mỗi cuộc gọi giờ đi qua **2 proxy** (một ra, một vào) nên cộng thêm chút latency và mỗi pod tốn thêm CPU/RAM cho container proxy. Với hàng nghìn pod, khoản "thuế" này là thật và phải cân nhắc — không có bữa trưa miễn phí.
+- **Xu hướng "sidecar-less" đang lên:** để tránh thuế sidecar, có hướng đẩy phần lớn việc xuống nhân kernel bằng **eBPF** (Cilium service mesh) hoặc tách kiến trúc như **Istio ambient mode**. Chưa cần dùng ngay, nhưng biết để không nghĩ "mesh = luôn phải có sidecar mỗi pod".
+- **mTLS lo mã hoá + danh tính, KHÔNG tự lo phân quyền:** mesh giúp service A và B mã hoá và biết chắc "đầu kia đúng là ai". Nhưng *"A có được phép gọi B không"* vẫn là **authorization policy** bạn phải khai báo. Bật mTLS rồi tưởng đã bảo mật xong là hiểu nhầm nguy hiểm.
+- **Retry mù có thể tự bồi thêm cho sự cố (retry storm):** khi hệ đang quá tải, mọi client cùng retry sẽ nhân đôi/nhân ba tải và làm sập nặng hơn. Cấu hình retry ở mesh phải kèm **giới hạn (retry budget) + timeout + circuit breaker**, không bật retry vô tội vạ.
+- **Phân biệt "bắc–nam" và "đông–tây":** API Gateway/Ingress lo traffic *từ ngoài vào* (north–south: auth người dùng, rate limit); service mesh lo traffic *giữa các service bên trong* (east–west). Hai thứ bổ sung nhau, không thay thế nhau — và trong hai mesh phổ biến thì Linkerd nhẹ/dễ (bắt đầu từ đây), Istio mạnh nhưng phức tạp (chỉ khi thật cần).
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -730,6 +749,22 @@ Mesh thêm **độ phức tạp lớn** (tốn tài nguyên, khó debug, học m
 | **API Gateway** | Cửa vào từ ngoài (auth, rate limit) |
 | **Linkerd / Istio** | 2 service mesh phổ biến |
 
+### 🎯 Đúc kết Ngày 54
+
+**3 điều phải mang theo:**
+1. **Nỗi đau microservices là nỗi đau giao tiếp qua mạng:** tách service ra thì được tự do phát triển nhưng phải tự lo mã hoá, retry, định tuyến, observability cho từng cuộc gọi.
+2. **Mesh đẩy việc đó xuống hạ tầng bằng sidecar:** mỗi pod thêm 1 proxy (`2/2 READY`) lo mTLS/retry/metric/traffic split — app không sửa code. Nhưng sidecar có "thuế" latency + tài nguyên.
+3. **Biết khi nào KHÔNG dùng mesh mới là trưởng thành:** hệ nhỏ vài service thì K8s Service + Ingress là đủ; thêm Istio quá sớm chỉ tổ khổ.
+
+> 🧠 **Một câu để nhớ:** chỉ thêm service mesh khi "nỗi đau microservices" thực sự xuất hiện (hàng chục service gọi nhau). Bắt đầu bằng Linkerd (nhẹ, dễ) trước khi nghĩ tới Istio (mạnh, phức tạp).
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Giải thích sidecar pattern và vì sao pod thành `2/2 READY`
+- [ ] Kể được 4 việc mesh làm giúp (mTLS, retry/timeout, observability, traffic split)
+- [ ] Nói được ≥2 lý do KHÔNG nên thêm mesh cho hệ nhỏ
+- [ ] Phân biệt API Gateway/Ingress (bắc–nam) với service mesh (đông–tây)
+- [ ] Biết mTLS lo mã hoá + danh tính nhưng vẫn cần authorization policy riêng
+
 ✅ **Kết quả đạt được:** Hiểu microservices & service mesh — và quan trọng nhất, biết khi nào KHÔNG cần mesh.
 
 ---
@@ -775,20 +810,13 @@ Template dự án, môi trường tự động tạo, CI/CD cấu hình sẵn �
 
 ### 📖 Hiểu rõ hơn (giải thích cho người mới)
 
-**Platform Engineering — xu hướng mới nhất của DevOps.**
-Vấn đề: khi "DevOps cho mọi người", mỗi lập trình viên phải biết K8s, Terraform, CI/CD... → quá tải, ai cũng làm mỗi kiểu một khác. **Platform Engineering** giải bằng cách: một đội chuyên xây **nền tảng nội bộ (IDP)** che giấu phức tạp, để dev *tự phục vụ*.
+> 📘 ở trên đã liệt kê IDP, golden path, DORA, self-service. Mục này cho bạn **hình dung** để nhớ — không lặp lại bảng.
 
-**Golden Path — "con đường vàng".**
-Là con đường chuẩn, dễ đi nhất, có rào chắn an toàn sẵn. Vd: dev tạo service mới = 1 lệnh → tự có Dockerfile chuẩn, CI/CD, monitoring, quét bảo mật. Họ chỉ viết logic nghiệp vụ. (Không phải "golden cage" — vẫn cho đi đường khác khi cần, chỉ là đường chuẩn dễ nhất.)
+**Vì sao Platform Engineering ra đời — "DevOps cho mọi người" phản đòn:** phong trào DevOps bảo "dev tự lo luôn cả vận hành đi". Nghe hay, nhưng hệ quả là **mỗi lập trình viên bị bắt phải giỏi K8s + Terraform + CI/CD + bảo mật + monitoring** — quá tải, và mỗi người tự chế mỗi kiểu một khác nên loạn. Platform Engineering là bước điều chỉnh: gom phần khó đó cho **một đội chuyên xây nền tảng nội bộ (IDP)**, để dev quay lại tập trung viết tính năng.
 
-**DORA metrics — thước đo "team DevOps giỏi đến đâu":**
-- **Deployment Frequency** = deploy bao nhiêu lần/ngày.
-- **Lead Time** = từ commit đến production mất bao lâu.
-- **Change Failure Rate** = % deploy gây sự cố.
-- **MTTR** = trung bình bao lâu khôi phục sau sự cố.
-2 cái đầu đo *tốc độ*, 2 cái sau đo *độ ổn định* — team giỏi đạt **cả hai**.
+**Golden path như đường cao tốc có sẵn làn và biển báo:** thay vì mỗi dev tự dò đường (tự viết Dockerfile, tự dựng CI, tự cắm monitoring — mỗi người một kiểu), platform team làm sẵn một con đường chuẩn: gõ 1 lệnh tạo service mới là **đã có** Dockerfile chuẩn, pipeline, monitoring, quét bảo mật. Dev chỉ việc lái xe (viết logic nghiệp vụ). Điểm tinh tế: đó là "path" (đường dễ nhất) chứ không phải "cage" (lồng nhốt) — ai cần vẫn được rẽ đường khác, chỉ là làm-đúng đã trở thành làm-dễ-nhất.
 
-> 🧠 **Một câu để nhớ:** tư duy cốt lõi — **coi hạ tầng là sản phẩm, dev nội bộ là khách hàng**. Nền tảng tốt giúp dev đi nhanh mà vẫn an toàn.
+**DORA là cái cân sức khoẻ của đội, thắng mọi tranh luận cảm tính:** thay vì cãi nhau "đội mình làm DevOps tốt hay chưa", cứ đo 4 số: *deploy bao lâu một lần*, *commit đến production mất bao lâu* (hai số **tốc độ**), *bao nhiêu % deploy gây sự cố*, *sập rồi khôi phục mất bao lâu* (hai số **ổn định**). Điều phản trực giác mà nghiên cứu DORA chỉ ra: đội giỏi **đạt cả tốc độ lẫn ổn định cùng lúc** — nhanh và bền không phải là đánh đổi, mà đi cùng nhau.
 
 ### 🧪 Lab cơ bản
 
@@ -815,12 +843,11 @@ Là con đường chuẩn, dễ đi nhất, có rào chắn an toàn sẵn. Vd: 
 
 ### 💡 Bổ sung thực tế: vì sao Platform Engineering nổi lên & DORA
 
-- **Bài toán Platform Engineering giải:** "DevOps everywhere" khiến mỗi dev phải biết K8s, Terraform, CI/CD... → quá tải nhận thức. Platform team xây **nền tảng nội bộ** che giấu phức tạp đó → dev tập trung viết app, tự deploy qua golden path mà không cần là chuyên gia hạ tầng.
-- **DORA metrics — thước đo "team DevOps tốt đến đâu":**
-  - **Elite team:** deploy nhiều lần/ngày, lead time < 1h, change failure < 15%, MTTR < 1h.
-  - 2 metric đầu đo **tốc độ**, 2 metric sau đo **độ ổn định** — team giỏi đạt **cả hai** (không đánh đổi).
-- **"Golden path" không phải "golden cage":** đường chuẩn dễ đi nhất, nhưng không cấm đi đường khác khi cần. Mục tiêu: làm việc đúng trở thành việc dễ nhất.
-- **Hạ tầng là sản phẩm:** platform team coi dev nội bộ là **khách hàng**, lắng nghe phản hồi, đo sự hài lòng. Đây là bước trưởng thành tiếp theo của DevOps.
+- **"Cognitive load" là từ khoá thật sự (Team Topologies):** vấn đề cốt lõi không phải thiếu công cụ, mà là **một cái đầu người chỉ tải được ngần ấy thứ**. Platform team đóng vai "enabling team" — gánh bớt tải nhận thức về hạ tầng để đội sản phẩm còn chỗ trống mà nghĩ về nghiệp vụ. Đây là nền lý thuyết cho cả trào lưu.
+- **Coi platform là SẢN PHẨM, nghĩa là nó có thể... ế:** khác với ra lệnh "toàn công ty phải dùng", platform tốt phải được dev **tự nguyện chọn** vì nó dễ hơn cách cũ. Vì thế chỉ số quan trọng nhất của platform team là **tỉ lệ adoption** (bao nhiêu đội thực sự dùng), không phải số tính năng đã xây. Xây xong không ai dùng = thất bại.
+- **Bắt đầu bằng "thinnest viable platform", đừng xây to trước:** cạm bẫy kinh điển là platform team biến mất 1 năm để xây một siêu nền tảng, ra mắt thì lệch nhu cầu. Cách đúng: làm mỏng, giải đúng 1–2 nỗi đau lớn nhất của dev trước (vd tạo service mới, lên staging), rồi mở rộng theo phản hồi.
+- **Đo Developer Experience (DevEx) như đo SLO cho dev:** thời gian từ commit đến chạy được ở local? Dựng môi trường mới mất bao lâu? Chờ build/CI bao lâu? Đây là những "điểm ma sát" ăn mòn năng suất âm thầm — đo và cắt chúng chính là công việc hằng ngày của platform team.
+- **DORA đọc theo nhóm, đừng chăm chăm 1 số:** đẩy Deployment Frequency lên mà Change Failure Rate cũng tăng vọt thì là làm ẩu, không phải giỏi. Sức mạnh của DORA nằm ở việc soi **cặp tốc độ + ổn định cùng lúc** để lộ ra kiểu tối ưu lệch.
 
 ### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
 
@@ -896,6 +923,22 @@ Là con đường chuẩn, dễ đi nhất, có rào chắn an toàn sẵn. Vd: 
 | **MTTR** | Thời gian trung bình khôi phục |
 | **Developer Experience (DX)** | Trải nghiệm của lập trình viên |
 
+### 🎯 Đúc kết Ngày 55
+
+**3 điều phải mang theo:**
+1. **Platform Engineering giảm tải nhận thức:** thay vì bắt mỗi dev thành chuyên gia K8s/Terraform/CI, một đội chuyên xây nền tảng nội bộ (IDP) che giấu phức tạp để dev tự phục vụ.
+2. **Golden path là đường dễ nhất, không phải lồng nhốt:** gõ 1 lệnh có sẵn Dockerfile/CI/monitoring/security — làm-đúng trở thành làm-dễ-nhất, nhưng vẫn cho rẽ đường khác khi cần.
+3. **DORA đo cả tốc độ (deploy freq, lead time) lẫn ổn định (change failure, MTTR):** đội giỏi đạt cả hai cùng lúc; nhanh và bền không phải đánh đổi.
+
+> 🧠 **Một câu để nhớ:** tư duy cốt lõi — **coi hạ tầng là sản phẩm, dev nội bộ là khách hàng**. Nền tảng tốt là nền tảng dev *tự nguyện chọn* vì nó dễ hơn cách cũ; xây xong không ai dùng là thất bại.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Giải thích được bài toán "quá tải nhận thức" mà platform team giải
+- [ ] Nêu đúng 4 DORA metrics và phân nhóm tốc độ/ổn định
+- [ ] Phân biệt "golden path" với "golden cage"
+- [ ] Tính thử 4 DORA metrics từ lịch sử Git/deploy của 1 repo
+- [ ] Chỉ ra 1 điểm ma sát DevEx trong hệ thống mình và cách giảm
+
 ✅ **Kết quả đạt được:** Nắm xu hướng Platform Engineering và đo hiệu suất bằng DORA metrics.
 
 ---
@@ -927,8 +970,6 @@ Bắt đầu từ **sơ đồ kiến trúc** (vẽ trước khi làm — biết 
 
 **ADR — "ghi lại vì sao chọn":**
 Mỗi quyết định lớn ("vì sao chọn k3s thay vì EKS?", "vì sao Postgres?") ghi vào `/docs/adr/`. **Đây là điểm cộng phỏng vấn lớn** — câu "vì sao bạn chọn cái này?" là kinh điển; có ADR sẵn = bạn đã suy nghĩ thấu đáo.
-
-> 🧠 **Một câu để nhớ:** đừng ôm đồm app phức tạp. App 3 tầng đơn giản (CloudNote/todo) là **đủ** — người ta quan tâm pipeline + hạ tầng + monitoring, không phải app cầu kỳ. Có thể dùng sẵn bộ khung [`capstone-cloudnote/`](../capstone-cloudnote/).
 
 ### 🧪 Lab cơ bản
 
@@ -1019,6 +1060,22 @@ Mỗi quyết định lớn ("vì sao chọn k3s thay vì EKS?", "vì sao Postgr
 | **Portfolio** | Bộ sản phẩm để xin việc |
 | **End-to-end** | Trọn quy trình từ đầu đến cuối |
 
+### 🎯 Đúc kết Ngày 56
+
+**3 điều phải mang theo:**
+1. **Vẽ sơ đồ trước khi code:** kiến trúc rõ (code → CI → registry → K8s → monitoring) thì biết cần dựng gì, đỡ làm đi làm lại.
+2. **Hạ tầng phải sinh ra hoàn toàn bằng IaC:** `terraform apply` dựng cluster/VM + network + registry, `destroy` rồi `apply` lại dựng lại y nguyên — đó mới là "tái tạo được".
+3. **ADR ghi mọi quyết định lớn:** "vì sao k3s thay EKS?", "vì sao Postgres?" — chuẩn bị sẵn cho câu hỏi phỏng vấn kinh điển "vì sao bạn chọn cái này?".
+
+> 🧠 **Một câu để nhớ:** đừng ôm đồm app phức tạp. App 3 tầng đơn giản (CloudNote/todo) là **đủ** — người ta quan tâm pipeline + hạ tầng + monitoring, không phải app cầu kỳ. Có thể dùng sẵn bộ khung [`capstone-cloudnote/`](../capstone-cloudnote/).
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Vẽ được sơ đồ kiến trúc end-to-end của dự án
+- [ ] `terraform apply/destroy/apply` dựng lại toàn bộ hạ tầng không thao tác tay
+- [ ] Cấu hình được remote state cho Terraform
+- [ ] Viết được ≥1 ADR giải thích một quyết định lớn
+- [ ] Khởi tạo monorepo cấu trúc rõ ràng + README có sơ đồ
+
 ✅ **Kết quả đạt được:** Khởi động dự án tốt nghiệp — kiến trúc rõ ràng + hạ tầng bằng IaC + ADR.
 
 ---
@@ -1051,8 +1108,6 @@ Một pipeline chạy được là *bằng chứng sống* bạn hiểu DevOps t
 - deploy K8s/ArgoCD → bạn làm được orchestration.
 
 **Mẹo:** test pipeline thật kỹ *trước khi* quay demo — nó phải chạy mượt, không lỗi giữa chừng khi bạn trình bày.
-
-> 🧠 **Một câu để nhớ:** demo "tôi sửa 1 dòng code → vài phút sau tự lên production + tự quét bảo mật" gây ấn tượng mạnh hơn mọi lời nói. Đây là điểm nhấn của cả dự án.
 
 ### 🧪 Lab cơ bản
 
@@ -1142,6 +1197,22 @@ Một pipeline chạy được là *bằng chứng sống* bạn hiểu DevOps t
 | **Approval** | Bước duyệt trước khi deploy production |
 | **Status badge** | Huy hiệu trạng thái CI |
 
+### 🎯 Đúc kết Ngày 57
+
+**3 điều phải mang theo:**
+1. **Pipeline tự động hoàn toàn từ commit đến deploy:** sửa code → push → lint/test/scan → build image (tag SHA) → CD lên K8s, không một thao tác tay nào.
+2. **Mỗi stage "kể" một năng lực:** lint/test (chất lượng), Trivy scan + secret an toàn (DevSecOps), multi-stage build (Docker), tag SHA (truy vết), deploy K8s/GitOps (orchestration).
+3. **Đừng bỏ bảo mật để "cho nhanh":** quét image + quản secret qua Secrets là thứ phân biệt ứng viên có tư duy DevSecOps với phần còn lại.
+
+> 🧠 **Một câu để nhớ:** demo "tôi sửa 1 dòng code → vài phút sau tự lên production + tự quét bảo mật" gây ấn tượng mạnh hơn mọi lời nói. Đây là phần "ăn điểm" nhất của cả dự án — hãy test thật kỹ trước khi quay.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Pipeline chạy end-to-end từ commit đến app cập nhật trên K8s, không tay
+- [ ] Image multi-stage, base nhỏ, chạy `USER` thường, tag theo SHA
+- [ ] Có bước Trivy chặn được CVE nghiêm trọng (`--exit-code 1`)
+- [ ] Secret quản qua GitHub Secrets/Environments, production có approval
+- [ ] Nói được mỗi stage của pipeline thể hiện năng lực gì
+
 ✅ **Kết quả đạt được:** Dự án có CI/CD đầy đủ — code tự động lên K8s qua pipeline an toàn, có quét bảo mật.
 
 ---
@@ -1173,8 +1244,6 @@ Một pipeline chạy được là *bằng chứng sống* bạn hiểu DevOps t
 - Xóa 1 pod trước mặt người phỏng vấn → K8s tự tạo lại, app không gián đoạn (self-healing).
 - Tăng tải → HPA tự thêm pod (autoscale).
 Đây là bằng chứng *sống động* về độ tin cậy, hơn hẳn nói suông.
-
-> 🧠 **Một câu để nhớ:** **runbook** thể hiện tư duy *vận hành* — không chỉ "xây xong" mà "biết xử lý khi hỏng". Người phỏng vấn senior đánh giá rất cao điều này.
 
 ### 🧪 Lab cơ bản
 
@@ -1265,6 +1334,22 @@ Một pipeline chạy được là *bằng chứng sống* bạn hiểu DevOps t
 | **Runbook** | Tài liệu xử lý sự cố từng bước |
 | **Production-ready** | Đủ chuẩn chạy thật |
 
+### 🎯 Đúc kết Ngày 58
+
+**3 điều phải mang theo:**
+1. **Đây là ranh giới "chạy được" vs "production-ready":** nhiều ứng viên dừng ở app deploy được; thêm monitoring + self-healing + SLO + runbook mới đưa dự án lên đẳng cấp khác.
+2. **Dashboard theo golden signals + alert theo SLO:** đo latency/traffic/errors/saturation của app (không chỉ CPU/RAM), và chỉ báo động khi sắp vi phạm cam kết — không hú mọi dao động.
+3. **Reliability đầy đủ + runbook:** probe + resource limits + HPA (+ PodDisruptionBudget) để tự phục hồi, kèm tài liệu "sự cố X → làm bước Y" và cách rollback.
+
+> 🧠 **Một câu để nhớ:** **runbook** thể hiện tư duy *vận hành* — không chỉ "xây xong" mà "biết xử lý khi hỏng". Người phỏng vấn senior đánh giá rất cao điều này; demo xoá 1 pod thấy app tự lành cũng thuyết phục hơn mọi lời nói.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Có dashboard Grafana 4 golden signals cho app, không chỉ CPU/RAM
+- [ ] Alert gắn với SLO và đã test kích hoạt bằng cách gây lỗi giả
+- [ ] Xoá 1 pod → app không gián đoạn; tăng tải → HPA scale
+- [ ] Có runbook xử lý sự cố + hướng dẫn rollback trong `/docs`
+- [ ] Giải thích được vì sao runbook gây ấn tượng với người phỏng vấn senior
+
 ✅ **Kết quả đạt được:** Dự án có observability + reliability đầy đủ (self-healing, SLO, runbook) — chuẩn production.
 
 ---
@@ -1296,8 +1381,6 @@ Bạn đã xây xong hệ thống — giờ phải làm cho *người khác th�
 3. **Blog kỹ thuật** = xây thương hiệu + khắc sâu kiến thức (dạy lại là cách học tốt nhất).
 
 **Đừng quên:** quét secret lần cuối (`gitleaks`) trước khi public — đảm bảo không lộ mật khẩu/key.
-
-> 🧠 **Một câu để nhớ:** với DevOps, **GitHub chính là CV** — nhà tuyển dụng xem code + pipeline + IaC trước cả CV chữ. Đầu tư README + demo như đầu tư bộ mặt sản phẩm.
 
 ### 🧪 Lab cơ bản
 
@@ -1388,6 +1471,22 @@ Bạn đã xây xong hệ thống — giờ phải làm cho *người khác th�
 | **Technical blog** | Bài viết kỹ thuật xây thương hiệu |
 | **Pin (GitHub)** | Ghim dự án nổi bật lên profile |
 
+### 🎯 Đúc kết Ngày 59
+
+**3 điều phải mang theo:**
+1. **Code giỏi mà không ai hiểu = lãng phí:** phần cuối này biến công sức kỹ thuật thành *tài sản nghề nghiệp* — người khác phải thấy được giá trị của nó.
+2. **README + video demo là bộ mặt và vũ khí:** README kể chuyện (bài toán → kiến trúc → cách chạy 1 lệnh → demo) để người lạ chạy được ngay; video 3–5 phút chứng minh bạn deploy + self-healing thật, vượt xa "nói suông".
+3. **An toàn trước khi public:** quét `gitleaks` lần cuối, dọn repo, `.gitignore` đúng, rồi mới pin lên profile.
+
+> 🧠 **Một câu để nhớ:** với DevOps, **GitHub chính là CV** — nhà tuyển dụng xem code + pipeline + IaC trước cả CV chữ. Đầu tư README + demo như đầu tư bộ mặt sản phẩm.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+- [ ] Người lạ clone repo + làm theo README là chạy được dự án
+- [ ] Có video demo 3–5 phút luồng code → CI/CD → deploy → dashboard
+- [ ] Quét `gitleaks` sạch, repo không còn file thừa/secret
+- [ ] Viết được 1 bài blog kỹ thuật về dự án và bài học
+- [ ] Đã pin dự án lên GitHub profile
+
 ✅ **Kết quả đạt được:** Dự án tốt nghiệp hoàn chỉnh, tài liệu hoá kỹ — sẵn sàng đưa vào CV.
 
 ---
@@ -1424,8 +1523,6 @@ Chứng chỉ **mở cửa CV** (qua vòng lọc hồ sơ), nhưng **dự án th
 
 **Học không bao giờ dừng:**
 CNCF Landscape có hàng trăm công cụ — đừng học hết, hiểu **danh mục** (CI/CD, observability, mesh, security...) + 1 đại diện tiêu biểu mỗi nhóm. Theo dõi cộng đồng, đọc blog, đóng góp open-source.
-
-> 🧠 **Một câu để nhớ:** *"Consistency beats intensity"* — học đều 90 phút/ngày thắng học dồn rồi bỏ. Kỹ năng DevOps là **tích lũy** — duy trì nhịp học sau "tốt nghiệp" mới tạo khác biệt dài hạn. 🎓
 
 ### 🧪 Lab cơ bản
 
@@ -1519,6 +1616,23 @@ CNCF Landscape có hàng trăm công cụ — đừng học hết, hiểu **danh
 | **SRE / Platform Engineer** | Các hướng nghề tiến hoá của DevOps |
 | **DORA** | 4 chỉ số đo hiệu suất DevOps |
 | **Consistency beats intensity** | Học đều thắng học dồn |
+
+### 🎯 Đúc kết Ngày 60 — Tổng kết cả hành trình 60 ngày
+
+**3 điều phải mang theo cho cả chặng đường phía trước:**
+1. **Bạn đã đi trọn vòng đời DevOps end-to-end:** Linux/SysOps → Git → Docker → Cloud → IaC → CI/CD → K8s → Monitoring → SRE → Capstone. Bức tranh `Code → CI (test/scan) → Build → Registry → CD/GitOps → K8s (probe/HPA) → Monitor → Alert → cải tiến` giờ là thứ bạn dựng lại được, không chỉ đọc hiểu.
+2. **Chứng chỉ + portfolio, không phải chọn một:** chứng chỉ (LFCA/AWS CCP → SAA/CKA/Terraform Associate) mở cửa CV qua vòng lọc; dự án thực chiến mới thuyết phục khi phỏng vấn. Với DevOps, GitHub là CV.
+3. **Học là tích luỹ, không phải nước rút:** CNCF Landscape mênh mông — hiểu **danh mục** + một đại diện mỗi nhóm là đủ để không lạc, phần còn lại học theo nhu cầu công việc.
+
+> 🧠 **Một câu để nhớ:** *"Consistency beats intensity"* — học đều mỗi ngày thắng học dồn rồi bỏ. Kỹ năng DevOps là **tích luỹ**; duy trì nhịp học sau "tốt nghiệp" mới là thứ tạo khác biệt dài hạn. 🎓
+
+**✅ Chốt năng lực tốt nghiệp** *(đánh dấu khi tự làm được, không nhìn tài liệu — chi tiết ở [Bảng kiểm 17 kỹ năng](#phụ-lục-c--bảng-kiểm-năng-lực-tốt-nghiệp)):*
+- [ ] Vẽ lại bức tranh DevOps end-to-end và giải thích từng chặng
+- [ ] Dựng lại được 1 thứ bất kỳ (vd deploy app lên K8s) từ số 0, không nhìn tài liệu
+- [ ] Portfolio ≥5 repo đã pin, có dự án capstone chạy được + video demo
+- [ ] CV/LinkedIn cập nhật với kỹ năng và dự án, từ khoá rõ ràng
+- [ ] Đã chọn + đăng ký 1 chứng chỉ và có kế hoạch 90 ngày tiếp theo
+- [ ] Đã hiện diện ở ít nhất 1 cộng đồng DevOps (hỏi/chia sẻ dự án)
 
 ✅ **Kết quả đạt được — TỐT NGHIỆP! 🎓** Bạn đã có nền tảng SysOps + DevOps vững chắc, portfolio thực chiến và lộ trình phát triển tiếp theo.
 
