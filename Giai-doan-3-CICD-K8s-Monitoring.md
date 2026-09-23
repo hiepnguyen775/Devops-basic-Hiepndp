@@ -6015,170 +6015,475 @@ docker compose down        # tắt container, GIỮ lại dữ liệu metric
 
 > ⏱️ ~90 phút · Loại: Monitoring
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 44 (Prometheus thu metric) → **Ngày 45 (Grafana vẽ dashboard + cảnh báo)** → Ngày 46 (Loki gom log). Prometheus lưu số, Grafana biến số thành hình để "nhìn 5 giây biết khoẻ hay không".
+> 🧭 **Bạn đang ở đâu:** Ngày 44 (Prometheus thu số) → **Ngày 45 (Grafana biến số thành hình, và cảnh báo gửi tới nơi người thật đọc được)** → Ngày 46 (Loki gom log). Prometheus có dữ liệu nhưng giao diện của nó chỉ hợp để tra cứu; hôm nay mới là thứ bạn treo lên màn hình phòng làm việc.
 >
-> ✅ **Chuẩn bị:** Prometheus đang chạy (Ngày 44). Grafana thường đi kèm `kube-prometheus-stack`.
+> ✅ **Chuẩn bị:** thư mục `lab44-prometheus/` từ Ngày 44 (đừng xoá nó). Kiểm tra: `cd ~/lab44-prometheus && ls`.
+>
+> 🎁 **Cuối ngày bạn có gì:** dashboard **tự dựng lại được từ code** (không phải bấm chuột tạo tay), theo dõi đúng 4 tín hiệu vàng, cộng một cảnh báo gửi ra ngoài mà bạn tự kiểm chứng được.
 
 ### 📘 Lý thuyết
 
-#### 1. Grafana — "màn hình quan sát"
+#### 1. Vì sao cần Grafana khi Prometheus đã có giao diện
 
-Prometheus *lưu + tính* số liệu; nhìn số thô thì khó. **Grafana** vẽ chúng thành biểu đồ, dashboard real-time. Phân vai: Prometheus = kho dữ liệu; Grafana = người vẽ + cảnh báo. **Grafana KHÔNG lưu metric** — nó *hỏi* Prometheus.
+Giao diện Prometheus hợp để **tra cứu một truy vấn**. Nó không hợp để **trực hệ thống**:
 
-#### 2. Các khái niệm
-
-| Khái niệm | Nghĩa |
-|---|---|
-| **Data source** | Nguồn dữ liệu (Prometheus, Loki...) |
-| **Panel** | 1 biểu đồ (graph, gauge, stat, table) |
-| **Dashboard** | Tập hợp panel |
-| **Variable** | Biến động (`$instance`) → 1 dashboard xem mọi server |
-
-#### 3. 4 Golden Signals (Google SRE) — theo dõi 4 thứ này là đủ
-
-| Tín hiệu | Trả lời |
-|---|---|
-| **Latency** | Request mất bao lâu? (tách thành công vs lỗi) |
-| **Traffic** | Đang chịu tải bao nhiêu? (request/s) |
-| **Errors** | Tỉ lệ request lỗi? |
-| **Saturation** | Tài nguyên "đầy" tới đâu? (CPU/RAM/disk %) |
-
-#### 4. Mẹo thực tế
-
-- Import dashboard có sẵn bằng **ID** (vd `1860` Node Exporter Full) → khỏi vẽ từ đầu.
-- **Alerting trong Grafana**: gửi qua contact point (Slack/email). Alert không ai thấy = vô dụng.
-- **Provisioning dashboard bằng code** (JSON trong Git) — dashboard cũng nên là IaC.
-
-> 🔑 Dashboard tốt **kể một câu chuyện** (khoẻ hay không trong 5 giây), không nhồi 50 biểu đồ rối mắt. Bắt đầu từ golden signals, đào sâu khi cần. Alert nên gắn với **SLO** (Ngày 51), không phải mọi dao động nhỏ.
-
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
-
-> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
-
-**Prometheus là kho + kế toán, Grafana là bảng đồng hồ trên xe.** Prometheus giữ số và tính toán; Grafana *không tự chế ra số nào* — nó chỉ hiển thị đẹp và bấm còi (alert) khi cần. Hiểu rạch ròi vai này giúp bạn khỏi hoảng khi thấy panel "No data": lỗi gần như luôn nằm ở Prometheus hoặc câu query, chứ không phải Grafana "hỏng". Grafana chỉ hỏi lại những gì Prometheus có.
-
-**4 golden signals như 4 dấu hiệu sinh tồn khi khám bệnh.** Bác sĩ không đo 100 thứ — chỉ cần mạch, huyết áp, nhiệt độ, nhịp thở là nắm được đại thể. Với một dịch vụ, bốn "dấu hiệu sinh tồn" là **Latency** (chờ bao lâu), **Traffic** (tải bao nhiêu), **Errors** (bao nhiêu lỗi), **Saturation** (tài nguyên đầy tới đâu). Bắt đầu từ bốn cái này, chỉ đào sâu khi một trong số chúng bất thường.
-
-**Dashboard là để cứu hoả, không phải triển lãm.** Một dashboard 50 panel là phòng triển lãm số liệu — đẹp nhưng lúc 3 giờ sáng sự cố thì không ai đọc nổi. Dashboard tốt trả lời đúng một câu trong 5 giây: *"hệ thống khoẻ hay không?"*. Hãy thiết kế nó cho **người đang hoảng giữa sự cố**, không phải cho người rảnh rỗi ngắm biểu đồ.
-
-### 🧪 Lab cơ bản
-
-1. Chạy Grafana (Docker/Helm), kết nối data source Prometheus.
-2. Import dashboard Node Exporter Full (ID 1860) để xem metric hệ thống.
-3. Tự tạo 1 dashboard với 3 panel: CPU, RAM, disk.
-4. Cấu hình 1 alert trong Grafana khi RAM vượt ngưỡng.
-5. Thêm variable để chọn server/instance trên dashboard.
-
-### 🚀 Lab nâng cao (best-practice)
-
-> Mục tiêu: dashboard có ý nghĩa vận hành (golden signals), alert gửi đến đúng kênh.
-
-1. **Dashboard theo 4 golden signals** thay vì nhồi mọi metric:
-   - **Latency** (p50/p95/p99) · **Traffic** (request/s) · **Errors** (tỉ lệ 5xx) · **Saturation** (CPU/RAM/disk %).
-2. **Alert gửi đến kênh thật** (Slack/Telegram/email) qua contact point — alert không ai thấy = vô dụng.
-3. **Dùng variable** (`$instance`, `$namespace`) để 1 dashboard xem được mọi service.
-4. **Provisioning dashboard bằng code** (JSON trong Git) — dashboard cũng nên là IaC, không tạo tay.
-
-### 💡 Bổ sung thực tế: những cái đi làm mới thấm
-
-- **Dashboard cũng nên là code, không phải click chuột:** tạo tay thì mất khi Grafana đổi/khởi động lại và không ai tái lập được. Provisioning bằng JSON trong Git (như 🚀 đã nêu) để dashboard là IaC — versioned, review được, khôi phục được.
-- **Đừng nhìn trung bình (mean) — nhìn percentile:** latency trung bình long lanh vẫn có thể giấu một p99 thảm hoạ (1% user chờ 10 giây). Panel latency luôn nên có **p95/p99**, không chỉ avg. "Trung bình" là cách nói dối tử tế nhất của số liệu.
-- **KHÔNG được lấy trung bình của các percentile:** p95 của 3 instance rồi `avg()` lại **không** ra p95 toàn hệ thống. Với histogram phải gộp bucket trước rồi mới tính quantile: `histogram_quantile(0.95, sum(rate(...bucket[5m])) by (le))`. Đây là lỗi PromQL tinh vi mà rất nhiều dashboard mắc.
-- **Alert có thể đặt ở hai nơi — biết để chọn:** Grafana có hệ alerting riêng, nhưng nhiều team để **Prometheus + Alertmanager** lo alert (gần dữ liệu, độc lập với UI — Grafana sập vẫn còn cảnh báo). Dùng Grafana alert cho tiện, Alertmanager cho hạ tầng nghiêm túc.
-- **Time range rộng + auto-refresh dày = đè Prometheus:** một dashboard mở 30 ngày, refresh mỗi 5 giây, nhân với nhiều panel nặng có thể làm Prometheus è cổ. Dùng **recording rule** (Ngày 44) cho query nặng và đặt refresh hợp lý.
-
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
-
-**Trình tự nên làm:** chạy Grafana → kết nối data source Prometheus → import dashboard có sẵn → tự tạo dashboard 3 panel → thêm alert → thêm variable.
-
-**Giải nghĩa & kết quả mong đợi:**
-- Grafana → Add data source → Prometheus (URL). *Kết quả:* "Save & test" → working.
-- Import dashboard bằng ID (vd `1860` Node Exporter Full) — có sẵn hàng trăm panel. *Kết quả:* biểu đồ hiện ngay.
-- Tự tạo panel với query PromQL (CPU/RAM/disk).
-
-**🧪 Thử nghiệm:**
-- Tạo dashboard theo **4 golden signals** (latency/traffic/errors/saturation) thay vì nhồi mọi metric. **Bài học:** dashboard kể 1 câu chuyện sức khỏe trong 5 giây.
-- Thêm variable `$instance` → 1 dashboard xem được mọi server qua dropdown. **Bài học:** dashboard động.
-
-⚠️ **Dễ sai:** tưởng Grafana lưu metric. KHÔNG — Grafana chỉ **vẽ + cảnh báo**, dữ liệu nằm ở Prometheus.
-
-💡 **Hiểu sâu:** 4 Golden Signals (Google SRE): Latency (mất bao lâu), Traffic (tải bao nhiêu), Errors (tỉ lệ lỗi), Saturation (tài nguyên đầy đến đâu). Alert nên gắn với SLO (Ngày 51).
-
-### 🐛 Gỡ lỗi nhanh
-
-| Triệu chứng | Nguyên nhân | Cách sửa |
+| | Giao diện Prometheus | Grafana |
 |---|---|---|
-| Panel "No data" | Sai data source / PromQL / khoảng thời gian | Kiểm data source URL; thử query ở Explore; chỉnh time range |
-| Data source test fail | Sai URL Prometheus | Đúng URL (trong K8s: tên service:9090) |
-| Import dashboard trống | Data source không khớp tên | Chọn đúng data source khi import |
-| Alert không gửi | Chưa cấu hình contact point | Thêm Slack/email vào contact point + notification policy |
-| Dashboard quá rối | Nhồi mọi metric | Rút gọn về 4 golden signals |
+| Xem nhiều biểu đồ cùng lúc | Không | Có — cả bảng điều khiển |
+| Nhiều nguồn dữ liệu | Chỉ Prometheus | Prometheus + Loki + database + cloud |
+| Chia sẻ cho người khác | Gửi link truy vấn | Dashboard có sẵn, ai mở cũng hiểu |
+| Cảnh báo tới Slack/email | Qua Alertmanager | Có sẵn, cấu hình bằng giao diện |
 
-### 📝 Bài ôn tập & Demo đối chiếu
+> 🔑 Nguyên tắc thực tế: **Prometheus lo thu thập và lưu trữ, Grafana lo hiển thị**. Đừng cố bắt cái này làm việc của cái kia.
 
-**✍️ Tự kiểm tra:**
+#### 2. Bốn tín hiệu vàng — biết nhìn gì thay vì nhìn tất cả
 
-<details>
-<summary>1. Grafana và Prometheus phối hợp thế nào?</summary>
+Một exporter bày ra hàng nghìn metric. Nhìn hết là không nhìn gì cả. Google đúc kết lại còn **4 tín hiệu vàng** — đủ để biết một dịch vụ có ổn không:
 
-> Prometheus lưu + truy vấn metric; Grafana vẽ + cảnh báo. Grafana không lưu metric, nó hỏi Prometheus.
-</details>
+| Tín hiệu | Câu hỏi | Ví dụ truy vấn |
+|---|---|---|
+| **Traffic** (lưu lượng) | Có bao nhiêu khách? | `rate(http_requests_total[5m])` |
+| **Errors** (lỗi) | Bao nhiêu phần trăm hỏng? | `rate(http_requests_total{code=~"5.."}[5m])` |
+| **Latency** (độ trễ) | Khách phải chờ bao lâu? | `histogram_quantile(0.95, ...)` |
+| **Saturation** (bão hoà) | Còn dư sức không? | CPU, RAM, hàng đợi |
 
-<details>
-<summary>2. 4 golden signals là gì?</summary>
+Một biến thể gọn hơn cho dịch vụ là **RED** (Rate, Errors, Duration); cho tài nguyên thì dùng **USE** (Utilization, Saturation, Errors).
 
-> Latency (thời gian), Traffic (tải), Errors (tỉ lệ lỗi), Saturation (mức đầy tài nguyên).
-</details>
+> ⚠️ **Vì sao phải dùng p95 chứ không phải trung bình:** 100 request, 95 cái nhanh 50ms, 5 cái chậm 10 giây → trung bình chỉ khoảng 550ms, nhìn "ổn". Nhưng có 5 khách hàng đang rất bực. **p95 = 95% số request nhanh hơn con số này** — nó cho thấy trải nghiệm của nhóm khách chịu thiệt nhất, thứ mà trung bình luôn che giấu.
 
-<details>
-<summary>3. Vì sao trực quan hoá metric quan trọng?</summary>
+#### 3. Dashboard phải sinh ra từ code, không phải từ chuột
 
-> Số thô khó đọc; biểu đồ cho biết xu hướng & sức khoẻ hệ thống trong vài giây, giúp phát hiện & điều tra sự cố nhanh.
-</details>
+Bấm chuột tạo dashboard rất nhanh và rất vui — cho tới khi:
 
-<details>
-<summary>4. Alert nên gắn với gì thay vì mọi dao động nhỏ?</summary>
+- container Grafana bị xoá → **mất sạch**;
+- không ai biết ai đã đổi gì, lúc nào;
+- dựng môi trường mới → ngồi bấm lại từ đầu.
 
-> Gắn với SLO / golden signals — cảnh báo khi sắp ảnh hưởng người dùng, tránh alert fatigue.
-</details>
+**Provisioning** là cách khai báo nguồn dữ liệu và dashboard bằng **file YAML/JSON**, để Grafana tự nạp lúc khởi động. Đây chính là tư duy Infrastructure as Code (Ngày 29) áp vào giám sát.
 
-**🔬 Demo đối chiếu:**
+#### 4. Cảnh báo: Alertmanager hay Grafana?
 
-| Demo đối chiếu | Kết quả mong đợi |
-|---|---|
-| Grafana kết nối Prometheus | Data source: Test → working |
-| Tạo dashboard | Panel hiển thị CPU/RAM real-time |
-| Import dashboard (ID 1860) | Biểu đồ hiện ngay |
+Cả hai đều gửi được cảnh báo. Khác biệt thực tế:
 
-### 📚 Thuật ngữ Anh–Việt (ngày này)
+| | Alertmanager (Ngày 44) | Grafana Alerting |
+|---|---|---|
+| Luật viết ở đâu | File YAML, hợp với GitOps | Giao diện (xuất được ra file) |
+| Nguồn dữ liệu | Chỉ Prometheus | Nhiều nguồn cùng lúc |
+| Hợp với | Đội đã quen mọi thứ trong Git | Đội muốn làm nhanh trên giao diện |
 
-| Thuật ngữ | Nghĩa |
-|---|---|
-| **Grafana** | Công cụ trực quan hoá + cảnh báo |
-| **Data source** | Nguồn dữ liệu (Prometheus/Loki) |
-| **Panel / Dashboard** | Biểu đồ / bảng biểu đồ |
-| **Variable** | Biến động của dashboard |
-| **4 Golden Signals** | Latency/Traffic/Errors/Saturation |
-| **Contact point** | Kênh nhận alert (Slack/email) |
-| **Provisioning** | Cấu hình dashboard bằng code |
+Không có lựa chọn nào sai. Hôm nay dùng Grafana Alerting để bạn thấy được cả hai trường phái.
+
+### 🧪 LAB — Dashboard dựng từ code, trên chính stack Ngày 44
+
+**Những gì thêm vào thư mục cũ:**
+
+```text
+lab44-prometheus/
+├── docker-compose.yml             # SỬA — thêm grafana + cadvisor
+├── prometheus.yml                 # SỬA — scrape thêm cadvisor
+├── alert.rules.yml                # giữ nguyên
+├── alertmanager.yml               # giữ nguyên
+└── grafana/
+    └── provisioning/
+        ├── datasources/
+        │   └── prometheus.yml     # THÊM — tự nối tới Prometheus
+        └── dashboards/
+            ├── dashboard.yml      # THÊM — bảo Grafana tìm dashboard ở đâu
+            └── he-thong.json      # THÊM — dashboard viết bằng code
+```
+
+#### File 1 — `docker-compose.yml` (thay phần cuối, thêm 2 service)
+
+Giữ nguyên 3 service cũ, **thêm** vào trước mục `volumes:`:
+
+```yaml
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123        # lab thôi; thật thì dùng secret
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro   # nạp cấu hình từ code
+      - grafana-data:/var/lib/grafana
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: cadvisor
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    devices:
+      - /dev/kmsg
+```
+
+Và sửa mục `volumes:` cuối file thành:
+
+```yaml
+volumes:
+  prom-data:
+  grafana-data:
+```
+
+#### File 2 — `prometheus.yml` (thêm một target)
+
+Thêm vào cuối phần `scrape_configs:`:
+
+```yaml
+  # Target 3: metric của từng container
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+```
+
+#### File 3 — `grafana/provisioning/datasources/prometheus.yml`
+
+```yaml
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090      # gọi bằng TÊN SERVICE trong mạng Docker
+    isDefault: true
+    editable: false                  # không cho sửa tay -> buộc mọi thay đổi qua file
+```
+
+#### File 4 — `grafana/provisioning/dashboards/dashboard.yml`
+
+```yaml
+apiVersion: 1
+
+providers:
+  - name: 'dashboard-tu-code'
+    orgId: 1
+    folder: 'Hệ thống'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30        # quét lại thư mục mỗi 30 giây
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/provisioning/dashboards
+```
+
+#### File 5 — `grafana/provisioning/dashboards/he-thong.json`
+
+```json
+{
+  "title": "Sức khoẻ hệ thống",
+  "uid": "suc-khoe-he-thong",
+  "timezone": "browser",
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Số target đang sống",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [{ "expr": "sum(up)", "refId": "A" }],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 3 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "title": "CPU đang bận (%)",
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        {
+          "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "RAM còn trống (%)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "(node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100",
+          "legendFormat": "RAM trống",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Lưu lượng request vào Prometheus (req/giây)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum by (handler) (rate(prometheus_http_requests_total[1m]))",
+          "legendFormat": "{{handler}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "RAM từng container (MB)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum by (name) (container_memory_usage_bytes{name!=\"\"}) / 1024 / 1024",
+          "legendFormat": "{{name}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "decmbytes" } }
+    }
+  ]
+}
+```
+
+### 🧭 Hướng dẫn làm LAB — step by step
+
+#### Bước 1 — Tạo cây thư mục provisioning
+
+```bash
+cd ~/lab44-prometheus
+mkdir -p grafana/provisioning/datasources grafana/provisioning/dashboards
+# tạo 3 file trong grafana/ theo phần LAB
+find grafana -type f | sort
+```
+
+**Bạn sẽ thấy:**
+```text
+grafana/provisioning/dashboards/dashboard.yml
+grafana/provisioning/dashboards/he-thong.json
+grafana/provisioning/datasources/prometheus.yml
+```
+
+✅ **Checkpoint:** đủ 3 file, đúng thư mục.
+
+#### Bước 2 — Sửa compose và prometheus.yml, rồi khởi động
+
+```bash
+# sửa docker-compose.yml (thêm grafana + cadvisor, thêm volume grafana-data)
+# sửa prometheus.yml (thêm job cadvisor)
+docker compose up -d
+docker compose ps
+```
+
+**Bạn sẽ thấy 5 container:**
+```text
+NAME            STATUS          PORTS
+alertmanager    Up 10 seconds   0.0.0.0:9093->9093/tcp
+cadvisor        Up 10 seconds   0.0.0.0:8081->8080/tcp
+grafana         Up 10 seconds   0.0.0.0:3000->3000/tcp
+node-exporter   Up 2 hours      0.0.0.0:9100->9100/tcp
+prometheus      Up 10 seconds   0.0.0.0:9090->9090/tcp
+```
+
+✅ **Checkpoint:** đủ 5 container `Up`.
+
+⚠️ **Nếu `cadvisor` liên tục restart:** một số bản Linux cần thêm quyền. Xem log: `docker compose logs cadvisor | tail -20`. Không chạy được cũng không sao — 4 panel còn lại vẫn hoạt động, chỉ mất panel RAM container.
+
+Kiểm tra Prometheus đã thấy target mới:
+```bash
+curl -s localhost:9090/api/v1/targets | grep -o '"job":"[^"]*"' | sort -u
+```
+
+**Bạn sẽ thấy:**
+```text
+"job":"cadvisor"
+"job":"node"
+"job":"prometheus"
+```
+
+#### Bước 3 — Vào Grafana và kiểm tra provisioning đã ăn
+
+Mở **http://localhost:3000** → đăng nhập `admin` / `admin123`.
+
+Vào **Connections → Data sources**.
+
+**Bạn sẽ thấy:** `Prometheus` đã có sẵn, kèm nhãn *Provisioned* và **không sửa được** (vì `editable: false`).
+
+✅ **Checkpoint:** nguồn dữ liệu tự xuất hiện mà bạn **không bấm tạo**.
+
+💡 Đây là điểm mấu chốt của provisioning: xoá container Grafana rồi dựng lại, mọi thứ vẫn y nguyên — vì nó đến từ **file**, không phải từ thao tác chuột.
+
+⚠️ **Nếu không thấy data source:** sai đường dẫn mount. Kiểm tra:
+```bash
+docker compose exec grafana ls -R /etc/grafana/provisioning
+docker compose logs grafana | grep -i "provisioning\|error" | tail -10
+```
+
+#### Bước 4 — Mở dashboard
+
+Vào **Dashboards** → thư mục **Hệ thống** → **Sức khoẻ hệ thống**.
+
+**Bạn sẽ thấy** 5 panel có dữ liệu thật:
+- *Số target đang sống* — số **3**, nền xanh
+- *CPU đang bận* — kim đồng hồ ở vùng xanh
+- *RAM còn trống* — đường biểu diễn theo thời gian
+- *Lưu lượng request* — nhiều đường tách theo `handler`
+- *RAM từng container* — một đường cho mỗi container
+
+✅ **Checkpoint:** panel có dữ liệu, không panel nào báo *No data*.
+
+⚠️ **Nếu panel báo "No data":** mở panel → **Edit** → xem truy vấn, bấm **Run query**. Thường do sai tên metric — đối chiếu bằng cách gõ tên metric ở giao diện Prometheus (có gợi ý tự động).
+
+💡 Để ý panel *Số target đang sống* đổi sang **đỏ** nếu số nhỏ hơn 3 — đó là `thresholds` trong file JSON. Màu sắc có ý nghĩa, không phải trang trí: người trực liếc 2 giây là biết có chuyện.
+
+#### Bước 5 — Kiểm chứng "dashboard là code"
+
+Sửa file JSON trực tiếp:
+
+```bash
+sed -i 's/"title": "Sức khoẻ hệ thống"/"title": "Sức khoẻ hệ thống - bản 2"/' \
+  grafana/provisioning/dashboards/he-thong.json
+sleep 35        # provider quét lại mỗi 30 giây
+```
+
+Tải lại trang Grafana.
+
+**Bạn sẽ thấy:** tên dashboard đã đổi thành *Sức khoẻ hệ thống - bản 2*.
+
+✅ **Checkpoint:** sửa file → giao diện đổi theo, **không bấm chuột**.
+
+💡 **Đây là lý do nên làm theo cách này:** file JSON nằm trong Git → mọi thay đổi có review, có lịch sử, có đường lui. Dashboard bấm tay thì không có gì trong số đó. Nếu bạn nhận ra điều này giống hệt tinh thần Ngày 43 (GitOps) thì đúng — cùng một tư duy, áp vào giám sát.
+
+#### Bước 6 — Tạo tải để đồ thị có chuyện để kể
+
+Dashboard phẳng lì thì không dạy bạn được gì. Hãy làm nó nhúc nhích:
+
+```bash
+# Đổ request vào Prometheus trong 60 giây
+timeout 60 bash -c 'while true; do curl -s "localhost:9090/api/v1/query?query=up" > /dev/null; done' &
+
+# Đồng thời làm CPU bận
+timeout 60 bash -c 'while true; do :; done' &
+timeout 60 bash -c 'while true; do :; done' &
+wait
+```
+
+Nhìn dashboard trong lúc chạy.
+
+**Bạn sẽ thấy:** panel *Lưu lượng request* vọt lên vài trăm req/giây, kim CPU nhích sang vàng/đỏ, rồi cả hai hạ xuống sau khi lệnh kết thúc.
+
+✅ **Checkpoint:** đồ thị phản ứng theo thời gian thực với việc bạn vừa làm.
+
+💡 Bây giờ bạn đã thấy được *hình dạng* của tải. Đây chính là thứ giúp trả lời câu hỏi lúc sự cố: *"bình thường nó trông thế nào?"* — không có đường nền để so, mọi con số đều vô nghĩa.
+
+#### Bước 7 — Tạo cảnh báo trong Grafana và tự kiểm chứng
+
+Vào **Alerting → Alert rules → New alert rule**:
+
+1. **Name:** `RAM trống dưới 90%` *(đặt ngưỡng dễ kích hoạt để thấy nó chạy ngay)*
+2. **Query A:** chọn Prometheus, dán:
+   ```promql
+   (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100
+   ```
+3. **Expression:** Threshold → `IS BELOW` → `90`
+4. **Evaluation:** tạo folder `Cảnh báo`, evaluation group mới, **Pending period: 1m**
+5. **Save rule and exit**
+
+Chờ 1–2 phút rồi vào **Alerting → Alert rules**.
+
+**Bạn sẽ thấy** trạng thái chuyển: `Normal` → `Pending` → **`Firing`** (màu đỏ).
+
+✅ **Checkpoint:** thấy đủ chuỗi chuyển trạng thái.
+
+💡 Giống hệt vòng đời `Inactive → Pending → Firing` của Prometheus ở Ngày 44 — chỉ là giao diện khác. **Pending period** chính là `for:`. Cùng một khái niệm, hai cách gọi.
+
+Muốn gửi ra ngoài thật: **Alerting → Contact points → Add contact point** → chọn *Webhook* (hoặc Slack nếu bạn có). Thử nhanh không cần Slack bằng cách dựng một điểm nhận tạm:
+
+```bash
+docker run -d --name bat-webhook --network lab44-prometheus_default -p 8888:8080 \
+  mendhak/http-https-echo:34
+```
+Điền URL contact point: `http://bat-webhook:8080` → **Test**.
+
+```bash
+docker logs bat-webhook | tail -20
+```
+
+**Bạn sẽ thấy** nội dung JSON của cảnh báo vừa gửi tới.
+
+✅ **Checkpoint:** cảnh báo thật sự đi ra khỏi Grafana.
+
+```bash
+docker rm -f bat-webhook
+```
+
+#### Bước 8 — Dọn dẹp
+
+```bash
+cd ~/lab44-prometheus
+docker compose stop        # giữ nguyên để Ngày 46 cắm Loki vào
+```
+
+⚠️ Đừng `down -v` — Ngày 46 dùng lại chính stack này.
+
+### 💡 Đi làm mới thấm (sách cơ bản hay bỏ quên)
+
+- **Dashboard đẹp không đồng nghĩa với dashboard hữu ích.** Dashboard 40 panel thì lúc sự cố không ai kịp nhìn. Cách làm tốt: **một dashboard tổng quan đúng 4 tín hiệu vàng** để biết *có chuyện gì không*, rồi mới có các dashboard chi tiết để đào sâu. Trực hệ thống lúc 3 giờ sáng cần câu trả lời trong 5 giây.
+- **Đừng tự vẽ lại từ đầu.** [grafana.com/dashboards](https://grafana.com/grafana/dashboards/) có sẵn hàng nghìn dashboard chất lượng. Node Exporter Full là **ID 1860** — nhập ID đó vào *Import* là có ngay bảng đầy đủ cho máy Linux. Lấy về rồi chỉnh, đừng vẽ tay từ số 0.
+- **Luôn xuất dashboard ra JSON và commit vào Git.** Bấm chuột tạo cũng được — nhưng xong phải **Share → Export → Save to file** rồi đưa vào repo. Grafana chết là mọi thứ bấm tay biến mất.
+- **Cẩn thận `$__rate_interval`.** Grafana có biến này thay cho `[5m]` cố định; nó tự tính theo khoảng thời gian đang xem. Dùng `[5m]` cứng rồi phóng to ra 7 ngày sẽ ra đồ thị sai lệch.
+- **Một alert tốt phải kèm hướng dẫn xử lý.** Cảnh báo chỉ nói "CPU cao" thì người bị gọi dậy lúc nửa đêm vẫn không biết làm gì. Đưa vào phần annotation một **runbook**: kiểm tra gì trước, lệnh nào chạy, khi nào thì leo thang. Đây là dấu hiệu rõ nhất phân biệt đội vận hành nghiệp dư với chuyên nghiệp.
+- **Alert nên gắn với thứ người dùng cảm nhận được.** "CPU 85%" chưa chắc là vấn đề nếu người dùng vẫn được phục vụ nhanh. "p95 độ trễ vượt 2 giây" hoặc "tỉ lệ lỗi 5xx trên 1%" mới đúng là thứ đáng đánh thức người ta dậy. Ngày 51 (SLO) sẽ hệ thống hoá đúng ý này.
 
 ### 🎯 Đúc kết Ngày 45
 
 **3 điều phải mang theo:**
-1. **Phân vai rõ:** Prometheus lưu + tính số liệu; Grafana chỉ vẽ + cảnh báo (không lưu metric) → panel "No data" thường là lỗi query/Prometheus, không phải Grafana.
-2. **4 golden signals (Latency / Traffic / Errors / Saturation)** là dấu hiệu sinh tồn của dịch vụ — bắt đầu từ đây, đào sâu khi bất thường.
-3. **Dashboard tốt kể một câu chuyện** (khoẻ/không trong 5 giây), nhìn **percentile** chứ không nhìn trung bình, và nên là code (JSON trong Git).
 
-> 🧠 **Một câu để nhớ:** dashboard tốt **kể một câu chuyện** (khỏe hay không trong 5 giây), không nhồi 50 biểu đồ rối mắt. Bắt đầu từ golden signals, đào sâu khi cần.
+1. **Bốn tín hiệu vàng** (lưu lượng, lỗi, độ trễ, bão hoà) là bộ lọc giúp bạn biết nhìn gì giữa hàng nghìn metric.
+2. **Dashboard phải là code.** Provisioning bằng file → có Git, có review, có đường lui, dựng lại được ở bất cứ đâu.
+3. **p95 nói sự thật, trung bình che giấu nó.** Luôn nhìn phân vị khi đánh giá trải nghiệm người dùng.
 
-**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
-- [ ] Kết nối Grafana với data source Prometheus
-- [ ] Import dashboard có sẵn bằng ID + tự tạo panel PromQL
-- [ ] Dựng dashboard theo 4 golden signals
-- [ ] Cấu hình alert gửi tới kênh thật (Slack/email)
-- [ ] Giải thích vì sao nhìn p95/p99 thay vì trung bình
+> 🧠 **Một câu để nhớ:** dashboard không phải để *đẹp*, mà để **trả lời trong 5 giây câu hỏi "có chuyện gì không?"** lúc bạn vừa bị đánh thức.
 
-✅ **Kết quả đạt được:** Xây dashboard giám sát trực quan (4 golden signals) với Grafana — kỹ năng SRE/DevOps.
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+
+- [ ] Kể đủ 4 tín hiệu vàng và viết được truy vấn cho từng cái
+- [ ] Giải thích vì sao dùng p95 thay vì trung bình
+- [ ] Provisioning nguồn dữ liệu + dashboard bằng file, không bấm chuột
+- [ ] Sửa file JSON và thấy dashboard tự cập nhật
+- [ ] Tạo tải và đọc được phản ứng trên đồ thị
+- [ ] Tạo alert rule trong Grafana và giải thích Pending period tương ứng với gì
+- [ ] Nói được vì sao alert phải kèm runbook
+
+✅ **Kết quả đạt được:** Một dashboard tái lập được từ code, hiển thị đúng những tín hiệu cần nhìn, kèm cảnh báo đã kiểm chứng gửi được ra ngoài.
 
 ---
 
@@ -6186,361 +6491,999 @@ Prometheus *lưu + tính* số liệu; nhìn số thô thì khó. **Grafana** v�
 
 > ⏱️ ~90 phút · Loại: Monitoring
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 45 (Grafana metric) → **Ngày 46 (Loki — gom log toàn hệ thống về 1 nơi)** → Ngày 47 (Ansible). Đây là trụ cột "Logs" — sau khi metric báo "có sự cố", log cho biết "sai cái gì".
+> 🧭 **Bạn đang ở đâu:** Ngày 45 (Grafana hiển thị metric) → **Ngày 46 (gom log mọi nơi về một chỗ tra cứu được)** → Ngày 47 (Ansible). Metric cho biết *"có chuyện gì đó sai"*; log cho biết *"sai cái gì"*. Hôm nay bạn lắp trụ cột thứ hai của observability.
 >
-> ✅ **Chuẩn bị:** Grafana đang chạy (Ngày 45). Chạy Loki + Promtail (Docker Compose hoặc Helm).
+> ✅ **Chuẩn bị:** stack từ Ngày 44–45 (`cd ~/lab44-prometheus && docker compose start`).
+>
+> 🎁 **Cuối ngày bạn có gì:** log của **mọi container** chảy về một chỗ, tra cứu bằng câu lệnh thay vì `docker logs` từng cái — và bạn sẽ đi hết một quy trình điều tra sự cố thật: *thấy metric bất thường → nhảy sang log → tìm ra nguyên nhân*.
 
 ### 📘 Lý thuyết
 
-#### 1. Vấn đề: log nằm rải rác
+#### 1. Vấn đề: `docker logs` không mở rộng được
 
-Với hàng chục container trên nhiều máy, không thể SSH vào từng cái đọc log. → cần **gom log về một chỗ** để tìm kiếm.
+Một container thì `docker logs -f` là đủ. Nhưng thực tế:
+
+- **20 container trên 5 máy** → SSH vào từng máy, gõ từng lệnh?
+- **Container đã chết** → log biến mất cùng nó, đúng lúc bạn cần nhất.
+- **Một request lỗi đi qua 4 dịch vụ** → phải mở 4 cửa sổ terminal, tự căn giờ khớp nhau.
+- *"Tuần trước có lỗi này không?"* → không có cách nào trả lời.
+
+Cần một chỗ **gom hết log lại, giữ lâu, và tìm kiếm được**.
 
 #### 2. Loki — "Prometheus cho log"
 
-Loki thu log từ mọi container về 1 nơi, tìm/lọc trong Grafana. Điểm đặc biệt: **chỉ index theo nhãn (label)** (như `app="api"`), không index toàn bộ nội dung → nhẹ, rẻ, nhanh.
-
-- **Promtail** = "người đưa thư" gom log đẩy về Loki.
-- **LogQL** = ngôn ngữ truy vấn: `{app="api"} |= "error"` = "log của app, dòng nào chứa error".
-
-#### 3. Loki vs ELK/EFK
-
-| | Loki | ELK (Elasticsearch) |
+| | **ELK / Elasticsearch** | **Loki** |
 |---|---|---|
-| Index | Chỉ **label** | **Toàn văn** |
-| Tài nguyên | Nhẹ, rẻ | Nặng, mạnh |
-| Hợp khi | Đã dùng Grafana/Prometheus | Cần phân tích log sâu |
+| Đánh chỉ mục | **Toàn bộ nội dung** log | **Chỉ nhãn** (container, job, mức độ) |
+| Tốn tài nguyên | Nhiều (RAM, đĩa) | Ít hơn hẳn |
+| Tìm kiếm toàn văn | Rất mạnh | Quét nội dung sau khi lọc nhãn |
+| Hợp với | Phân tích log phức tạp | **Vận hành hằng ngày**, đi cặp với Prometheus |
 
-#### 4. Log có cấu trúc (JSON)
+Ý tưởng cốt lõi của Loki: **đừng đánh chỉ mục nội dung log — đắt và phần lớn không dùng đến**. Chỉ đánh chỉ mục vài cái nhãn, phần nội dung nén lại để đó. Khi tìm, lọc theo nhãn trước cho tập nhỏ lại, rồi mới quét nội dung.
 
-Log text thô (`"Error tại dòng 5"`) khó lọc. Log JSON (`{"level":"error","user_id":123}`) cho phép lọc chính xác theo field. App production nên **log JSON**.
+Nhờ cách này, Loki dùng **đúng mô hình nhãn như Prometheus** — nên metric và log ghép được với nhau rất tự nhiên trong Grafana.
 
-#### 5. Correlation & 3 trụ cột
+#### 3. Ba mảnh ghép
 
-- Thêm `request_id`/`trace_id` vào log → lần theo 1 request qua nhiều service.
-- Phối hợp: **Metric** báo "có sự cố" → **Log** cho biết "lỗi gì" → **Trace** chỉ "lỗi ở đâu". Gom cả 3 vào Grafana = debug nhanh.
+```text
+  Container  ──> Promtail ──> Loki ──> Grafana
+   (sinh log)   (đi gom)    (lưu+tìm)  (hiển thị)
+```
 
-> 🔑 **TUYỆT ĐỐI không log mật khẩu/PII** (thông tin cá nhân) — log lưu lâu, ai cũng đọc. Và đặt **retention** cho log kẻo đầy đĩa.
+| Thành phần | Việc |
+|---|---|
+| **Promtail** | Chạy trên máy, đọc log container, **gắn nhãn**, đẩy về Loki |
+| **Loki** | Nhận, nén, lưu, phục vụ truy vấn |
+| **Grafana** | Nơi bạn gõ truy vấn và đọc kết quả (cùng chỗ với metric) |
 
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
+> 📌 **Ghi chú về phiên bản:** Grafana đang chuyển dần từ Promtail sang **Grafana Alloy** (bộ thu thập hợp nhất cho cả metric lẫn log). Promtail vẫn dùng rộng rãi và dễ hiểu hơn cho người mới, nên lab này dùng Promtail. Khái niệm giống hệt nhau — biết cái này thì đọc cái kia không khó.
 
-> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
+#### 4. LogQL — giống PromQL, thêm phần lọc chữ
 
-**Không gom log thì debug hệ phân tán như lục 30 ngăn kéo lúc nửa đêm.** Với 30 container trên 5 máy, đi tìm một lỗi bằng cách SSH đọc log từng cái là ác mộng — mỗi nơi một định dạng, một múi giờ. Gom log về một chỗ giống đổ tất cả vào **một hộp thư tìm kiếm được**: một ô nhập, lọc ra đúng thứ cần. Đây là điều kiện tiên quyết, không có nó thì mọi thứ khác về log đều vô nghĩa.
+Một truy vấn LogQL gồm hai phần:
 
-**Loki "dán nhãn thùng" thay vì "lập mục lục từng trang".** ELK/Elasticsearch đọc và index *mọi từ* trong mọi log — tìm kiếm rất mạnh nhưng ngốn tài nguyên khủng khiếp. Loki đi đường khác: chỉ dán nhãn *bên ngoài thùng* (`app`, `level`), còn nội dung thì nén và cất nguyên; khi tìm, bạn lọc theo nhãn để thu hẹp còn vài thùng rồi quét nhanh bên trong. Rẻ hơn nhiều, và đủ dùng cho phần lớn nhu cầu — nhất là khi đã có sẵn Grafana/Prometheus.
+```text
+{container="prometheus"}  |= "error"
+└─────────┬──────────┘   └────┬────┘
+   chọn dòng log nào        lọc nội dung
+   (BẮT BUỘC)               (tuỳ chọn)
+```
 
-**Log JSON + `request_id` biến "nhật ký tâm sự" thành bảng dữ liệu.** Dòng `"lỗi rồi huhu"` chỉ người đọc mới hiểu; log JSON (`{"level":"error","user_id":123}`) cho *máy* lọc chính xác theo field. Gắn thêm một `request_id` chung là bạn có **sợi chỉ đỏ** xuyên qua mọi service để lần xem một request đã đi đâu, hỏng ở đâu — chính là cây cầu nối sang trụ cột thứ ba (Trace).
+| Toán tử | Nghĩa |
+|---|---|
+| `\|=` | Có chứa chuỗi này |
+| `!=` | Không chứa |
+| `\|~` | Khớp biểu thức chính quy |
+| `!~` | Không khớp biểu thức chính quy |
 
-### 🧪 Lab cơ bản
+Và điều thú vị nhất: **biến log thành số** để vẽ đồ thị như metric:
 
-1. Chạy Loki + Promtail + Grafana bằng Docker Compose.
-2. Cấu hình Promtail thu thập log của các container.
-3. Trong Grafana, thêm data source Loki và xem log.
-4. Dùng LogQL lọc log theo label và tìm dòng `error`.
-5. Tạo dashboard kết hợp metric (Prometheus) và log (Loki).
+```promql
+sum(rate({container="grafana"} |= "error" [5m]))    # số dòng lỗi mỗi giây
+```
 
-### 🚀 Lab nâng cao (best-practice)
+> ⚠️ **Phần chọn nhãn là bắt buộc.** Không thể tìm khơi khơi trên toàn bộ log như Google. Phải nói rõ "trong container nào / job nào" trước. Đây là cái giá của việc Loki không đánh chỉ mục nội dung — và cũng là lý do nó rẻ.
 
-> Mục tiêu: gom log toàn hệ thống về một nơi, query nhanh, gắn với metric để debug.
+### 🧪 LAB — Gom log mọi container về một chỗ
 
-1. **Structured logging (JSON)** từ app — mỗi log là object có field (level, request_id, user...) → query chính xác:
-   ```json
-   {"level":"error","msg":"db timeout","request_id":"abc","duration_ms":5200}
-   ```
-2. **LogQL kết hợp lọc + đếm:**
-   ```logql
-   {app="api"} |= "error" | json | duration_ms > 1000   # log lỗi chậm > 1s
-   sum(rate({app="api"} |= "error" [5m]))                # tốc độ lỗi
-   ```
-3. **Correlation:** thêm `request_id`/`trace_id` vào log → lần theo 1 request qua nhiều service.
-4. **Retention + giới hạn dung lượng** — log vô hạn = đầy đĩa; đặt chính sách giữ log hợp lý.
+**Những gì thêm vào thư mục cũ:**
 
-### 💡 Bổ sung thực tế: những cái đi làm mới thấm
+```text
+lab44-prometheus/
+├── docker-compose.yml                      # SỬA — thêm loki + promtail
+├── loki-config.yaml                        # THÊM
+├── promtail-config.yaml                    # THÊM
+└── grafana/provisioning/datasources/
+    └── loki.yml                            # THÊM — nối Grafana tới Loki
+```
 
-- **Cẩn thận cardinality — đúng bài học của Prometheus, lặp lại ở Loki:** đừng biến `request_id`, `user_id`, `email` thành **label** của Loki → mỗi giá trị tạo một stream, hàng triệu stream làm Loki chậm/sập. Cứ để chúng trong *nội dung* log (JSON) rồi lọc bằng `| json`; label chỉ dành cho thứ ít giá trị (app, env, level).
-- **Log không phải chỗ để đếm:** muốn biết "bao nhiêu lỗi/giây" thì dùng metric (Prometheus) — rẻ; bắt Loki đếm rate trên hàng triệu dòng thì đắt và chậm. Nguyên tắc: **metric để đếm & cảnh báo, log để điều tra chi tiết**.
-- **Lỡ log secret = coi như đã lộ, phải xoay:** log được nhân bản khắp nơi (Loki, backup, màn hình dev) nên không "xoá sạch" được. Đã in mật khẩu/token ra log thì việc đúng là **xoay (rotate) ngay bí mật đó**, chứ không phải cố đi xoá log.
-- **Retention phân tầng để vừa nhanh vừa rẻ:** giữ log nóng ngắn ngày (query nhanh) rồi đẩy phần dài hạn xuống object storage (S3/GCS) giá rẻ — Loki lưu chunk trên object store rất hợp mô hình này. Log vô hạn trên đĩa nhanh = cháy túi.
-- **Đồng bộ giờ + chuẩn UTC nếu không muốn phát điên khi correlate:** log từ nhiều máy mà lệch múi giờ/lệch đồng hồ thì ghép một request qua các service thành ác mộng. Chuẩn hoá timestamp UTC và bật NTP trên mọi node.
+#### File 1 — thêm 2 service vào `docker-compose.yml`
 
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+```yaml
+  loki:
+    image: grafana/loki:3.3.2
+    container_name: loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki-data:/loki
 
-**Trình tự nên làm:** chạy Loki + Promtail + Grafana → Promtail thu log container → thêm data source Loki → query LogQL → dashboard kết hợp metric + log.
+  promtail:
+    image: grafana/promtail:3.3.2
+    container_name: promtail
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/promtail-config.yaml
+    volumes:
+      - ./promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro   # để tự tìm các container
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    depends_on:
+      - loki
+```
 
-**Giải nghĩa & kết quả mong đợi:**
-- Promtail thu log → đẩy về Loki; Loki index theo **label** (như Prometheus cho log). *Kết quả:* Grafana → Explore → chọn Loki thấy log chạy về.
-- LogQL: `{app="api"}` lọc theo label; `|= "error"` lọc dòng chứa "error"; `| json` parse JSON.
+Và bổ sung vào mục `volumes:` cuối file:
 
-**🧪 Thử nghiệm:**
-- App log dạng text thô vs JSON → query `| json | duration_ms > 1000`. **Bài học:** log JSON query chính xác hơn nhiều.
-- Đặt cùng `request_id` vào log nhiều service → lần theo 1 request qua các service. **Bài học:** correlation để debug microservice.
+```yaml
+volumes:
+  prom-data:
+  grafana-data:
+  loki-data:
+```
 
-⚠️ **Dễ sai:** log secret/PII (mật khẩu, token, thông tin cá nhân) — log lưu lâu, ai cũng đọc được. Không bao giờ log những thứ này.
+#### File 2 — `loki-config.yaml`
 
-💡 **Hiểu sâu:** Loki **chỉ index label** (nhẹ, rẻ) vs Elasticsearch index **toàn văn** (mạnh, nặng). 3 trụ cột: Metric "có gì đó sai" → Log "sai cái gì" → Trace "sai ở đâu".
+```yaml
+auth_enabled: false            # lab: không xác thực. Production thì BẮT BUỘC bật.
 
-### 🐛 Gỡ lỗi nhanh
+server:
+  http_listen_port: 3100
+  log_level: warn
 
-| Triệu chứng | Nguyên nhân | Cách sửa |
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:                # lab dùng đĩa local; production dùng S3/GCS
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  retention_period: 168h       # giữ log 7 ngày
+  allow_structured_metadata: true
+  ingestion_rate_mb: 8
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true      # phải bật thì retention_period mới có tác dụng
+  delete_request_store: filesystem
+```
+
+#### File 3 — `promtail-config.yaml`
+
+```yaml
+server:
+  http_listen_port: 9080
+  log_level: warn
+
+positions:
+  filename: /tmp/positions.yaml     # nhớ đã đọc tới đâu, khởi động lại không đọc trùng
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker
+    # Tự phát hiện MỌI container đang chạy — không phải khai từng cái
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 10s
+
+    relabel_configs:
+      # Tên container: bỏ dấu "/" ở đầu
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container'
+
+      # Tên image, để lọc theo loại dịch vụ
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: 'service'
+
+      - target_label: 'job'
+        replacement: 'docker'
+```
+
+#### File 4 — `grafana/provisioning/datasources/loki.yml`
+
+```yaml
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: false
+    editable: false
+```
+
+### 🧭 Hướng dẫn làm LAB — step by step
+
+#### Bước 1 — Tạo file và khởi động
+
+```bash
+cd ~/lab44-prometheus
+# tạo loki-config.yaml, promtail-config.yaml, grafana/provisioning/datasources/loki.yml
+# sửa docker-compose.yml thêm 2 service + volume loki-data
+docker compose up -d
+docker compose ps
+```
+
+**Bạn sẽ thấy 7 container:**
+```text
+NAME            STATUS
+alertmanager    Up
+cadvisor        Up
+grafana         Up
+loki            Up 15 seconds
+node-exporter   Up
+promtail        Up 12 seconds
+prometheus      Up
+```
+
+✅ **Checkpoint:** cả `loki` và `promtail` đều `Up`, không `Restarting`.
+
+⚠️ **Nếu `loki` restart liên tục:** gần như luôn là sai cấu hình. Xem lý do:
+```bash
+docker compose logs loki | grep -i "error\|failed" | tail -10
+```
+Lỗi hay gặp là `schema` không hợp lệ — phải đúng `v13` + `tsdb` với Loki 3.x.
+
+#### Bước 2 — Kiểm tra Loki đã sống
+
+```bash
+curl -s localhost:3100/ready
+echo
+curl -s "localhost:3100/loki/api/v1/labels" | head -c 200
+echo
+```
+
+**Bạn sẽ thấy:**
+```text
+ready
+{"status":"success","data":["container","job","service",...]}
+```
+
+✅ **Checkpoint:** trả về `ready`, và danh sách nhãn có `container`.
+
+💡 Danh sách nhãn này chính là "mục lục" của Loki. Nó **không** đánh chỉ mục nội dung log — chỉ mấy cái nhãn này thôi. Đó là lý do nó nhẹ.
+
+⚠️ Nếu danh sách nhãn trống: Promtail chưa đẩy được gì. Kiểm tra `docker compose logs promtail | tail -20` — thường do thiếu quyền đọc `docker.sock`.
+
+#### Bước 3 — Tra log đầu tiên trong Grafana
+
+Mở **http://localhost:3000** → **Explore** (biểu tượng la bàn) → chọn nguồn dữ liệu **Loki** ở góc trên.
+
+Dán vào ô truy vấn:
+
+```logql
+{job="docker"}
+```
+
+Bấm **Run query** (hoặc `Shift+Enter`).
+
+**Bạn sẽ thấy** dòng log từ tất cả container, mới nhất ở trên, kèm nhãn `container` bên cạnh mỗi dòng.
+
+✅ **Checkpoint:** có log hiện ra.
+
+Lọc đúng một container:
+
+```logql
+{container="prometheus"}
+```
+
+✅ **Checkpoint:** chỉ còn log của Prometheus.
+
+💡 Đây đã là một bước tiến lớn so với `docker logs`: bạn xem log **nhiều container cùng lúc, trên cùng một trục thời gian**, không phải mở 7 cửa sổ terminal.
+
+#### Bước 4 — Lọc nội dung và đếm
+
+```logql
+{job="docker"} |= "error"
+```
+
+Nếu chưa có lỗi nào, hãy tự tạo ra vài cái:
+
+```bash
+docker compose exec prometheus wget -qO- http://localhost:9090/khong-ton-tai || true
+curl -s localhost:9090/api/v1/query?query=cu_phap[[[sai > /dev/null
+curl -s localhost:3100/loki/api/v1/query?query=cung_sai{{{ > /dev/null
+```
+
+Chạy lại truy vấn, và thử thêm các biến thể:
+
+```logql
+{job="docker"} |= "error" != "debug"          # có "error" nhưng không có "debug"
+{job="docker"} |~ "(?i)(error|warn|fail)"     # regex, (?i) = không phân biệt hoa thường
+```
+
+✅ **Checkpoint:** kết quả thu hẹp đúng theo từng bộ lọc.
+
+Giờ **biến log thành đồ thị** — chuyển tab sang **Metrics** hoặc gõ truy vấn dạng số:
+
+```logql
+sum by (container) (rate({job="docker"} |~ "(?i)error" [5m]))
+```
+
+**Bạn sẽ thấy:** một biểu đồ đường — số dòng lỗi mỗi giây, tách theo container.
+
+✅ **Checkpoint:** log đã biến thành metric vẽ được.
+
+💡 **Đây là điều rất mạnh:** bạn có thể đặt cảnh báo trên *log* y như trên metric — ví dụ "báo động nếu số dòng ERROR vượt 10/giây". Không cần app phải tự expose metric lỗi.
+
+#### Bước 5 — Đi trọn một ca điều tra sự cố thật
+
+Đây là phần đáng giá nhất hôm nay: ghép metric với log đúng như lúc trực hệ thống.
+
+**Tạo sự cố:**
+```bash
+docker compose stop node-exporter
+```
+
+**Bước điều tra 1 — metric báo có chuyện.** Mở dashboard *Sức khoẻ hệ thống* (Ngày 45): panel *Số target đang sống* tụt từ 3 xuống **2** và chuyển **đỏ**.
+
+→ Bạn biết **"có gì đó sai"**, nhưng chưa biết sai cái gì.
+
+**Bước điều tra 2 — nhảy sang log để biết sai cái gì.** Vào **Explore → Loki**:
+
+```logql
+{container="prometheus"} |= "node-exporter"
+```
+
+**Bạn sẽ thấy** những dòng kiểu:
+```text
+level=warn ... msg="Error scraping target" target=http://node-exporter:9100/metrics
+  err="Get \"http://node-exporter:9100/metrics\": dial tcp ... connect: connection refused"
+```
+
+✅ **Checkpoint:** log chỉ thẳng ra nguyên nhân — `connection refused`, tức dịch vụ không còn lắng nghe.
+
+**Bước điều tra 3 — xác nhận và khắc phục:**
+```bash
+docker compose ps node-exporter        # thấy trạng thái exited
+docker compose start node-exporter
+```
+
+Chờ khoảng 30 giây, dashboard trở lại **3** và xanh.
+
+💡 **Hãy ghi nhớ đúng trình tự này — nó là quy trình chuẩn khi xử lý sự cố:**
+
+| Bước | Công cụ | Trả lời câu hỏi |
 |---|---|---|
-| Grafana Explore không thấy log | Promtail chưa đẩy / sai target | Kiểm Promtail config; data source Loki đúng URL |
-| Query `{app="x"}` rỗng | Sai label | Xem label thật trong Explore (label browser) |
-| `| json` không parse | Log không phải JSON | Cho app log JSON; hoặc dùng `| logfmt`/regex |
-| Đĩa Loki đầy | Không đặt retention | Cấu hình retention + giới hạn dung lượng |
-| Lỡ log mật khẩu | App in secret ra log | Sửa app; log lưu lâu — coi như đã lộ, xoay secret |
+| 1 | Metric (Prometheus/Grafana) | *Có chuyện gì không?* |
+| 2 | **Log (Loki)** | *Sai cái gì?* |
+| 3 | Trace (Module nâng cao NC1) | *Sai ở khúc nào trong chuỗi dịch vụ?* |
 
-### 📝 Bài ôn tập & Demo đối chiếu
+Ba trụ cột observability không phải ba thứ song song để chọn một — chúng là **ba bước liên tiếp** của cùng một cuộc điều tra.
 
-**✍️ Tự kiểm tra:**
+#### Bước 6 — Xem mô hình nhãn tiết kiệm thế nào
 
-<details>
-<summary>1. Vì sao cần logging tập trung?</summary>
+```bash
+curl -s "localhost:3100/loki/api/v1/label/container/values" | head -c 300
+echo
+```
 
-> Log rải rác trên nhiều container/máy; không thể SSH từng cái. Gom về 1 nơi để tìm kiếm/lọc nhanh khi sự cố.
-</details>
+**Bạn sẽ thấy** danh sách tên container.
 
-<details>
-<summary>2. Loki khác Elasticsearch ở cách index thế nào?</summary>
+✅ **Checkpoint:** chỉ có vài nhãn, mỗi nhãn ít giá trị.
 
-> Loki chỉ index **label** (nhẹ, rẻ). Elasticsearch index **toàn văn** (mạnh, nặng). Loki hợp khi đã dùng Grafana/Prometheus.
-</details>
+💡 **Đây chính là chỗ Loki tiết kiệm được tiền:** nó chỉ lưu chỉ mục cho vài nhãn này, còn hàng triệu dòng log thì nén lại để nguyên. Nếu bạn lỡ thêm nhãn động (như `request_id`), số chuỗi sẽ bùng nổ và Loki chậm đi trông thấy — **đúng bài học cardinality của Ngày 44**, lặp lại ở tầng log.
 
-<details>
-<summary>3. Vì sao nên log JSON có cấu trúc?</summary>
+#### Bước 7 — Dọn dẹp
 
-> Cho phép lọc chính xác theo field (`level=error AND user_id=123`); log text thô khó query.
-</details>
+```bash
+docker compose stop
+# docker compose down -v    # chỉ khi muốn xoá sạch cả metric lẫn log đã thu
+```
 
-<details>
-<summary>4. 3 trụ cột phối hợp thế nào khi debug?</summary>
+💡 Bạn vừa dựng xong một bộ giám sát hoàn chỉnh: **Prometheus + Alertmanager + Grafana + cAdvisor + Loki + Promtail**, tất cả từ file cấu hình, tái lập được ở bất cứ đâu. Đây là bộ mà rất nhiều công ty đang chạy thật.
 
-> Metric báo "có sự cố" → Log cho biết "lỗi gì" → Trace chỉ "lỗi ở đâu trong chuỗi service".
-</details>
+### 💡 Đi làm mới thấm (sách cơ bản hay bỏ quên)
 
-**🔬 Demo đối chiếu:**
-
-| Demo đối chiếu | Kết quả mong đợi |
-|---|---|
-| Loki nhận log | Grafana Explore (Loki) thấy log chạy về |
-| Query theo nhãn | `{app="myapp"}` lọc đúng log |
-| Gộp log nhiều service | Xem log tập trung từ các container |
-
-### 📚 Thuật ngữ Anh–Việt (ngày này)
-
-| Thuật ngữ | Nghĩa |
-|---|---|
-| **Loki** | Hệ gom log của Grafana (index label) |
-| **Promtail** | Agent thu log đẩy về Loki |
-| **LogQL** | Ngôn ngữ truy vấn log |
-| **Label** | Nhãn để index/lọc log |
-| **Structured log (JSON)** | Log có field, dễ query |
-| **Correlation** | Lần theo request qua `request_id`/`trace_id` |
-| **Retention** | Chính sách giữ/xoá log |
+- **Log phải có cấu trúc (JSON), đừng để dạng văn xuôi.** `{"muc":"error","ma_don":123,"thong_diep":"thanh toán thất bại"}` cho phép lọc theo trường (`| json | ma_don="123"`). Còn `Loi thanh toan don 123` thì chỉ tìm được bằng cách khớp chuỗi. Đây là việc phải làm **từ phía ứng dụng**, không phải việc của Loki.
+- **Nhãn phải ÍT, và phải hữu hạn.** Đừng bao giờ đưa `user_id`, `request_id`, `trace_id` vào **nhãn** — số chuỗi bùng nổ, Loki sập. Những thứ đó thuộc về **nội dung** log (hoặc structured metadata), tìm bằng bộ lọc chữ.
+- **Không bao giờ ghi bí mật vào log.** Mật khẩu, token, số thẻ lọt vào log là lộ vĩnh viễn với mọi người có quyền xem log — thường là nhiều người hơn bạn tưởng. Nhiều đội đặt bộ lọc che tự động ở tầng thu thập.
+- **Retention là quyết định về tiền, không phải kỹ thuật.** Giữ log 30 ngày nghe hay, nhưng đó là hoá đơn lưu trữ thật. Cách làm phổ biến: giữ đầy đủ 7 ngày, còn thứ cần lâu hơn thì rút thành metric (như ở Bước 4) — metric rẻ hơn log rất nhiều lần.
+- **Đồng bộ giờ là điều kiện tiên quyết.** Log từ nhiều máy lệch giờ nhau thì dòng thời gian trở nên vô nghĩa và bạn sẽ suy luận sai nhân quả. `chrony`/`systemd-timesyncd` phải chạy đúng trên mọi máy (Ngày 10).
+- **Cùng một `trace_id` trong log là bước đệm sang tracing.** Nếu mọi dịch vụ ghi kèm một mã định danh chung cho mỗi request, bạn có thể lần theo một request qua toàn hệ thống chỉ bằng log — đó là cây cầu dẫn sang distributed tracing (Module nâng cao NC1).
 
 ### 🎯 Đúc kết Ngày 46
 
 **3 điều phải mang theo:**
-1. **Gom log tập trung** là điều kiện tiên quyết để debug hệ phân tán — không SSH đọc log từng container.
-2. **Loki chỉ index label (nhẹ/rẻ) vs ELK index toàn văn (mạnh/nặng);** và cẩn thận cardinality label y như ở Prometheus.
-3. **Log JSON + `request_id`** biến log thành dữ liệu lọc được và lần theo một request qua nhiều service — nối metric → log → trace.
 
-> 🧠 **Một câu để nhớ:** 3 trụ cột phối hợp: **Metric** báo "có sự cố" → **Log** cho biết "lỗi gì" → **Trace** chỉ "lỗi ở đâu". Và TUYỆT ĐỐI không log mật khẩu/thông tin cá nhân (log lưu lâu, ai cũng đọc).
+1. **Loki chỉ đánh chỉ mục nhãn, không đánh chỉ mục nội dung.** Rẻ hơn ELK rất nhiều, đổi lại bạn **bắt buộc** phải chọn nhãn trước khi tìm.
+2. **Metric → Log → Trace là ba bước của một cuộc điều tra**, không phải ba lựa chọn thay thế nhau.
+3. **Log có cấu trúc + ít nhãn** là hai điều kiện để hệ thống log còn dùng được khi quy mô lớn lên.
 
-**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
-- [ ] Chạy Loki + Promtail + Grafana và thấy log chạy về Explore
-- [ ] Viết LogQL lọc theo label + `|= "error"` + `| json`
-- [ ] Giải thích Loki index label vs ELK index toàn văn
-- [ ] Biết vì sao KHÔNG đưa `request_id` thành label Loki
-- [ ] Nói được 3 trụ cột phối hợp thế nào khi debug
+> 🧠 **Một câu để nhớ:** metric bảo bạn **"có cháy"**, log bảo bạn **"cháy ở bếp, do chập điện"**. Thiếu cái thứ hai thì bạn chỉ biết hoảng.
 
-✅ **Kết quả đạt được:** Tập trung và truy vấn log toàn hệ thống (Loki + LogQL) — hoàn thiện observability.
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+
+- [ ] Giải thích Loki khác Elasticsearch ở điểm cốt lõi nào
+- [ ] Kể vai trò của Promtail, Loki, Grafana trong đường đi của một dòng log
+- [ ] Viết LogQL chọn nhãn + lọc chuỗi + lọc bằng regex
+- [ ] Biến log thành đồ thị bằng `rate(...)` và nói ứng dụng của nó
+- [ ] Đi trọn quy trình: metric bất thường → tra log → tìm ra nguyên nhân
+- [ ] Nói rõ vì sao không được đưa `request_id` vào nhãn
+- [ ] Nêu 2 lý do log nên ở dạng JSON
+
+✅ **Kết quả đạt được:** Log của toàn bộ hệ thống chảy về một nơi tra cứu được, ghép chung màn hình với metric — bạn đã có đủ hai trụ cột để tự điều tra một sự cố từ đầu đến cuối.
 
 ---
 
 ## Ngày 47 — Configuration Management: Ansible
 
-> ⏱️ ~90 phút · Loại: IaC
+> ⏱️ ~90 phút · Loại: Tự động hoá
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 46 (Loki) → **Ngày 47 (Ansible — cấu hình hàng loạt server tự động)** → Ngày 48 (Terraform nâng cao). Terraform *tạo* máy; Ansible *cấu hình bên trong* máy — bổ trợ nhau.
+> 🧭 **Bạn đang ở đâu:** Ngày 46 (giám sát đầy đủ) → **Ngày 47 (Ansible — cấu hình hàng loạt máy bằng code)** → Ngày 48 (Terraform nâng cao). Terraform (Ngày 29) **tạo ra** máy; Ansible **cấu hình bên trong** máy. Hai việc khác nhau, bổ sung cho nhau.
 >
-> ✅ **Chuẩn bị:** cài Ansible (`ansible --version`). Một VM (hoặc localhost) SSH được để làm target.
+> ✅ **Chuẩn bị:** máy Linux có Docker (ta sẽ dựng 3 "server" giả bằng container — **không cần thuê VM nào**), và Python 3.
+>
+> 🎁 **Cuối ngày bạn có gì:** một playbook cấu hình **3 máy cùng lúc** chỉ bằng một lệnh, chạy lại bao nhiêu lần cũng an toàn, có template sinh cấu hình riêng cho từng máy và một file bí mật được mã hoá thật.
 
 ### 📘 Lý thuyết
 
-#### 1. Ansible là gì
+#### 1. Vấn đề: Bash script không mở rộng được
 
-Tự động cấu hình server (cài phần mềm, sửa config, chạy service) **hàng loạt**. Bạn viết 1 file mô tả "muốn server thế nào", Ansible SSH vào tất cả và làm cho khớp.
+Ngày 5–6 bạn viết Bash để tự động hoá. Nó tốt cho một máy. Nhưng với 20 máy:
 
-#### 2. Terraform vs Ansible — bổ trợ, không cạnh tranh
+```bash
+# Chạy lần 2 thì sao?
+apt install nginx -y           # may mà apt biết bỏ qua
+echo "..." >> /etc/nginx/x.conf  # ✗ ghi thêm lần nữa -> file hỏng
+useradd deploy                   # ✗ báo lỗi "user đã tồn tại"
+```
 
-| | Vai trò | Câu hỏi |
+Hai vấn đề cốt lõi của Bash:
+
+1. **Không idempotent** — chạy lại lần hai cho kết quả khác lần một.
+2. **Ra lệnh, không mô tả** — script nói *"làm các bước này"*, không nói *"máy phải trông như thế nào"*.
+
+Ansible giải cả hai: bạn **mô tả trạng thái mong muốn**, Ansible tự kiểm tra và chỉ thay đổi những gì chưa khớp. Lại chính là tư duy khai báo của Ngày 36, lần này áp cho máy chủ.
+
+#### 2. Idempotent — khái niệm quan trọng nhất hôm nay
+
+> **Idempotent** = chạy 1 lần hay 100 lần đều cho cùng một kết quả.
+
+```yaml
+- name: Đảm bảo nginx đã cài
+  apt:
+    name: nginx
+    state: present      # "phải CÓ" — chưa có thì cài, có rồi thì bỏ qua
+```
+
+Chú ý cách diễn đạt: không phải *"hãy cài nginx"* mà là *"nginx phải ở trạng thái đã cài"*. Ansible kiểm tra trước, chỉ hành động khi cần. Nhờ vậy bạn có thể chạy playbook **bất cứ lúc nào** mà không sợ làm hỏng — và đó chính là thứ cho phép dùng nó để *sửa trôi cấu hình*.
+
+#### 3. Vì sao Ansible dễ triển khai: không cần cài gì lên máy đích
+
+| | Ansible | Puppet / Chef |
 |---|---|---|
-| **Terraform** | Provisioning **hạ tầng** | "Tạo 3 VM, 1 network" |
-| **Ansible** | Configuration **bên trong** | "Cài nginx + config + chạy service trên 3 VM đó" |
+| Trên máy đích | **Không cần cài gì** (chỉ cần SSH + Python) | Phải cài agent |
+| Cách hoạt động | Đẩy lệnh qua SSH | Agent tự kéo về theo chu kỳ |
+| Ngôn ngữ | YAML | DSL riêng, phải học thêm |
 
-Luồng thật: Terraform dựng máy → Ansible cấu hình.
+Không cần agent nghĩa là: có SSH vào được máy nào thì quản lý được máy đó, **ngay lập tức**.
 
-#### 3. Các khái niệm
+#### 4. Bốn khái niệm
 
-| Khái niệm | Nghĩa |
+| Khái niệm | Là gì |
 |---|---|
-| **Inventory** | Danh sách server (INI/YAML) |
-| **Playbook** | File YAML mô tả các task |
-| **Module** | Đơn vị tác vụ (`apt`, `service`, `copy`, `template`) |
-| **Role** | Tổ chức playbook tái dùng (Ansible Galaxy chia sẻ) |
-| **Handler** | Chạy khi có thay đổi (vd reload nginx) |
+| **Inventory** | Danh sách máy, chia nhóm (`[web]`, `[db]`) |
+| **Playbook** | File YAML mô tả việc cần làm |
+| **Module** | Đơn vị việc dựng sẵn (`apt`, `copy`, `service`, `user`...) — có hơn 3000 cái |
+| **Role** | Cách đóng gói playbook để dùng lại, như thư viện |
 
-#### 4. Idempotent — đặc tính cốt lõi
+#### 5. Handler — chỉ chạy khi thật sự có thay đổi
 
-Chạy playbook 10 lần vẫn ra cùng kết quả; lần 2+ báo `changed=0`. Đây là lý do dùng **module chuyên dụng** (tự kiểm tra "đã đúng chưa") thay vì `shell`/`command` bừa.
+```yaml
+tasks:
+  - name: Đặt file cấu hình nginx
+    template:
+      src: nginx.conf.j2
+      dest: /etc/nginx/conf.d/trang.conf
+    notify: khoi dong lai nginx        # CHỈ báo khi file thật sự đổi
 
-#### 5. Agentless — lợi thế lớn
+handlers:
+  - name: khoi dong lai nginx
+    service:
+      name: nginx
+      state: restarted
+```
 
-Ansible chỉ cần **SSH + Python** trên máy đích, **không cài agent** (khác Puppet/Chef cần agent + master) → dễ áp dụng cho server có sẵn.
+Điểm tinh tế: handler **chỉ chạy khi task báo có thay đổi**. Chạy playbook 10 lần mà cấu hình không đổi thì nginx không bị khởi động lại lần nào. Đây là lý do playbook an toàn để chạy định kỳ.
 
-> 🔑 Thời container/K8s, Ansible vẫn mạnh cho: cấu hình node OS, bootstrap cluster, quản server không-container, patch hàng loạt (50 server 1 lệnh). Bảo mật secret trong playbook bằng **Ansible Vault**.
+### 🧪 LAB — Cấu hình 3 "server" cùng lúc
 
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
+> Ta dựng 3 container Linux có SSH để đóng vai server. Với Ansible, chúng **không khác gì máy thật** — cùng là "cái gì đó SSH vào được".
 
-> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
+**Cây thư mục:**
 
-**Ansible như một quản lý cầm bảng phân công cho cả đội làm y hệt.** Thay vì đến từng người dặn dò (SSH vào từng server gõ tay — ác mộng với 50 máy), bạn viết một bảng phân công (playbook) rồi Ansible SSH vào tất cả và làm đồng loạt. Sức mạnh thật ra không chỉ ở *nhanh*, mà ở **đồng nhất**: 50 server giống hệt nhau, không còn con nào "đặc biệt" mà chẳng ai nhớ tại sao — thứ gây ra hầu hết sự cố bí ẩn trong hạ tầng thủ công.
+```text
+lab47-ansible/
+├── docker-compose.yml       # dựng 3 server giả
+├── Dockerfile.server        # server giả: Debian + sshd + python3
+├── inventory.ini            # danh sách máy
+├── playbook.yml             # nội dung chính
+├── templates/
+│   └── trang-chu.html.j2    # template sinh trang riêng cho từng máy
+└── bi-mat.yml               # file bí mật (sẽ mã hoá bằng Ansible Vault)
+```
 
-**Terraform xây nhà, Ansible bài trí nội thất.** Terraform dựng cái khung (VM, network, disk); Ansible bước vào bên trong lắp đặt (cài phần mềm, sửa config, chạy service). Đây không phải chọn một-trong-hai — luồng thật là Terraform xây xong thì Ansible trang trí. Nhớ vậy để khỏi băn khoăn "học cái nào" — bạn cần cả hai cho hai việc khác nhau.
+#### File 1 — `Dockerfile.server`
 
-**Idempotent = mô tả *đích*, không mô tả *bước*.** Đây là ý khó ngấm nhất. Bạn không ra lệnh *"chạy `apt install nginx`"* (một mệnh lệnh — chạy lần hai thì sao?); bạn khai *"nginx phải **có mặt**"* (một trạng thái). Module tự kiểm tra: đã có thì thôi (`changed=0`), chưa có thì cài. Nhờ vậy chạy 10 lần vẫn an toàn — đúng cái tinh thần *declarative* bạn đã gặp ở Kubernetes (Ngày 36).
+```dockerfile
+FROM debian:12-slim
 
-### 🧪 Lab cơ bản
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends openssh-server python3 sudo && \
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /run/sshd
 
-1. Cài Ansible, tạo inventory trỏ tới VM (hoặc localhost).
-2. Viết playbook cài nginx và khởi động dịch vụ.
-3. Chạy playbook 2 lần, quan sát tính idempotent (lần 2 không thay đổi).
-4. Dùng module `template` đẩy 1 file cấu hình có biến lên server.
-5. Tổ chức playbook thành role đơn giản.
+# Tạo user để Ansible đăng nhập, cho sudo không cần mật khẩu
+RUN useradd -m -s /bin/bash quantri && \
+    echo "quantri ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/quantri && \
+    mkdir -p /home/quantri/.ssh && chmod 700 /home/quantri/.ssh
 
-### 🚀 Lab nâng cao (best-practice)
+COPY khoa_lab.pub /home/quantri/.ssh/authorized_keys
+RUN chown -R quantri:quantri /home/quantri/.ssh && \
+    chmod 600 /home/quantri/.ssh/authorized_keys
 
-> Mục tiêu: viết playbook idempotent, có cấu trúc role, dùng vault cho secret.
+EXPOSE 22
+CMD ["/usr/sbin/sshd", "-D"]
+```
 
-1. **Playbook idempotent đúng cách** — dùng module chuyên dụng, không `command`/`shell` bừa:
-   ```yaml
-   - name: Cài và chạy nginx
-     hosts: web
-     become: true
-     tasks:
-       - apt: { name: nginx, state: present, update_cache: true }
-       - service: { name: nginx, state: started, enabled: true }
-       - template: { src: nginx.conf.j2, dest: /etc/nginx/nginx.conf }
-         notify: reload nginx
-     handlers:
-       - name: reload nginx
-         service: { name: nginx, state: reloaded }
-   ```
-2. **Ansible Vault** mã hóa secret trong playbook: `ansible-vault encrypt secrets.yml`.
-3. **Cấu trúc role chuẩn** (`roles/web/{tasks,templates,handlers,defaults}`) để tái dùng.
-4. **`--check` (dry-run) + `--diff`** xem thay đổi trước khi áp dụng thật.
+#### File 2 — `docker-compose.yml`
 
-### 💡 Bổ sung thực tế: những cái đi làm mới thấm
+```yaml
+services:
+  web1:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: may-web1
+    ports:
+      - "2201:22"
 
-- **`shell`/`command` phá vỡ idempotency:** hai module này Ansible không biết "đã đúng chưa" nên mặc định luôn báo `changed` và chạy lại mỗi lần. Khi buộc phải dùng, tự bảo vệ bằng `creates:`, `when:` hoặc `changed_when:` — còn không thì ưu tiên module chuyên dụng (`apt`, `copy`, `service`).
-- **Ansible là "push theo lô", không phải luôn-đúng liên tục:** cấu hình chỉ khớp *tại thời điểm bạn chạy playbook*. Giữa hai lần chạy, ai đó sửa tay là máy **drift** mà không có gì tự kéo về (khác agent kiểu Puppet chạy định kỳ, hay ArgoCD self-heal ở K8s). Muốn chống drift phải chạy lại đều đặn (cron/CI).
-- **`--check --diff` để xem trước, nhưng có giới hạn:** dry-run rất hữu ích như `terraform plan`, song task dùng `shell`/`command` thường không mô phỏng được trong check mode → đừng tin tuyệt đối vào `--check` nếu playbook nhiều shell.
-- **Ansible chậm dần khi nhiều host — có cách tăng tốc:** nó SSH ra các host theo lô (`forks`, mặc định 5). Vài trăm server thì bật `pipelining=True`, tăng `forks`, hoặc dùng `mitogen` để rút thời gian đáng kể.
-- **Secret: Ansible Vault là mức tối thiểu, không phải đích đến:** Vault mã hoá file secret trong repo là tốt, nhưng team chín thường kéo secret từ **secret manager** (HashiCorp Vault, cloud secret manager) lúc chạy để khỏi giữ bí mật (dù đã mã hoá) trong Git.
+  web2:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: may-web2
+    ports:
+      - "2202:22"
 
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+  db1:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: may-db1
+    ports:
+      - "2203:22"
+```
 
-**Trình tự nên làm:** cài Ansible → tạo inventory → viết playbook cài nginx → chạy 2 lần (xem idempotent) → dùng template → tổ chức thành role.
+#### File 3 — `inventory.ini`
 
-**Giải nghĩa & kết quả mong đợi:**
-- `inventory` (file INI/YAML) — danh sách host; `ansible all -m ping` → `SUCCESS`/`pong` (kiểm tra SSH tới host).
-- `ansible-playbook site.yml` — chạy các task. *Kết quả:* `PLAY RECAP → ok=N changed=N failed=0`.
-- Module `apt`/`service`/`template` — đơn vị tác vụ (khai báo trạng thái mong muốn).
+```ini
+[web]
+web1 ansible_host=127.0.0.1 ansible_port=2201 vai_tro="Máy web số 1"
+web2 ansible_host=127.0.0.1 ansible_port=2202 vai_tro="Máy web số 2"
 
-**🧪 Thử nghiệm:**
-- Chạy playbook lần 1 (`changed=N`) rồi lần 2 (`changed=0`). **Bài học:** idempotent — chạy lại không đổi gì nếu đã đúng.
-- Thay module `apt` bằng `shell: apt install nginx` rồi chạy 2 lần → vẫn "changed". **Bài học:** vì sao dùng module thay `shell`.
+[db]
+db1 ansible_host=127.0.0.1 ansible_port=2203 vai_tro="Máy cơ sở dữ liệu"
 
-⚠️ **Dễ sai:** lạm dụng `shell`/`command` → mất tính idempotent. Ưu tiên module chuyên dụng (tự kiểm tra trạng thái).
+[all:vars]
+ansible_user=quantri
+ansible_ssh_private_key_file=./khoa_lab
+ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+ansible_python_interpreter=/usr/bin/python3
+```
 
-💡 **Hiểu sâu:** Terraform **tạo** hạ tầng (VM, network); Ansible **cấu hình bên trong** (cài/sửa config) — bổ trợ nhau. Ansible **agentless** (chỉ cần SSH + Python), khác Puppet/Chef cần agent.
+> 📌 Ở lab ta tắt kiểm tra host key cho đỡ vướng. **Production tuyệt đối không làm vậy** — đó là mở cửa cho tấn công xen giữa (nhắc lại cảnh báo ở Ngày 34).
 
-### 🐛 Gỡ lỗi nhanh
+#### File 4 — `templates/trang-chu.html.j2`
 
-| Triệu chứng | Nguyên nhân | Cách sửa |
-|---|---|---|
-| `ansible all -m ping` fail | SSH không tới host / sai user | Kiểm SSH tay; đúng `ansible_user`, key |
-| Task luôn `changed` | Dùng `shell`/`command` | Đổi sang module chuyên dụng (`apt`, `service`) |
-| `Permission denied` khi cài gói | Thiếu quyền sudo | Thêm `become: true` |
-| Template không thay biến | Sai cú pháp Jinja2 / thiếu var | Kiểm `{{ var }}`; định nghĩa trong `vars`/`defaults` |
-| Secret lộ trong playbook | Ghi thẳng vào YAML | `ansible-vault encrypt`; không commit plaintext |
+```jinja
+<!DOCTYPE html>
+<html lang="vi">
+<head><meta charset="utf-8"><title>{{ inventory_hostname }}</title></head>
+<body>
+  <h1>Xin chào từ {{ inventory_hostname }}</h1>
+  <ul>
+    <li>Vai trò: {{ vai_tro }}</li>
+    <li>Hệ điều hành: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}</li>
+    <li>Số CPU: {{ ansible_facts['processor_vcpus'] }}</li>
+    <li>Thuộc nhóm: {{ group_names | join(', ') }}</li>
+  </ul>
+  <p>Trang này do Ansible sinh ra — mỗi máy một nội dung khác nhau.</p>
+</body>
+</html>
+```
 
-### 📝 Bài ôn tập & Demo đối chiếu
+#### File 5 — `playbook.yml`
 
-**✍️ Tự kiểm tra:**
+```yaml
+---
+- name: Cấu hình toàn bộ máy chủ
+  hosts: all
+  become: true                    # chạy bằng quyền sudo
 
-<details>
-<summary>1. Terraform và Ansible khác vai trò thế nào?</summary>
+  vars:
+    goi_can_thiet:
+      - curl
+      - vim
+      - htop
 
-> Terraform tạo **hạ tầng** (VM, network). Ansible cấu hình **bên trong** máy (cài phần mềm, sửa config). Bổ trợ nhau: Terraform dựng → Ansible cấu hình.
-</details>
+  tasks:
+    - name: Cập nhật danh sách gói (cache 1 giờ)
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
 
-<details>
-<summary>2. Vì sao idempotent quan trọng?</summary>
+    - name: Đảm bảo các gói cơ bản đã cài
+      apt:
+        name: "{{ goi_can_thiet }}"
+        state: present
 
-> Chạy playbook nhiều lần không phá thứ đã đúng, chỉ sửa cái lệch (`changed=0` nếu đã khớp). An toàn để chạy lại/tự động hoá.
-</details>
+    - name: Tạo user triển khai
+      user:
+        name: trienkhai
+        shell: /bin/bash
+        state: present
 
-<details>
-<summary>3. Inventory và Playbook là gì?</summary>
+    - name: Tạo thư mục dùng chung
+      file:
+        path: /opt/ungdung
+        state: directory
+        owner: trienkhai
+        mode: "0755"
 
-> Inventory = danh sách server cần quản. Playbook = file YAML mô tả các task áp dụng lên các host đó.
-</details>
+# ---- Phần riêng cho nhóm web ----
+- name: Cấu hình riêng máy web
+  hosts: web
+  become: true
 
-<details>
-<summary>4. "Agentless" nghĩa là gì?</summary>
+  tasks:
+    - name: Cài nginx
+      apt:
+        name: nginx
+        state: present
 
-> Không cần cài agent trên máy đích — chỉ cần SSH + Python. Dễ áp dụng hơn Puppet/Chef (cần agent).
-</details>
+    - name: Sinh trang chủ riêng cho từng máy
+      template:
+        src: templates/trang-chu.html.j2
+        dest: /var/www/html/index.html
+        mode: "0644"
+      notify: khoi dong lai nginx      # chỉ báo khi file thay đổi
 
-**🔬 Demo đối chiếu:**
+    - name: Đảm bảo nginx đang chạy
+      service:
+        name: nginx
+        state: started
 
-| Demo đối chiếu | Kết quả mong đợi |
-|---|---|
-| `ansible all -m ping` | `SUCCESS` / `pong` |
-| Chạy playbook | `PLAY RECAP → ok=N changed=N failed=0` |
-| Chạy lại | Lần 2: `changed=0` (idempotent) |
+  handlers:
+    - name: khoi dong lai nginx
+      service:
+        name: nginx
+        state: restarted
 
-### 📚 Thuật ngữ Anh–Việt (ngày này)
+# ---- Phần riêng cho nhóm db ----
+- name: Cấu hình riêng máy cơ sở dữ liệu
+  hosts: db
+  become: true
 
-| Thuật ngữ | Nghĩa |
-|---|---|
-| **Ansible** | Công cụ cấu hình server (agentless) |
-| **Inventory** | Danh sách host quản lý |
-| **Playbook** | File YAML mô tả task |
-| **Module** | Đơn vị tác vụ (apt/service/template) |
-| **Role** | Gói playbook tái dùng |
-| **Idempotent** | Chạy lại ra cùng kết quả |
-| **Ansible Vault** | Mã hoá secret trong playbook |
+  tasks:
+    - name: Tạo thư mục dữ liệu
+      file:
+        path: /var/du-lieu
+        state: directory
+        mode: "0700"
+
+    - name: Ghi ghi chú nhận diện máy
+      copy:
+        content: "Máy này giữ dữ liệu. Không xoá bừa.\n"
+        dest: /var/du-lieu/DOC-TRUOC.txt
+        mode: "0644"
+```
+
+### 🧭 Hướng dẫn làm LAB — step by step
+
+#### Bước 1 — Cài Ansible
+
+```bash
+sudo apt update && sudo apt install -y ansible
+# hoặc: python3 -m pip install --user ansible
+ansible --version | head -2
+```
+
+**Bạn sẽ thấy:**
+```text
+ansible [core 2.16.x]
+  config file = None
+```
+
+✅ **Checkpoint:** in ra phiên bản `ansible [core 2.x]`.
+
+#### Bước 2 — Dựng 3 server giả
+
+```bash
+mkdir -p ~/lab47-ansible/templates && cd ~/lab47-ansible
+
+# Tạo cặp khoá riêng cho lab (không dùng khoá cá nhân của bạn)
+ssh-keygen -t ed25519 -f ./khoa_lab -N "" -C "ansible-lab"
+
+# tạo Dockerfile.server và docker-compose.yml theo phần LAB
+docker compose up -d --build
+docker compose ps
+```
+
+**Bạn sẽ thấy:**
+```text
+NAME       STATUS         PORTS
+may-db1    Up 5 seconds   0.0.0.0:2203->22/tcp
+may-web1   Up 5 seconds   0.0.0.0:2201->22/tcp
+may-web2   Up 5 seconds   0.0.0.0:2202->22/tcp
+```
+
+✅ **Checkpoint:** 3 container `Up`, mở 3 cổng SSH khác nhau.
+
+Kiểm tra SSH vào được:
+```bash
+ssh -i ./khoa_lab -p 2201 -o StrictHostKeyChecking=no quantri@127.0.0.1 hostname
+```
+
+**Bạn sẽ thấy:** một chuỗi mã băm (tên host của container).
+
+⚠️ **Nếu `Permission denied (publickey)`:** file `khoa_lab.pub` chưa có lúc build. Tạo khoá **trước** rồi build lại: `docker compose up -d --build`.
+
+#### Bước 3 — Ansible nhìn thấy các máy chưa?
+
+```bash
+# tạo inventory.ini theo phần LAB
+ansible all -i inventory.ini -m ping
+```
+
+**Bạn sẽ thấy:**
+```text
+web1 | SUCCESS => {
+    "changed": false,
+    "ping": "pong"
+}
+web2 | SUCCESS => { ... "ping": "pong" }
+db1  | SUCCESS => { ... "ping": "pong" }
+```
+
+✅ **Checkpoint:** cả 3 máy đều `SUCCESS` với `pong`.
+
+💡 `ping` của Ansible **không phải** ICMP ping. Nó thực sự SSH vào, chạy Python ở đó và nhận lời đáp. Nghĩa là `pong` chứng minh cả ba điều: mạng thông, SSH đúng khoá, và Python có sẵn trên máy đích.
+
+Xem cách Ansible nhóm các máy:
+```bash
+ansible-inventory -i inventory.ini --graph
+```
+
+**Bạn sẽ thấy:**
+```text
+@all:
+  |--@web:
+  |  |--web1
+  |  |--web2
+  |--@db:
+  |  |--db1
+```
+
+#### Bước 4 — Hỏi thông tin hàng loạt (việc hằng ngày của người vận hành)
+
+Trước khi viết playbook, hãy thấy sức mạnh của lệnh một dòng:
+
+```bash
+ansible all -i inventory.ini -m shell -a "uptime" 
+ansible web -i inventory.ini -m shell -a "df -h /" 
+```
+
+✅ **Checkpoint:** kết quả trả về từ **cả nhóm máy** trong một lần gõ.
+
+💡 Tưởng tượng 50 máy và câu hỏi *"máy nào sắp đầy ổ?"* — một dòng lệnh thay cho 50 lần SSH. Riêng khả năng này đã đủ để Ansible có chỗ đứng.
+
+Xem "facts" — thông tin Ansible tự thu thập về máy:
+```bash
+ansible web1 -i inventory.ini -m setup -a "filter=ansible_distribution*"
+```
+
+**Bạn sẽ thấy:** `ansible_distribution: Debian`, `ansible_distribution_version: 12`...
+
+💡 Chính những biến này được dùng trong template ở Bước 6.
+
+#### Bước 5 — Chạy thử trước khi làm thật
+
+```bash
+# tạo playbook.yml và templates/trang-chu.html.j2 theo phần LAB
+ansible-playbook -i inventory.ini playbook.yml --check --diff
+```
+
+**Bạn sẽ thấy** các dòng `changed` nhưng **không có gì thực sự bị thay đổi**:
+```text
+TASK [Cài nginx] ******************************
+changed: [web1]
+changed: [web2]
+```
+
+✅ **Checkpoint:** chạy xong mà hệ thống chưa bị đụng tới.
+
+💡 **`--check` là chế độ chạy khô** — Ansible báo *sẽ* làm gì mà không làm thật. Thêm `--diff` để thấy **chính xác từng dòng** file sẽ thay đổi. Đây là thói quen bắt buộc trước khi chạy lên production, giống `helm template` ở Ngày 42 và `terraform plan` ở Ngày 29.
+
+#### Bước 6 — Chạy thật
+
+```bash
+ansible-playbook -i inventory.ini playbook.yml
+```
+
+**Bạn sẽ thấy** phần tổng kết cuối cùng:
+```text
+PLAY RECAP *********************************************************
+db1   : ok=6    changed=5    unreachable=0    failed=0
+web1  : ok=9    changed=8    unreachable=0    failed=0
+web2  : ok=9    changed=8    unreachable=0    failed=0
+```
+
+✅ **Checkpoint:** `failed=0` ở cả ba máy, và `changed` lớn hơn 0.
+
+Kiểm chứng kết quả:
+```bash
+docker exec may-web1 curl -s localhost | head -12
+echo "=================="
+docker exec may-web2 curl -s localhost | grep "<h1>\|Vai trò"
+echo "=================="
+docker exec may-db1 cat /var/du-lieu/DOC-TRUOC.txt
+```
+
+**Bạn sẽ thấy:**
+```text
+<h1>Xin chào từ web1</h1>
+  <li>Vai trò: Máy web số 1</li>
+  <li>Hệ điều hành: Debian 12</li>
+  ...
+==================
+<h1>Xin chào từ web2</h1>
+  <li>Vai trò: Máy web số 2</li>
+==================
+Máy này giữ dữ liệu. Không xoá bừa.
+```
+
+✅ **Checkpoint:** **cùng một template** nhưng mỗi máy ra một nội dung khác — và máy `db1` không hề bị cài nginx.
+
+💡 Đây là sức mạnh của template kết hợp inventory: một file khuôn, nhiều máy, mỗi máy tự điền thông tin của mình.
+
+#### Bước 7 — Kiểm chứng idempotent (điểm cốt lõi hôm nay)
+
+Chạy lại **y hệt lệnh cũ**:
+
+```bash
+ansible-playbook -i inventory.ini playbook.yml
+```
+
+**Bạn sẽ thấy:**
+```text
+PLAY RECAP *********************************************************
+db1   : ok=6    changed=0    unreachable=0    failed=0
+web1  : ok=9    changed=0    unreachable=0    failed=0
+web2  : ok=9    changed=0    unreachable=0    failed=0
+```
+
+✅ **Checkpoint:** **`changed=0` ở mọi máy.**
+
+💡 **Hãy dừng lại và ngẫm:** Ansible kiểm tra từng thứ, thấy đã đúng trạng thái mong muốn, nên **không làm gì cả**. Handler cũng không chạy → nginx không bị khởi động lại. Nếu đây là Bash script thì lần chạy thứ hai đã ghi thêm vào file cấu hình và có thể làm hỏng dịch vụ.
+
+Giờ mô phỏng **trôi cấu hình** — ai đó sửa tay lên máy:
+
+```bash
+docker exec may-web1 sh -c 'echo "AI ĐÓ SỬA BẬY" > /var/www/html/index.html'
+docker exec may-web1 curl -s localhost
+```
+
+Chạy lại playbook:
+
+```bash
+ansible-playbook -i inventory.ini playbook.yml | grep -A2 "PLAY RECAP"
+docker exec may-web1 curl -s localhost | head -3
+```
+
+**Bạn sẽ thấy:**
+```text
+web1  : ok=9    changed=1    ...        ← ĐÚNG MỘT thay đổi: sửa lại file bị phá
+web2  : ok=9    changed=0    ...        ← máy không bị phá thì không đụng tới
+
+<!DOCTYPE html>
+<html lang="vi">
+```
+
+✅ **Checkpoint:** Ansible sửa **đúng cái sai**, không đụng tới phần còn lại.
+
+💡 **Đây chính là GitOps của Ngày 43, nhưng cho máy chủ thay vì cluster.** Cùng một ý tưởng: mô tả trạng thái mong muốn, chạy định kỳ, tự sửa những gì lệch.
+
+#### Bước 8 — Ansible Vault: mã hoá bí mật thật sự
+
+Nhớ Ngày 39: Secret của K8s chỉ là base64. Vault của Ansible thì mã hoá thật.
+
+```bash
+ansible-vault create bi-mat.yml
+# Nhập mật khẩu 2 lần, trình soạn thảo mở ra -> gõ nội dung:
+```
+
+Nội dung file:
+```yaml
+mat_khau_db: "MatKhauThatSuBiMat"
+khoa_api: "sk-that-su-bi-mat-123"
+```
+
+Lưu và thoát. Giờ xem file thô:
+
+```bash
+head -3 bi-mat.yml
+```
+
+**Bạn sẽ thấy:**
+```text
+$ANSIBLE_VAULT;1.1;AES256
+38396164653238623361393661383931363564326266383265393638623831633...
+64316562616434306339303436323064323537326638386637663830353965...
+```
+
+✅ **Checkpoint:** nội dung là chuỗi mã hoá AES256 — **không phải base64**.
+
+💡 **Khác biệt then chốt so với Ngày 39:** file này **commit vào Git được**. Không có mật khẩu vault thì không ai đọc nổi. Đây là cách xử lý bí mật đúng đắn khi mọi thứ phải nằm trong Git.
+
+Xem và dùng nó:
+```bash
+ansible-vault view bi-mat.yml            # nhập mật khẩu để xem
+ansible-playbook -i inventory.ini playbook.yml -e @bi-mat.yml --ask-vault-pass
+```
+
+#### Bước 9 — Dọn dẹp
+
+```bash
+cd ~/lab47-ansible
+docker compose down
+```
+
+💡 Giữ lại thư mục — nó là bộ khung tốt để bạn thử nghiệm thêm về sau.
+
+### 💡 Đi làm mới thấm (sách cơ bản hay bỏ quên)
+
+- **Ansible và Terraform không thay thế nhau.** Terraform **tạo ra** hạ tầng (máy, mạng, ổ đĩa); Ansible **cấu hình bên trong** máy. Quy trình thường thấy: `terraform apply` dựng VM → xuất danh sách IP ra inventory → `ansible-playbook` cấu hình. Dùng Terraform để cài gói phần mềm, hay dùng Ansible để tạo VPC, đều là dùng sai công cụ.
+- **`--check` không phải lúc nào cũng chính xác.** Task phụ thuộc vào kết quả của task trước (ví dụ: cấu hình một dịch vụ mà bước cài đặt chưa chạy) có thể báo sai trong chế độ chạy khô. Nó hữu ích, nhưng đừng tin tuyệt đối.
+- **`shell`/`command` là cửa thoát hiểm, không phải cửa chính.** Hai module này **không idempotent** — Ansible không biết lệnh của bạn làm gì. Bắt buộc phải dùng thì hãy thêm `creates:` hoặc `changed_when:` để nó biết khi nào cần chạy. Còn lại: luôn ưu tiên module chuyên dụng.
+- **Dùng `serial` để khỏi tự sập cả hệ thống.** Playbook mặc định chạy song song trên **mọi** máy. Với dịch vụ đang phục vụ, `serial: 1` (hoặc `serial: "25%"`) sẽ cập nhật lần lượt — giống rolling update của K8s. Không có nó, một cấu hình sai sẽ hạ toàn bộ đội máy cùng lúc.
+- **Ansible chậm với số máy lớn.** Đẩy qua SSH nên hàng trăm máy là thấy rõ. Bật `pipelining = True` trong `ansible.cfg` và tăng `forks` là cải thiện đáng kể.
+- **Role và Ansible Galaxy để khỏi viết lại.** Cài nginx, Docker, PostgreSQL — đã có người viết sẵn và kiểm thử kỹ trên [Galaxy](https://galaxy.ansible.com). Nhưng nhớ **đọc code trước khi dùng** và ghim phiên bản: bạn đang cho code của người lạ chạy với quyền root trên máy chủ của mình.
 
 ### 🎯 Đúc kết Ngày 47
 
 **3 điều phải mang theo:**
-1. **Ansible = cấu hình hàng loạt server tự động & đồng nhất qua SSH**, agentless (chỉ cần SSH + Python trên máy đích).
-2. **Terraform tạo hạ tầng (xây nhà), Ansible cấu hình bên trong (bài trí)** — bổ trợ, không cạnh tranh.
-3. **Idempotent = mô tả *đích* (trạng thái) chứ không mô tả *bước*** → chạy 10 lần vẫn an toàn; dùng module chuyên dụng, tránh `shell` bừa.
 
-> 🧠 **Một câu để nhớ:** Ansible **agentless** — chỉ cần SSH + Python trên máy đích, không cài agent gì cả. Đó là lý do nó dễ áp dụng cho server có sẵn.
+1. **Idempotent là tất cả.** Mô tả trạng thái mong muốn thay vì liệt kê các bước — nhờ đó playbook chạy lại lúc nào cũng an toàn, và tự sửa được trôi cấu hình.
+2. **Không cần agent.** SSH vào được máy nào là quản lý được máy đó ngay, không phải cài thêm gì.
+3. **Terraform tạo máy, Ansible cấu hình máy.** Phân vai rõ ràng thì hệ thống mới gọn.
 
-**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
-- [ ] Tạo inventory + `ansible all -m ping` thành công
-- [ ] Viết playbook cài + chạy nginx bằng module chuyên dụng
-- [ ] Chạy 2 lần và thấy lần 2 báo `changed=0` (idempotent)
-- [ ] Dùng `template` đẩy config có biến + handler reload
-- [ ] Giải thích Terraform vs Ansible và vì sao agentless là lợi thế
+> 🧠 **Một câu để nhớ:** Bash nói *"hãy làm các bước sau"*; Ansible nói *"máy phải trông như thế này"* — và tự kiểm tra xem còn thiếu gì.
 
-✅ **Kết quả đạt được:** Tự động cấu hình server hàng loạt bằng Ansible — bổ trợ hoàn hảo cho Terraform.
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+
+- [ ] Giải thích idempotent và vì sao Bash script thiếu nó lại nguy hiểm
+- [ ] Viết inventory chia nhóm và chạy lệnh cho riêng một nhóm
+- [ ] Dùng `--check --diff` để xem trước thay đổi
+- [ ] Viết template Jinja2 sinh nội dung khác nhau cho từng máy
+- [ ] Chứng minh `changed=0` khi chạy lại lần hai
+- [ ] Phá cấu hình bằng tay rồi chạy playbook và thấy nó sửa đúng chỗ sai
+- [ ] Mã hoá bí mật bằng Ansible Vault và nói rõ nó khác Secret của K8s thế nào
+- [ ] Nói được khi nào dùng Terraform, khi nào dùng Ansible
+
+✅ **Kết quả đạt được:** Một playbook cấu hình được cả đội máy trong một lệnh, chạy lại an toàn, tự sửa trôi cấu hình — kỹ năng cốt lõi để vận hành hạ tầng không dùng container.
 
 ---
 
@@ -6548,356 +7491,1191 @@ Ansible chỉ cần **SSH + Python** trên máy đích, **không cài agent** (k
 
 > ⏱️ ~90 phút · Loại: IaC
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 29 (Terraform cơ bản) → **Ngày 48 (Terraform "level team": module, remote state, nhiều môi trường)** → Ngày 49 (DevSecOps). Khi dự án lớn lên, đây là cách tổ chức để không loạn.
+> 🧭 **Bạn đang ở đâu:** Ngày 47 (Ansible cấu hình máy) → **Ngày 48 (Terraform ở mức dùng được trong đội)** → Ngày 49 (bảo mật pipeline). Ngày 29 bạn đã viết Terraform cho một người dùng một mình. Hôm nay giải ba vấn đề chỉ xuất hiện khi **làm việc theo đội**: lặp code, tranh chấp state, và nhiều môi trường.
 >
-> ✅ **Chuẩn bị:** đã nắm Terraform cơ bản (Ngày 29). Tài khoản cloud + 1 S3 bucket cho remote state (nếu thực hành).
+> ✅ **Chuẩn bị:** Docker đang chạy. **Không cần tài khoản cloud, không tốn một đồng nào** — ta dùng provider Docker để tạo hạ tầng thật trên máy, và MinIO làm kho lưu state tương thích S3.
+>
+> 🎁 **Cuối ngày bạn có gì:** một module tái sử dụng, state lưu từ xa như đội thật vẫn làm, và hai môi trường dev/prod sinh ra từ **cùng một bộ code**.
 
 ### 📘 Lý thuyết
 
-#### 1. Module — "hàm" cho hạ tầng (DRY)
+#### 1. Ba vấn đề xuất hiện khi Terraform ra khỏi máy cá nhân
 
-Thay vì copy-paste cấu hình 1 VM 10 lần, viết 1 **module** (vd `compute`) rồi gọi lại với tham số khác nhau. Sửa 1 chỗ, áp dụng mọi nơi — như viết hàm. Có module riêng của bạn + module từ **Terraform Registry**.
+| Vấn đề | Biểu hiện | Lời giải |
+|---|---|---|
+| **Lặp code** | 3 môi trường = 3 thư mục copy-paste, sửa một chỗ quên hai chỗ | **Module** |
+| **State ở máy cá nhân** | File `terraform.tfstate` nằm trên laptop bạn. Đồng nghiệp không có. Hai người chạy cùng lúc là hỏng | **Remote state + khoá** |
+| **Nhiều môi trường** | Cần dev và prod giống nhau về cấu trúc nhưng khác về quy mô | **Workspace** hoặc thư mục riêng |
 
-#### 2. Remote state — bắt buộc khi làm nhóm
+#### 2. State — hiểu đúng thì mọi thứ sáng ra
 
-Thay vì `.tfstate` ở máy cá nhân, lưu trên **S3** (hoặc tương đương) + **khoá bằng DynamoDB**:
+`terraform.tfstate` là **sổ ghi chép ánh xạ** giữa code và tài nguyên thật:
+
+```text
+  Code của bạn              State (sổ ghi)                Thực tế
+  resource "web" {...}  ←→  web = id "a3f2c9..."   ←→   container đang chạy
+```
+
+Không có state, Terraform **không biết** thứ nào nó đã tạo. Hệ quả rất thực tế:
+
+- Mất state → `terraform apply` tưởng chưa có gì → **tạo trùng toàn bộ hạ tầng**.
+- State ở laptop → đồng nghiệp chạy `apply` cũng tạo trùng.
+- Hai người chạy cùng lúc → hai bên ghi đè state của nhau → **sổ ghi sai lệch với thực tế**.
+
+> ⚠️ **State chứa bí mật ở dạng chữ thường.** Mật khẩu database, khoá truy cập — tất cả nằm trong đó. Vì vậy: **không bao giờ commit state vào Git**, và kho lưu state phải được mã hoá cùng phân quyền chặt.
+
+#### 3. Remote state + khoá
+
+Chuyển state lên kho dùng chung (S3, GCS, Terraform Cloud) thì cả đội nhìn cùng một sổ. Kèm theo đó là **khoá (lock)**: khi một người đang `apply`, người thứ hai bị chặn lại thay vì ghi đè.
+
+```text
+  Chưa có khoá:  A và B cùng apply  →  sổ ghi loạn, tài nguyên mồ côi
+  Có khoá:       A apply (giữ khoá) →  B nhận "state đang bị khoá, chờ chút"
+```
+
+#### 4. Module — hàm số của hạ tầng
+
+Module chỉ đơn giản là **một thư mục chứa file `.tf`** được dùng lại với tham số khác nhau. Hãy nghĩ nó như một hàm:
+
+```text
+  module (hàm)  ──  variables (tham số vào)  ──  outputs (giá trị trả về)
+```
+
+```hcl
+module "web" {
+  source    = "./modules/ung-dung"
+  ten       = "web"
+  so_ban    = 2
+}
+
+module "api" {
+  source    = "./modules/ung-dung"   # CÙNG module
+  ten       = "api"
+  so_ban    = 3                      # khác tham số
+}
+```
+
+Viết một lần, dùng nhiều nơi — đúng tinh thần Helm chart của Ngày 42, chỉ khác là cho hạ tầng.
+
+#### 5. Workspace — cùng code, nhiều bản state
+
+Một workspace = **một file state riêng** cho cùng một bộ code:
+
+```bash
+terraform workspace new dev
+terraform workspace new prod
+terraform workspace select dev
+```
+
+Trong code, đọc workspace đang dùng bằng `terraform.workspace` để đổi quy mô theo môi trường.
+
+> 🔑 **Nhưng hãy biết giới hạn của nó:** workspace hợp khi các môi trường **gần như giống hệt nhau**, chỉ khác quy mô. Khi dev và prod khác nhau về kiến trúc (prod có thêm bản dự phòng, thêm CDN, thêm tài khoản cloud riêng), phần lớn các đội chọn **thư mục riêng cho mỗi môi trường** — rõ ràng và ít rủi ro nhầm lẫn hơn. Nguy cơ lớn nhất của workspace là **quên `select` và lỡ tay apply nhầm lên production**.
+
+### 🧪 LAB — Module, remote state và hai môi trường
+
+**Cây thư mục:**
+
+```text
+lab48-terraform/
+├── modules/
+│   └── ung-dung/
+│       ├── main.tf           # module tái sử dụng
+│       ├── variables.tf
+│       └── outputs.tf
+├── main.tf                   # gọi module 2 lần
+├── variables.tf
+├── outputs.tf
+├── backend.tf                # cấu hình remote state (thêm ở Bước 5)
+└── minio-compose.yml         # kho S3 giả lập, chạy local
+```
+
+#### File 1 — `modules/ung-dung/variables.tf`
+
+```hcl
+variable "ten" {
+  description = "Tên ứng dụng, dùng để đặt tên container"
+  type        = string
+}
+
+variable "so_ban" {
+  description = "Số bản sao cần chạy"
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.so_ban > 0 && var.so_ban <= 10
+    error_message = "so_ban phải nằm trong khoảng 1 đến 10."
+  }
+}
+
+variable "cong_bat_dau" {
+  description = "Cổng đầu tiên trên máy chủ; các bản sau tăng dần"
+  type        = number
+}
+
+variable "moi_truong" {
+  description = "Tên môi trường (dev/prod)"
+  type        = string
+}
+
+variable "id_mang" {
+  description = "ID mạng Docker để gắn container vào"
+  type        = string
+}
+```
+
+#### File 2 — `modules/ung-dung/main.tf`
+
 ```hcl
 terraform {
-  backend "s3" {
-    bucket = "my-tfstate"
-    key    = "prod/terraform.tfstate"
-    # + DynamoDB table để lock
+  required_providers {
+    docker = {
+      source  = "kreuzwerker/docker"
+      version = "~> 3.0"
+    }
+  }
+}
+
+resource "docker_image" "nginx" {
+  name         = "nginx:1.27-alpine"
+  keep_locally = true          # giữ image lại khi destroy, đỡ phải tải lại
+}
+
+resource "docker_container" "ung_dung" {
+  count = var.so_ban           # tạo ra đúng số bản sao yêu cầu
+
+  name  = "${var.moi_truong}-${var.ten}-${count.index + 1}"
+  image = docker_image.nginx.image_id
+
+  ports {
+    internal = 80
+    external = var.cong_bat_dau + count.index
+  }
+
+  networks_advanced {
+    name = var.id_mang
+  }
+
+  # Ghi thông tin nhận diện vào trang chủ
+  command = [
+    "/bin/sh", "-c",
+    "echo '<h1>${var.ten} - bản ${count.index + 1} - môi trường ${var.moi_truong}</h1>' > /usr/share/nginx/html/index.html && nginx -g 'daemon off;'"
+  ]
+
+  labels {
+    label = "moi_truong"
+    value = var.moi_truong
+  }
+
+  labels {
+    label = "quan_ly_boi"
+    value = "terraform"
   }
 }
 ```
-- **State locking**: tránh 2 người `apply` cùng lúc làm hỏng state.
 
-#### 3. Quản nhiều môi trường
+#### File 3 — `modules/ung-dung/outputs.tf`
 
-- **Workspace**: nhiều môi trường (dev/staging/prod) từ cùng code (`terraform workspace`).
-- Hoặc **thư mục riêng + tfvars riêng** cho mỗi môi trường (nhiều team ưa cách này — rõ ràng hơn).
+```hcl
+output "ten_cac_container" {
+  description = "Danh sách tên container đã tạo"
+  value       = docker_container.ung_dung[*].name
+}
 
-#### 4. Variables nâng cao & Data source
+output "cac_cong" {
+  description = "Danh sách cổng truy cập"
+  value       = [for c in docker_container.ung_dung : c.ports[0].external]
+}
+```
 
-- **tfvars**, biến nhạy cảm (`sensitive = true`), `validation` cho biến.
-- **Data source**: tham chiếu tài nguyên đã tồn tại (không tạo, chỉ đọc).
+#### File 4 — `main.tf` (thư mục gốc)
 
-#### 5. Chất lượng & CI/CD
+```hcl
+terraform {
+  required_version = ">= 1.5"
+  required_providers {
+    docker = {
+      source  = "kreuzwerker/docker"
+      version = "~> 3.0"
+    }
+  }
+}
 
-`terraform fmt` (format), `terraform validate` (kiểm cú pháp), tích hợp vào CI (plan tự động khi PR, apply khi merge — có approval).
+provider "docker" {}
 
-> 🔑 Remote state là "sự thật" về hạ tầng của cả team — phải có **locking** + backup + **không commit** lên Git. Module giúp tái dùng; đừng lặp lại code hạ tầng.
+locals {
+  moi_truong = terraform.workspace        # tên workspace chính là tên môi trường
 
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
+  # Quy mô khác nhau theo môi trường
+  quy_mo = {
+    dev  = { web = 1, api = 1 }
+    prod = { web = 3, api = 2 }
+  }
 
-> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
+  cau_hinh = lookup(local.quy_mo, local.moi_truong, local.quy_mo["dev"])
+}
 
-**Module là "bản thiết kế chuẩn" của cả công ty.** Thay vì mỗi kỹ sư tự vẽ một kiểu VM (người quên mã hoá đĩa, người quên gắn tag), cả đội dùng chung một bản thiết kế "VM chuẩn" đã gói sẵn best-practice. Gọi module nghĩa là nói *"cho tôi một cái theo mẫu chuẩn, cỡ này"*. Cái lợi lớn hơn cả DRY: sửa bản mẫu một lần là **cả công ty được nâng cấp** — vá một lỗ hổng ở module, mọi nơi dùng nó đều an toàn theo.
+resource "docker_network" "mang" {
+  name = "mang-${local.moi_truong}"
+}
 
-**Remote state + lock — điều tối quan trọng khi rời khỏi việc làm một mình.** `.tfstate` là *tấm bản đồ* Terraform vẽ về hạ tầng, và nó **tin tấm bản đồ này tuyệt đối**. Để bản đồ trên laptop một người thì cả team mù. Tệ hơn: hai người `apply` cùng lúc là hai người vẽ đè lên một bản đồ → rách nát (state corruption), rất khó cứu. `lock` chính là quy tắc *"tại một thời điểm chỉ một người được cầm bút"*.
+module "web" {
+  source       = "./modules/ung-dung"
+  ten          = "web"
+  so_ban       = local.cau_hinh.web
+  cong_bat_dau = local.moi_truong == "prod" ? 8100 : 8000
+  moi_truong   = local.moi_truong
+  id_mang      = docker_network.mang.id
+}
 
-**Tách môi trường là để giới hạn thiệt hại, không chỉ cho gọn.** Một thao tác Terraform sai có thể xoá sạch cả một môi trường trong vài giây — nên câu hỏi thật sự là *"làm sao để không lỡ tay apply nhầm vào prod?"*. Dùng **thư mục riêng** (`environments/dev`, `/prod`) buộc bạn phải `cd` vào đúng chỗ mới chạm tới prod → khó nhầm hơn hẳn **workspace** (chỉ khác một lệnh `switch` rất dễ quên). Đây là lý do nhiều team production chọn folder.
+module "api" {
+  source       = "./modules/ung-dung"       # CÙNG module, khác tham số
+  ten          = "api"
+  so_ban       = local.cau_hinh.api
+  cong_bat_dau = local.moi_truong == "prod" ? 8150 : 8050
+  moi_truong   = local.moi_truong
+  id_mang      = docker_network.mang.id
+}
+```
 
-### 🧪 Lab cơ bản
+#### File 5 — `outputs.tf`
 
-1. Tách hạ tầng thành module (vd module mạng, module compute).
-2. Cấu hình remote state trên S3 với DynamoDB lock.
-3. Dùng workspace tạo môi trường dev và prod từ cùng code.
-4. Dùng tfvars truyền biến khác nhau cho mỗi môi trường.
-5. Thêm bước `terraform plan` vào pipeline CI để review thay đổi hạ tầng.
+```hcl
+output "moi_truong_dang_dung" {
+  value = terraform.workspace
+}
 
-### 🚀 Lab nâng cao (best-practice)
+output "container_web" {
+  value = module.web.ten_cac_container
+}
 
-> Mục tiêu: cấu trúc Terraform quy mô lớn — module tái dùng, state remote khóa, plan trong CI.
+output "container_api" {
+  value = module.api.ten_cac_container
+}
 
-1. **Module tái dùng + tham số hóa:**
-   ```hcl
-   module "web_server" {
-     source        = "./modules/compute"
-     instance_type = var.instance_type
-     environment   = terraform.workspace
-   }
-   ```
-2. **Remote state + locking** (đã giới thiệu Ngày 29) — bắt buộc cho team.
-3. **Tách môi trường:** mỗi env một state key/folder + tfvars riêng (nhiều team dùng folder thay vì workspace cho rõ ràng).
-4. **Terraform trong CI/CD:** PR chạy `fmt` + `validate` + `plan` (comment plan vào PR); merge main chạy `apply` (có approval). Quét `tfsec`/`checkov` tìm cấu hình sai bảo mật.
+output "duong_dan_truy_cap" {
+  value = [for p in concat(module.web.cac_cong, module.api.cac_cong) : "http://localhost:${p}"]
+}
+```
 
-### 💡 Bổ sung thực tế: những cái đi làm mới thấm
+#### File 6 — `minio-compose.yml`
 
-- **Đọc kỹ `plan`: `~` (sửa tại chỗ) rất khác `-/+` (xoá rồi tạo lại):** một số thay đổi buộc Terraform **thay thế** tài nguyên (mất dữ liệu, đổi IP). Đổi tên một resource trong code cũng bị coi là xoá cái cũ + tạo cái mới — dùng block `moved` (hoặc `terraform state mv`) để đổi tên mà không phá.
-- **`.tfstate` là dữ liệu nhạy cảm, không chỉ là file kỹ thuật:** nó lưu *plaintext* nhiều giá trị (password, key sinh ra). Vì vậy remote backend phải bật mã hoá + siết quyền truy cập, và tuyệt đối **không commit lên Git**. Coi tfstate như một secret.
-- **Ghim version provider & module:** dùng `required_version` và `~>` cho provider/module — một bản provider mới bất ngờ có thể đổi cách sinh tài nguyên, làm `plan` ra khác hẳn, thậm chí đòi replace. Nâng cấp có chủ đích, đừng để tự trôi.
-- **Chia nhỏ state để thu hẹp "blast radius":** đừng nhét cả công ty vào một state khổng lồ — tách theo tầng (networking / data / app). Một `apply` khi đó chỉ đụng một mảng, khoá ngắn hơn, và một lỗi không kéo sập mọi thứ. Nối các state bằng `data source`/remote state outputs.
-- **Terraform phát hiện drift nhưng không tự sửa:** ai đó bấm sửa trên console cloud → lần `plan` sau Terraform báo lệch, nhưng nó chỉ *reconcile khi bạn `apply`* (giống Ansible push, khác ArgoCD self-heal). Chạy `plan` định kỳ trong CI để bắt drift sớm.
+```yaml
+services:
+  minio:
+    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+    container_name: minio-state
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"      # API tương thích S3
+      - "9001:9001"      # giao diện web
+    environment:
+      MINIO_ROOT_USER: quantri
+      MINIO_ROOT_PASSWORD: matkhau123
+    volumes:
+      - minio-data:/data
 
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+volumes:
+  minio-data:
+```
 
-**Trình tự nên làm:** tách module → cấu hình remote state (S3 + lock) → dùng workspace/tfvars cho dev/prod → thêm `plan` vào CI.
+### 🧭 Hướng dẫn làm LAB — step by step
 
-**Giải nghĩa & kết quả mong đợi:**
-- `module "x" { source = "./modules/compute" ... }` — gọi lại cấu hình như hàm. *Kết quả:* `plan` sạch, module dùng lại được.
-- `backend "s3" {...}` + DynamoDB lock — state ở remote, khóa khi apply. *Kết quả:* state không nằm local; 2 người không apply đè nhau.
-- `terraform workspace new dev/prod` — nhiều môi trường từ cùng code.
+#### Bước 1 — Cài Terraform (nếu chưa có từ Ngày 29)
 
-**🧪 Thử nghiệm:**
-- `terraform workspace list` → chuyển dev/prod, `apply` với tfvars khác → tài nguyên khác nhau. **Bài học:** tham số hóa môi trường.
-- Mở 2 terminal cùng `apply` trên state remote có lock → cái thứ 2 bị chặn. **Bài học:** state locking chống hỏng.
+```bash
+terraform version || {
+  wget -O- https://apt.releases.hashicorp.com/gpg | \
+    sudo gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg
+  echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] \
+    https://apt.releases.hashicorp.com $(lsb_release -cs) main" | \
+    sudo tee /etc/apt/sources.list.d/hashicorp.list
+  sudo apt update && sudo apt install -y terraform
+}
+terraform version
+```
 
-⚠️ **Dễ sai:** workspace dễ nhầm apply nhầm môi trường. Nhiều team production dùng **thư mục riêng** (`environments/dev`, `/prod`) cho rõ ràng.
+**Bạn sẽ thấy:** `Terraform v1.10.x`.
 
-💡 **Hiểu sâu:** module = DRY cho hạ tầng (đừng copy-paste 10 lần). Remote state + lock = bắt buộc khi làm team. `plan` trong CI = "code review cho hạ tầng".
+✅ **Checkpoint:** in ra phiên bản `v1.5` trở lên.
 
-### 🐛 Gỡ lỗi nhanh
+#### Bước 2 — Tạo cấu trúc module và khởi tạo
 
-| Triệu chứng | Nguyên nhân | Cách sửa |
-|---|---|---|
-| `Error acquiring the state lock` | Người khác đang apply / lock cũ | Chờ; hoặc `force-unlock <id>` (cẩn thận) |
-| Apply nhầm môi trường | Sai workspace / thư mục | Kiểm `terraform workspace show`; dùng thư mục riêng |
-| Module không tìm thấy | Sai `source` | Đúng đường dẫn/registry; `terraform init` lại |
-| State không đồng bộ team | Vẫn dùng state local | Chuyển sang backend S3 + lock |
-| Biến nhạy cảm in ra plan | Thiếu `sensitive = true` | Đánh dấu `sensitive`; không log giá trị |
+```bash
+mkdir -p ~/lab48-terraform/modules/ung-dung && cd ~/lab48-terraform
+# tạo 5 file .tf theo phần LAB
+terraform init
+```
 
-### 📝 Bài ôn tập & Demo đối chiếu
+**Bạn sẽ thấy:**
+```text
+Initializing modules...
+- api in modules/ung-dung
+- web in modules/ung-dung
 
-**✍️ Tự kiểm tra:**
+Initializing provider plugins...
+- Installing kreuzwerker/docker v3.x.x...
 
-<details>
-<summary>1. Vì sao cần remote state khi làm nhóm?</summary>
+Terraform has been successfully initialized!
+```
 
-> Để cả team dùng chung 1 state (nguồn sự thật), có lock tránh 2 người apply cùng lúc làm hỏng, không mất khi máy cá nhân hỏng.
-</details>
+✅ **Checkpoint:** dòng `Initializing modules...` liệt kê **cả `web` và `api`** — hai lần dùng, cùng một thư mục module.
 
-<details>
-<summary>2. Module giúp gì cho tái sử dụng?</summary>
+⚠️ **Nếu lỗi `Failed to query available provider packages`:** kiểm tra mạng. Nếu lỗi kết nối Docker, xác nhận `docker ps` chạy được không cần `sudo` (Ngày 34).
 
-> Đóng gói cấu hình hạ tầng như "hàm" — gọi lại nhiều lần với tham số khác, sửa 1 chỗ áp dụng mọi nơi (DRY).
-</details>
+#### Bước 3 — Tạo môi trường dev
 
-<details>
-<summary>3. Quản nhiều môi trường bằng cách nào?</summary>
+```bash
+terraform workspace new dev
+terraform plan
+```
 
-> Workspace (cùng code, khác state) hoặc thư mục riêng + tfvars riêng (`environments/dev`, `/prod` — rõ ràng, ít nhầm hơn).
-</details>
+**Bạn sẽ thấy** cuối phần plan:
+```text
+Plan: 5 to add, 0 to change, 0 to destroy.
+```
 
-<details>
-<summary>4. Đưa `terraform plan` vào CI có lợi gì?</summary>
+(1 network + 1 web + 1 api + 2 image = 5)
 
-> "Code review cho hạ tầng" — reviewer thấy chính xác PR sẽ tạo/xoá gì trước khi merge, chặn xoá nhầm.
-</details>
+```bash
+terraform apply -auto-approve
+```
 
-**🔬 Demo đối chiếu:**
+**Bạn sẽ thấy** phần outputs:
+```text
+Outputs:
 
-| Demo đối chiếu | Kết quả mong đợi |
-|---|---|
-| Tách module | Module dùng lại được, `plan` sạch |
-| Remote state | State nằm trên backend (S3), không local |
-| Workspace | `terraform workspace list` hiện dev/prod |
+container_api = ["dev-api-1"]
+container_web = ["dev-web-1"]
+duong_dan_truy_cap = ["http://localhost:8000", "http://localhost:8050"]
+moi_truong_dang_dung = "dev"
+```
 
-### 📚 Thuật ngữ Anh–Việt (ngày này)
+Kiểm chứng:
+```bash
+docker ps --filter "label=moi_truong=dev" --format "table {{.Names}}\t{{.Ports}}"
+curl -s localhost:8000
+```
 
-| Thuật ngữ | Nghĩa |
-|---|---|
-| **Module** | Gói tài nguyên tái dùng (như hàm) |
-| **Remote state** | State lưu trên backend chung (S3) |
-| **State locking** | Khoá tránh apply đồng thời |
-| **Workspace** | Nhiều môi trường từ cùng code |
-| **tfvars** | File giá trị biến |
-| **Data source** | Đọc tài nguyên đã tồn tại |
-| **DRY** | Don't Repeat Yourself |
+**Bạn sẽ thấy:**
+```text
+NAMES        PORTS
+dev-api-1    0.0.0.0:8050->80/tcp
+dev-web-1    0.0.0.0:8000->80/tcp
+
+<h1>web - bản 1 - môi trường dev</h1>
+```
+
+✅ **Checkpoint:** 2 container chạy thật, tên có tiền tố `dev-`.
+
+#### Bước 4 — Tạo môi trường prod từ CÙNG bộ code
+
+Đây là bước cho thấy giá trị của workspace:
+
+```bash
+terraform workspace new prod
+terraform workspace list
+```
+
+**Bạn sẽ thấy:**
+```text
+  default
+  dev
+* prod            ← dấu * là workspace đang dùng
+```
+
+```bash
+terraform apply -auto-approve
+docker ps --filter "label=quan_ly_boi=terraform" --format "table {{.Names}}\t{{.Ports}}"
+```
+
+**Bạn sẽ thấy:**
+```text
+NAMES        PORTS
+prod-api-1   0.0.0.0:8150->80/tcp
+prod-api-2   0.0.0.0:8151->80/tcp
+prod-web-1   0.0.0.0:8100->80/tcp
+prod-web-2   0.0.0.0:8101->80/tcp
+prod-web-3   0.0.0.0:8102->80/tcp
+dev-api-1    0.0.0.0:8050->80/tcp
+dev-web-1    0.0.0.0:8000->80/tcp
+```
+
+✅ **Checkpoint:** prod có **5 container** (3 web + 2 api), dev vẫn nguyên 2 container — **hai môi trường sống song song từ một bộ code**.
+
+Xem state được tách ra thế nào:
+```bash
+ls terraform.tfstate.d/
+```
+
+**Bạn sẽ thấy:**
+```text
+dev  prod
+```
+
+💡 **Mỗi workspace một file state riêng** — đó là toàn bộ cơ chế. Code chung, sổ ghi riêng.
+
+⚠️ **Và đây cũng là chỗ nguy hiểm:** gõ `terraform destroy` mà quên kiểm tra đang ở workspace nào thì bạn xoá nhầm production. Hãy tạo thói quen chạy `terraform workspace show` **trước mọi lệnh apply/destroy**.
+
+#### Bước 5 — Chuyển state lên kho từ xa
+
+Đến giờ state vẫn nằm trong thư mục của bạn. Hãy chuyển lên kho dùng chung.
+
+Dựng MinIO (đóng vai S3):
+
+```bash
+# tạo minio-compose.yml theo phần LAB
+docker compose -f minio-compose.yml up -d
+sleep 5
+
+# Tạo bucket chứa state
+docker run --rm --network host --entrypoint sh minio/mc:latest -c "
+  mc alias set local http://127.0.0.1:9000 quantri matkhau123 &&
+  mc mb --ignore-existing local/terraform-state &&
+  mc ls local"
+```
+
+**Bạn sẽ thấy:**
+```text
+Added `local` successfully.
+Bucket created successfully `local/terraform-state`.
+[...] terraform-state/
+```
+
+✅ **Checkpoint:** bucket `terraform-state` đã tạo.
+
+Tạo `backend.tf`:
+
+```hcl
+terraform {
+  backend "s3" {
+    bucket = "terraform-state"
+    key    = "lab48/terraform.tfstate"
+    region = "us-east-1"                  # MinIO không dùng, nhưng bắt buộc khai
+
+    endpoints = {
+      s3 = "http://127.0.0.1:9000"
+    }
+
+    access_key = "quantri"
+    secret_key = "matkhau123"
+
+    # Các tuỳ chọn để làm việc được với S3 giả lập
+    skip_credentials_validation = true
+    skip_metadata_api_check     = true
+    skip_region_validation      = true
+    skip_requesting_account_id  = true
+    use_path_style              = true
+  }
+}
+```
+
+> ⚠️ Ở lab ta viết thẳng khoá vào file cho gọn. **Production tuyệt đối không** — dùng biến môi trường `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` hoặc IAM role.
+
+Chuyển state lên:
+
+```bash
+terraform init -migrate-state
+# Gõ: yes  khi được hỏi có chuyển state hiện có lên backend mới không
+```
+
+**Bạn sẽ thấy:**
+```text
+Successfully configured the backend "s3"! Terraform will automatically
+use this backend unless the backend configuration changes.
+```
+
+Kiểm chứng state đã nằm trên kho:
+
+```bash
+docker run --rm --network host --entrypoint sh minio/mc:latest -c "
+  mc alias set local http://127.0.0.1:9000 quantri matkhau123 >/dev/null &&
+  mc ls -r local/terraform-state"
+```
+
+**Bạn sẽ thấy:**
+```text
+[...] 12KiB STANDARD env:prod/lab48/terraform.tfstate
+[...]  9KiB STANDARD env:dev/lab48/terraform.tfstate
+```
+
+✅ **Checkpoint:** state của **cả hai workspace** đã nằm trên kho dùng chung.
+
+💡 **Ý nghĩa thực tế:** giờ đồng nghiệp chỉ cần `terraform init` là thấy đúng hạ tầng bạn đang quản. Laptop bạn hỏng cũng không mất sổ ghi. Đây là điều kiện tối thiểu để Terraform dùng được trong đội.
+
+#### Bước 6 — Đọc state như một công cụ điều tra
+
+```bash
+terraform state list
+```
+
+**Bạn sẽ thấy:**
+```text
+docker_network.mang
+module.api.docker_image.nginx
+module.api.docker_container.ung_dung[0]
+module.api.docker_container.ung_dung[1]
+module.web.docker_container.ung_dung[0]
+module.web.docker_container.ung_dung[1]
+module.web.docker_container.ung_dung[2]
+...
+```
+
+✅ **Checkpoint:** thấy rõ đường dẫn phân cấp `module.<tên>.<tài nguyên>[chỉ số]`.
+
+Xem chi tiết một tài nguyên:
+```bash
+terraform state show 'module.web.docker_container.ung_dung[0]' | head -20
+```
+
+💡 **Đây là công cụ điều tra chính khi Terraform hành xử khó hiểu.** Câu hỏi *"vì sao nó muốn tạo lại cái này?"* thường được trả lời bằng cách so state với thực tế.
+
+#### Bước 7 — Thấy trôi cấu hình và cách Terraform sửa
+
+Xoá một container bằng tay (giả lập người khác lỡ tay):
+
+```bash
+docker rm -f prod-web-2
+terraform plan
+```
+
+**Bạn sẽ thấy:**
+```text
+Note: Objects have changed outside of Terraform
+  # module.web.docker_container.ung_dung[1] has been deleted
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+```
+
+✅ **Checkpoint:** Terraform **phát hiện** thứ bị xoá ngoài luồng và đề nghị tạo lại.
+
+```bash
+terraform apply -auto-approve
+docker ps --filter "name=prod-web" --format "{{.Names}}"
+```
+
+**Bạn sẽ thấy** đủ lại 3 container.
+
+💡 Ba ngày liên tiếp bạn gặp lại đúng một ý tưởng: **ArgoCD (43)**, **Ansible (47)**, **Terraform (48)** — tất cả đều so *mong muốn* với *thực tế* rồi sửa cho khớp. Nắm chắc khuôn tư duy này thì công cụ nào cũng học nhanh.
+
+#### Bước 8 — Dọn dẹp đúng thứ tự
+
+```bash
+terraform workspace select prod
+terraform destroy -auto-approve
+
+terraform workspace select dev
+terraform destroy -auto-approve
+
+terraform workspace select default
+terraform workspace delete dev
+terraform workspace delete prod
+
+docker compose -f minio-compose.yml down -v
+```
+
+✅ **Checkpoint:** `docker ps` không còn container nào của lab.
+
+⚠️ Luôn `destroy` **từng workspace** trước khi xoá nó. Xoá workspace khi tài nguyên còn sống sẽ để lại **hạ tầng mồ côi** — vẫn chạy, vẫn tính tiền, nhưng không còn code nào quản lý. Trên cloud thật thì đây là kiểu lãng phí rất khó phát hiện.
+
+### 💡 Đi làm mới thấm (sách cơ bản hay bỏ quên)
+
+- **Khoá state là bắt buộc, không phải tuỳ chọn.** Hai người cùng `apply` mà không có khoá thì state hỏng, và dọn dẹp rất đau. Trên AWS: dùng `use_lockfile = true` (Terraform 1.10 trở lên) hoặc bảng DynamoDB theo cách cũ. Trên GCS: khoá có sẵn.
+- **Ghim phiên bản provider và module.** `version = "~> 3.0"` cho provider, `?ref=v1.2.0` cho module lấy từ Git. Không ghim thì hôm nay `apply` ra một kiểu, tháng sau ra kiểu khác — đúng bài học `latest` của Ngày 33, ở tầng hạ tầng.
+- **`terraform plan` phải được đọc, không phải lướt qua.** Chú ý những dòng bắt đầu bằng `-/+` (**huỷ rồi tạo lại**). Với một container thì không sao; với một database production thì đó là mất dữ liệu. Nhiều tài nguyên có `lifecycle { prevent_destroy = true }` chính vì lý do này.
+- **State chứa bí mật ở dạng chữ thường.** Mật khẩu database do Terraform tạo ra nằm nguyên trong state. Bật mã hoá cho bucket, siết quyền truy cập, và **không bao giờ** `git add terraform.tfstate`.
+- **`terraform import` để tiếp quản hạ tầng có sẵn.** Vào công ty mới, hạ tầng đã dựng tay hết — không cần đập đi xây lại. Viết code mô tả nó rồi `import` vào state, dần dần đưa mọi thứ về IaC.
+- **Đừng dùng workspace cho dev/prod khi hai môi trường khác nhau nhiều.** Nghe tiện nhưng rủi ro apply nhầm là có thật, và khi kiến trúc bắt đầu khác nhau thì code sẽ đầy `if`. Đa số đội chọn thư mục riêng cho mỗi môi trường, dùng chung module — rõ ràng hơn và an toàn hơn.
 
 ### 🎯 Đúc kết Ngày 48
 
 **3 điều phải mang theo:**
-1. **Module = bản thiết kế chuẩn tái dùng** (DRY cho hạ tầng): sửa một chỗ, cả nơi dùng đều được nâng cấp.
-2. **Remote state + locking bắt buộc khi làm team:** một bản đồ chung, một người cầm bút tại một thời điểm; và `.tfstate` là secret, không commit Git.
-3. **Tách môi trường (folder riêng an toàn hơn workspace) để giới hạn "blast radius";** đưa `plan` vào CI = code review cho hạ tầng.
 
-> 🧠 **Một câu để nhớ:** đưa `terraform plan` vào CI = "code review cho hạ tầng" — reviewer thấy chính xác PR sẽ tạo/xóa gì *trước khi* merge, chặn được những lệnh xóa nhầm thảm họa.
+1. **State là sổ ghi chép ánh xạ code ↔ thực tế.** Mất nó thì Terraform mù; để nó ở laptop thì cả đội không dùng chung được; không khoá nó thì hai người là hỏng.
+2. **Module là hàm số của hạ tầng** — viết một lần, gọi nhiều nơi với tham số khác nhau. Hết cảnh copy-paste giữa các môi trường.
+3. **Workspace tách state cho cùng bộ code**, hợp khi các môi trường gần giống nhau. Khác nhau nhiều thì tách thư mục an toàn hơn.
 
-**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
-- [ ] Tách hạ tầng thành module và gọi lại với tham số khác nhau
-- [ ] Cấu hình remote state (S3) + locking
-- [ ] Quản dev/prod bằng workspace hoặc folder + tfvars riêng
-- [ ] Đọc `plan` và phân biệt `~` (update) vs `-/+` (replace)
-- [ ] Thêm `fmt` + `validate` + `plan` vào CI
+> 🧠 **Một câu để nhớ:** Terraform không nhìn vào cloud để biết bạn có gì — **nó nhìn vào state**. Hiểu điều đó là hiểu 90% những hành vi kỳ lạ của nó.
 
-✅ **Kết quả đạt được:** Quản lý hạ tầng quy mô lớn với Terraform module, remote state, đa môi trường.
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+
+- [ ] Giải thích state là gì và điều gì xảy ra khi mất nó
+- [ ] Viết module có `variables` + `outputs` và gọi nó hai lần với tham số khác nhau
+- [ ] Chuyển state từ local lên remote bằng `init -migrate-state`
+- [ ] Nói rõ vì sao cần khoá state và cách bật nó trên AWS
+- [ ] Dùng workspace tạo hai môi trường và chỉ ra file state của từng cái
+- [ ] Đọc `terraform plan` và nhận ra dấu hiệu tài nguyên sẽ bị huỷ-tạo-lại
+- [ ] Phát hiện trôi cấu hình và để Terraform sửa lại
+- [ ] Nêu 2 lý do không nên commit state vào Git
+
+✅ **Kết quả đạt được:** Terraform ở mức dùng được trong đội — code không lặp, state dùng chung an toàn, nhiều môi trường sinh ra từ một nguồn duy nhất.
 
 ---
 
 ## Ngày 49 — Bảo mật DevSecOps & Best Practices
 
-> ⏱️ ~90 phút · Loại: Security
+> ⏱️ ~90 phút · Loại: Bảo mật
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 48 (Terraform nâng cao) → **Ngày 49 (DevSecOps — nhét bảo mật vào mọi bước)** → Ngày 50 (Milestone GĐ3). Bảo mật không phải "làm cuối"; càng phát hiện sớm càng rẻ.
-
-> ✅ **Chuẩn bị:** pipeline CI (Ngày 32), cluster K8s. Cài `trivy`, `tfsec`, `gitleaks` để thực hành.
+> 🧭 **Bạn đang ở đâu:** Ngày 48 (Terraform trong đội) → **Ngày 49 (gài bảo mật vào chính pipeline)** → Ngày 50 (Milestone ghép toàn bộ). Suốt Giai đoạn 3 bạn đã dựng được dây chuyền tự động; hôm nay dạy nó **tự từ chối** những thứ không an toàn.
+>
+> ✅ **Chuẩn bị:** repo `ci-demo` (Ngày 31–34) và thư mục `lab48-terraform` (Ngày 48). Docker đang chạy — mọi công cụ hôm nay chạy bằng container, **không cần cài gì lên máy**.
+>
+> 🎁 **Cuối ngày bạn có gì:** 4 lớp quét tự động chặn được lỗ hổng, bí mật lộ, Dockerfile ẩu và cấu hình hạ tầng nguy hiểm — tất cả chạy ngay trong CI, cộng một lần **tự tay làm lộ mật khẩu rồi tự tìm ra nó**.
 
 ### 📘 Lý thuyết
 
-#### 1. DevSecOps & Shift-left
+#### 1. Vấn đề: bảo mật kiểm tra cuối cùng thì đã quá muộn
 
-Tư duy cũ: làm xong hết mới kiểm tra bảo mật (cuối). Tư duy mới **"shift-left"**: kiểm tra ngay khi viết code/mở PR. Lỗ hổng phát hiện càng muộn càng **đắt** để sửa (gấp nghìn lần khi đã lên production).
+Cách làm cũ: viết code vài tháng → trước khi lên production, đội bảo mật rà soát → tìm ra 50 vấn đề → sửa lại rất tốn kém, và ai cũng bực.
 
-#### 2. Năm loại "quét" tự động trong pipeline
+**Shift-left** nghĩa là đẩy việc kiểm tra về **phía trái** của dòng thời gian — càng sớm càng rẻ:
 
-| Loại | Quét gì | Công cụ |
-|---|---|---|
-| **SCA** | Thư viện/dependency có CVE | Trivy, Dependabot, Snyk |
-| **SAST** | Lỗ hổng trong code của bạn | Semgrep, CodeQL |
-| **Image scan** | Lỗ hổng trong image OS/lib | Trivy, Grype |
-| **IaC scan** | Cấu hình hạ tầng sai (S3 public...) | tfsec, checkov |
-| **Secret scan** | Secret lỡ commit | gitleaks, trufflehog |
-
-#### 3. Bảo vệ trong cluster
-
-- **NetworkPolicy**: quy định pod nào được nói chuyện với pod nào (vd chỉ backend gọi được DB). Nên **deny-by-default**.
-- **RBAC**: phân quyền tối thiểu cho từng tài khoản/service account — không cấp `cluster-admin` bừa.
-
-#### 4. Secret & Supply chain
-
-- **Secret management**: Vault / cloud Secrets Manager — không bao giờ hard-code.
-- **Supply chain**: ký image (**cosign**), **SBOM** (danh mục thành phần) — biết chính xác đang chạy gì; ghim version.
-
-#### 5. Compliance & audit
-
-Log mọi thay đổi, quét cấu hình sai định kỳ (`tfsec`, `kube-bench` — kiểm cluster theo CIS benchmark).
-
-> 🔑 Bảo mật là **nhiều lớp** (defense in depth): firewall → NetworkPolicy → RBAC → least privilege → quét → quản secret. Không lớp nào đủ một mình.
-
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
-
-> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
-
-**Sửa lỗi càng muộn càng như đục lại tường đã xây.** Sửa một lỗ hổng lúc đang code giống như tẩy một dòng viết chì; sửa nó khi đã lên production giống như phải đục lại bức tường đã trát vữa. "Shift-left" chỉ có nghĩa: kéo khâu kiểm tra về phía *trái* (sớm) trên dòng thời gian, nơi sửa còn rẻ. Bởi vậy bảo mật không phải cái cổng gác duy nhất ngay trước lúc release, mà là **một dãy cảm biến đặt dọc suốt con đường** từ lúc gõ dòng code đầu tiên.
-
-**5 loại quét = 5 cánh cửa có thể bị đột nhập.** Mỗi loại canh một cửa: **SCA** (thư viện bên thứ ba bạn kéo về), **SAST** (code do chính bạn viết), **image scan** (nền OS bên trong container), **IaC scan** (cấu hình hạ tầng — cửa hay bị quên nhất, kiểu "lỡ để S3 public"), **secret scan** (chìa khoá rơi trong commit). Kẻ xấu không cần mọi cửa hở — **chỉ một** là đủ, nên bạn phải canh cả năm.
-
-**Nguyên tắc ngầm: "giả định sẽ bị chọc thủng".** Bảo mật tốt không đặt cược vào một bức tường duy nhất; nó giả định kẻ xấu *sẽ* vào được một lớp, nên khoanh sẵn để thiệt hại không lan. **NetworkPolicy deny-by-default** = mặc định cấm mọi pod nói chuyện, chỉ mở đúng đường thật sự cần. **RBAC least privilege** = không phát "chìa khoá vạn năng" (`cluster-admin`) cho ai bừa. Vào được một phòng không có nghĩa vào được cả toà nhà.
-
-### 🧪 Lab cơ bản
-
-1. Tích hợp Trivy vào pipeline CI để quét lỗ hổng image, fail nếu có lỗi nghiêm trọng.
-2. Quét dependency của app tìm lỗ hổng đã biết.
-3. Tạo K8s NetworkPolicy giới hạn pod backend chỉ nhận traffic từ frontend.
-4. Cấu hình RBAC: tạo role chỉ đọc trong namespace.
-5. Chạy tfsec quét cấu hình Terraform tìm vấn đề bảo mật.
-
-### 🚀 Lab nâng cao (best-practice)
-
-> Mục tiêu: nhúng bảo mật vào mọi tầng — code, image, hạ tầng, runtime.
-
-1. **Quét nhiều tầng trong CI** (mỗi PR):
-   ```yaml
-   - run: trivy fs --severity HIGH,CRITICAL --exit-code 1 .   # dependency + secret
-   - run: trivy image --severity CRITICAL --exit-code 1 myapp # lỗ hổng image
-   - run: tfsec ./infra                                        # cấu hình IaC sai
-   ```
-2. **NetworkPolicy deny-by-default** trong K8s — pod chỉ nói chuyện với pod được phép.
-3. **RBAC least privilege** — mỗi service account chỉ quyền tối thiểu; không dùng `cluster-admin` bừa.
-4. **Ký image (cosign) + SBOM** — đảm bảo image chạy đúng là image bạn build, biết rõ thành phần bên trong.
-
-### 💡 Bổ sung thực tế: những cái đi làm mới thấm
-
-- **Scanner ồn sẽ bị dev tắt — phải phân loại, đừng fail vì mọi CVE:** một lần quét ra hàng trăm CVE, phần lớn không khai thác được trong ngữ cảnh của bạn. Chỉ **fail build với CRITICAL/HIGH có bản vá**, dùng file bỏ qua (vd `.trivyignore`) *có review* cho những cái đã đánh giá là chấp nhận được. Không thì "alert fatigue" lặp lại đúng như với monitoring.
-- **CVE ở base image thì đổi base tốt hơn vá từng cái:** rất nhiều lỗ hổng nằm trong OS nền của image. Chuyển sang base nhỏ (alpine/distroless) cắt phần lớn bề mặt tấn công một phát, thay vì đuổi theo vá từng gói.
-- **Secret bị gitleaks bắt = đã lộ, xoá commit KHÔNG đủ:** nó vẫn nằm trong history, các bản clone và fork. Việc đúng là **xoay (rotate) ngay** bí mật đó, rồi mới dọn history. (Bài học lặp lại từ logging — vì nó quá quan trọng.)
-- **SBOM biến "mình có dính không?" thành câu trả lời trong vài giây:** khi một lỗ hổng lớn được công bố (kiểu Log4Shell), có SBOM (+ ký image bằng cosign) là tra ra ngay image nào chứa thành phần đó — không phải build lại tất cả để quét.
-- **Bảo mật là quá trình liên tục, không phải một lần quét lúc build:** CVE mới xuất hiện mỗi ngày trên chính image *đang chạy* mà bạn chẳng đổi gì. Phải quét định kỳ cả image đã deploy, và áp least privilege cho *cả* token CI và con người, không riêng service account.
-
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
-
-**Trình tự nên làm:** tích hợp Trivy quét image vào CI → quét dependency → tạo NetworkPolicy → cấu hình RBAC → chạy tfsec.
-
-**Giải nghĩa & kết quả mong đợi:**
-- `trivy image myapp` — quét lỗ hổng image; `--exit-code 1` để **chặn** CI nếu có lỗ hổng nghiêm trọng. *Kết quả:* bảng CVE theo mức độ.
-- NetworkPolicy — giới hạn pod nào nói chuyện với pod nào (vd backend chỉ nhận từ frontend).
-- RBAC — Role + RoleBinding cấp quyền tối thiểu cho service account.
-- `tfsec ./infra` — quét cấu hình Terraform sai bảo mật (vd S3 public).
-
-**🧪 Thử nghiệm:**
-- Chạy `trivy image` trên image cũ (nhiều CVE) vs image alpine mới. **Bài học:** image nhỏ/mới = ít lỗ hổng.
-- Tạo NetworkPolicy deny-all rồi cho phép frontend→backend; thử curl từ pod khác → bị chặn. **Bài học:** cô lập mạng trong cluster.
-
-⚠️ **Dễ sai:** quét bảo mật ở cuối (trước release) thay vì sớm. "Shift-left": quét ngay trong CI mỗi PR — sửa sớm rẻ hơn nghìn lần.
-
-💡 **Hiểu sâu:** 5 loại quét: SCA (dependency), SAST (code), Image scan, IaC scan (tfsec), Secret scan (gitleaks). Defense in depth: firewall → NetworkPolicy → RBAC → least privilege → scan → secret mgmt.
-
-### 🐛 Gỡ lỗi nhanh
-
-| Triệu chứng | Nguyên nhân | Cách sửa |
-|---|---|---|
-| CI đỏ vì Trivy CVE | Image có lỗ hổng nghiêm trọng | Cập nhật base image/lib; nếu chấp nhận được → allowlist có kiểm soát |
-| NetworkPolicy chặn hết cả traffic đúng | deny-all mà chưa allow luồng cần | Thêm rule allow frontend→backend, backend→db |
-| RBAC `Forbidden` | Service account thiếu quyền | Cấp Role tối thiểu đủ dùng (không cluster-admin) |
-| gitleaks báo secret | Lỡ commit key | Gỡ + **xoay secret**; thêm `.gitignore`; dùng secret manager |
-| tfsec báo S3 public | Cấu hình IaC sai | Sửa manifest (block public access) |
-
-### 📝 Bài ôn tập & Demo đối chiếu
-
-**✍️ Tự kiểm tra:**
-
-<details>
-<summary>1. "Shift-left security" nghĩa là gì?</summary>
-
-> Đẩy kiểm tra bảo mật sớm về phía dev (lúc code/PR) thay vì cuối. Phát hiện sớm rẻ hơn nghìn lần so với lúc đã production.
-</details>
-
-<details>
-<summary>2. Liệt kê các loại quét bảo mật trong pipeline.</summary>
-
-> SCA (dependency), SAST (code), Image scan, IaC scan (tfsec), Secret scan (gitleaks).
-</details>
-
-<details>
-<summary>3. RBAC và NetworkPolicy bảo vệ cluster thế nào?</summary>
-
-> RBAC giới hạn *ai được làm gì* (quyền tối thiểu). NetworkPolicy giới hạn *pod nào nói chuyện với pod nào* (cô lập mạng, deny-by-default).
-</details>
-
-<details>
-<summary>4. Vì sao supply chain security quan trọng?</summary>
-
-> Tấn công qua dependency/image nhiễm độc ngày càng nhiều. Ghim version, quét, ký image (cosign), SBOM để biết chính xác đang chạy gì.
-</details>
-
-**🔬 Demo đối chiếu:**
-
-| Demo đối chiếu | Kết quả mong đợi |
+| Phát hiện lúc | Chi phí sửa tương đối |
 |---|---|
-| Quét lỗ hổng image | `trivy image myapp` → bảng CVE |
-| NetworkPolicy | Pod ngoài luồng bị chặn khi curl |
-| Quét secret | gitleaks báo sạch, không lộ key |
+| Lúc gõ code | **1** |
+| Lúc chạy CI | ~5 |
+| Trên production | ~50 |
+| Sau khi bị tấn công | ~500 và mất uy tín |
 
-### 📚 Thuật ngữ Anh–Việt (ngày này)
+Cùng một lỗi. Chỉ khác thời điểm phát hiện. DevSecOps là việc biến bảo mật thành **một bước tự động trong pipeline**, không phải một cuộc họp ở cuối dự án.
 
-| Thuật ngữ | Nghĩa |
+#### 2. Bốn lớp cần quét (và công cụ cho từng lớp)
+
+| Lớp | Tìm cái gì | Công cụ dùng hôm nay |
+|---|---|---|
+| **Bí mật** | Mật khẩu, token lỡ commit vào Git | **Gitleaks** |
+| **Thư viện & image** | Lỗ hổng đã biết (CVE) trong gói bạn dùng | **Trivy** |
+| **Dockerfile** | Cách viết ẩu, chạy bằng root, tag `latest` | **Hadolint** |
+| **Hạ tầng dạng code** | Cổng mở toang, không mã hoá, quyền quá rộng | **Checkov** |
+
+> 🔑 Điểm chung: cả bốn đều **chạy được trong CI và trả về mã lỗi khác 0** khi phát hiện vấn đề. Nhờ vậy chúng chặn được pipeline — đúng như bài học branch protection của Ngày 32.
+
+#### 3. CVE và điểm nghiêm trọng
+
+**CVE** là mã định danh toàn cầu cho một lỗ hổng đã được công bố (ví dụ `CVE-2024-3094`). Mỗi CVE có điểm **CVSS** từ 0 đến 10:
+
+| Mức | Điểm | Ứng xử thực tế |
+|---|---|---|
+| CRITICAL | 9.0–10 | Sửa ngay, chặn pipeline |
+| HIGH | 7.0–8.9 | Sửa ngay, chặn pipeline |
+| MEDIUM | 4.0–6.9 | Đưa vào kế hoạch |
+| LOW | 0.1–3.9 | Ghi nhận |
+
+> ⚠️ **Đừng đặt ngưỡng chặn ở mức quá thấp ngay từ đầu.** Chặn pipeline vì mọi lỗ hổng LOW sẽ khiến cả đội quen với việc bỏ qua cảnh báo — và rồi họ bỏ qua luôn cái CRITICAL. Bắt đầu bằng **chặn ở HIGH và CRITICAL**, siết dần sau.
+
+#### 4. Bí mật lỡ commit: xoá file là chưa đủ
+
+Đây là hiểu lầm nguy hiểm nhất về Git. Bạn commit nhầm mật khẩu, phát hiện ra, xoá file rồi commit tiếp. Xong chưa?
+
+**Chưa.** Git lưu **toàn bộ lịch sử** — bất kỳ ai clone repo vẫn lấy được mật khẩu đó từ commit cũ. Quy trình xử lý đúng:
+
+1. **Vô hiệu hoá bí mật đó ngay** (đổi mật khẩu, thu hồi token) — đây là bước **quan trọng nhất và phải làm đầu tiên**.
+2. Sau đó mới xoá khỏi lịch sử (`git filter-repo` hoặc BFG).
+3. Bật quét tự động để không tái diễn.
+
+> 🔑 Ghi nhớ: **bí mật đã lộ thì phải coi như đã bị đánh cắp**, kể cả repo private. Xoá khỏi lịch sử chỉ là dọn dẹp, không phải khắc phục.
+
+#### 5. Nguyên tắc đặc quyền tối thiểu
+
+Xuyên suốt khoá học bạn đã gặp nguyên tắc này nhiều lần mà có thể chưa để ý:
+
+| Ngày | Biểu hiện |
 |---|---|
-| **DevSecOps** | Nhúng bảo mật vào toàn pipeline |
-| **Shift-left** | Kiểm bảo mật sớm |
-| **SCA / SAST** | Quét dependency / quét code |
-| **NetworkPolicy** | Kiểm soát traffic giữa pod |
-| **RBAC** | Phân quyền theo vai trò |
-| **cosign / SBOM** | Ký image / danh mục thành phần |
-| **Defense in depth** | Phòng thủ nhiều lớp |
+| 33 | Container chạy bằng user thường, không phải root |
+| 31, 33 | `permissions:` của `GITHUB_TOKEN` chỉ xin đúng thứ cần |
+| 39 | RBAC giới hạn ai đọc được Secret |
+| 43 | GitOps: **không ai bên ngoài** giữ chìa khoá cluster |
+
+Một câu duy nhất: **cho đúng quyền cần thiết, không hơn**. Khi có sự cố, đây là thứ quyết định thiệt hại dừng ở một container hay lan ra cả hệ thống.
+
+### 🧪 LAB — Bốn lớp quét, chạy tại máy rồi đưa vào CI
+
+**File sẽ thêm vào repo `ci-demo`:**
+
+```text
+ci-demo/
+├── .github/workflows/
+│   └── bao-mat.yml          # THÊM — quét tự động
+├── .gitleaks.toml           # THÊM — cấu hình quét bí mật
+└── .hadolint.yaml           # THÊM — cấu hình quét Dockerfile
+```
+
+#### File 1 — `.gitleaks.toml`
+
+```toml
+title = "Cấu hình quét bí mật cho ci-demo"
+
+[extend]
+useDefault = true          # dùng toàn bộ luật mặc định (hơn 100 loại token)
+
+# Thêm luật riêng cho dự án
+[[rules]]
+id = "mat-khau-trong-code"
+description = "Mật khẩu viết thẳng trong code"
+regex = '''(?i)(mat_khau|password|passwd|pwd)\s*[:=]\s*["'][^"']{8,}["']'''
+tags = ["mat-khau"]
+
+[allowlist]
+description = "Bỏ qua các giá trị ví dụ trong tài liệu"
+regexes = [
+  '''ban@example\.com''',
+  '''matkhau123''',              # mật khẩu lab, cố ý công khai
+  '''MatKhauSieuBiMat123''',
+]
+paths = [
+  '''(.*?)(md|txt)$''',           # bỏ qua file tài liệu
+]
+```
+
+#### File 2 — `.hadolint.yaml`
+
+```yaml
+failure-threshold: warning       # cảnh báo trở lên là coi như trượt
+
+ignored:
+  - DL3008                       # không bắt buộc ghim phiên bản gói apt (gây phiền cho alpine)
+
+trustedRegistries:
+  - docker.io
+  - ghcr.io
+  - registry.k8s.io
+```
+
+#### File 3 — `.github/workflows/bao-mat.yml`
+
+```yaml
+name: Quét bảo mật
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 2 * * 1'          # 2h sáng thứ Hai hằng tuần
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------- Lớp 1: bí mật lỡ commit ----------
+  quet-bi-mat:
+    name: Quét bí mật
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # BẮT BUỘC: cần TOÀN BỘ lịch sử mới quét được commit cũ
+
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---------- Lớp 2: cách viết Dockerfile ----------
+  quet-dockerfile:
+    name: Kiểm tra Dockerfile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          config: .hadolint.yaml
+
+  # ---------- Lớp 3: lỗ hổng trong thư viện và image ----------
+  quet-lo-hong:
+    name: Quét lỗ hổng
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trivy quét mã nguồn và thư viện
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL      # chỉ chặn ở mức cao
+          exit-code: '1'               # có phát hiện -> pipeline ĐỎ
+          ignore-unfixed: true         # bỏ qua lỗ hổng chưa có bản vá
+
+      - name: Build image để quét
+        run: docker build -t ci-demo:quet .
+
+      - name: Trivy quét image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: ci-demo:quet
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+
+      - name: Tạo SBOM (danh mục thành phần)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: ci-demo:quet
+          format: cyclonedx
+          output: sbom.json
+
+      - name: Lưu SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json
+          retention-days: 30
+```
+
+### 🧭 Hướng dẫn làm LAB — step by step
+
+#### Bước 1 — Quét lỗ hổng image bằng Trivy (chạy tại máy)
+
+```bash
+cd ~/ci-demo
+docker build -t ci-demo:quet .
+
+docker run --rm \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v "$HOME/.cache/trivy:/root/.cache/trivy" \
+  aquasec/trivy:latest image --severity HIGH,CRITICAL ci-demo:quet
+```
+
+**Bạn sẽ thấy** (lần đầu mất ~30 giây để tải cơ sở dữ liệu lỗ hổng):
+```text
+ci-demo:quet (alpine 3.21.x)
+============================
+Total: 0 (HIGH: 0, CRITICAL: 0)
+```
+
+✅ **Checkpoint:** quét xong và có bảng tổng kết.
+
+💡 Nếu ra `0` thì đó là **phần thưởng cho lựa chọn ở Ngày 33**: bạn dùng `node:20-alpine` thay vì `node:20` đầy đủ. Ít phần mềm trong image = ít thứ để khai thác.
+
+Hãy chứng minh điều đó bằng cách quét một image cũ:
+
+```bash
+docker run --rm \
+  -v "$HOME/.cache/trivy:/root/.cache/trivy" \
+  aquasec/trivy:latest image --severity HIGH,CRITICAL node:18
+```
+
+**Bạn sẽ thấy** một danh sách dài:
+```text
+node:18 (debian 12.x)
+Total: 87 (HIGH: 79, CRITICAL: 8)
+
+┌──────────────┬────────────────┬──────────┬───────────────┬───────────────┐
+│   Library    │ Vulnerability  │ Severity │ Installed Ver │  Fixed Ver    │
+├──────────────┼────────────────┼──────────┼───────────────┼───────────────┤
+│ libssl3      │ CVE-2024-xxxxx │ CRITICAL │ 3.0.11-1      │ 3.0.13-1      │
+...
+```
+
+✅ **Checkpoint:** thấy rõ khác biệt giữa image gọn và image đầy đủ, cũ.
+
+💡 **Bài học đắt giá:** phần lớn lỗ hổng trong image **không đến từ code của bạn** — chúng đến từ hệ điều hành nền và thư viện hệ thống. Vì vậy chọn image nền gọn và **cập nhật thường xuyên** là biện pháp bảo mật hiệu quả nhất, rẻ nhất.
+
+#### Bước 2 — Tự làm lộ bí mật rồi tự tìm ra nó
+
+Đây là bước nhớ lâu nhất. Cố tình commit một "mật khẩu":
+
+```bash
+cd ~/ci-demo
+cat > cau-hinh-tam.js <<'EOF'
+// File này CỐ Ý sai để thấy công cụ bắt được
+const cauHinh = {
+  duongDanDb: "postgres://admin:SieuMatKhau@db.congty.com:5432/donhang",
+  khoaApiAws: "AKIAIOSFODNN7EXAMPLE",
+  tokenSlack: "TOKEN_GIA_SINH_LUC_CHAY",
+};
+module.exports = cauHinh;
+EOF
+
+git add cau-hinh-tam.js
+git commit -m "Thêm cấu hình (CỐ Ý SAI để thử công cụ)"
+```
+
+Giờ quét toàn bộ lịch sử:
+
+```bash
+docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+  detect --source=/repo --verbose --no-banner
+```
+
+**Bạn sẽ thấy:**
+```text
+Finding:     duongDanDb: "postgres://admin:SieuMatKhau@db.congty.com:5432/..."
+Secret:      SieuMatKhau
+RuleID:      postgres-connection-string
+File:        cau-hinh-tam.js
+Line:        3
+Commit:      8f3a2c9d...
+
+Finding:     khoaApiAws: "AKIAIOSFODNN7EXAMPLE"
+RuleID:      aws-access-token
+...
+
+3 leaks found
+```
+
+✅ **Checkpoint:** tìm ra đủ **3 bí mật**, kèm số dòng và mã commit.
+
+Giờ đến phần quan trọng nhất — **xoá file có đủ không?**
+
+```bash
+git rm cau-hinh-tam.js
+git commit -m "Xoá file cấu hình"
+
+# Quét lại toàn bộ lịch sử
+docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+  detect --source=/repo --no-banner
+```
+
+**Bạn sẽ thấy:**
+```text
+3 leaks found
+```
+
+✅ **Checkpoint:** **vẫn tìm ra 3 bí mật** dù file đã bị xoá.
+
+Tự kiểm chứng bằng Git:
+```bash
+git log --all --oneline -- cau-hinh-tam.js
+git show $(git log --format=%H -n1 --all -- cau-hinh-tam.js):cau-hinh-tam.js | head -5
+```
+
+**Bạn sẽ thấy** nội dung mật khẩu vẫn đọc được nguyên vẹn từ lịch sử.
+
+💡 **Đây là điều phải khắc cốt ghi tâm:** `git rm` chỉ xoá ở hiện tại. Lịch sử giữ mọi thứ mãi mãi. Ai clone repo cũng lấy được. Vì vậy quy trình đúng là: **thu hồi bí mật trước** (đổi mật khẩu, revoke token) — rồi mới dọn lịch sử.
+
+Dọn lịch sử cho sạch (lab này chỉ có 2 commit nên reset là đủ):
+```bash
+git reset --hard HEAD~2
+docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+  detect --source=/repo --no-banner
+```
+
+**Bạn sẽ thấy:** `no leaks found`.
+
+⚠️ Với repo thật đã đẩy lên remote thì `reset` không dùng được. Phải dùng `git filter-repo` hoặc **BFG Repo-Cleaner**, và mọi người trong đội phải clone lại. Đó là lý do phòng bệnh (quét tự động) rẻ hơn chữa bệnh rất nhiều.
+
+#### Bước 3 — Soi Dockerfile bằng Hadolint
+
+```bash
+docker run --rm -i hadolint/hadolint < Dockerfile
+```
+
+**Bạn sẽ thấy** (hoặc không có gì, nếu Dockerfile Ngày 33 của bạn đã tốt):
+```text
+-:6 DL3018 warning: Pin versions in apk add. Instead of `apk add <package>` use `apk add <package>=<version>`
+```
+
+Thử một Dockerfile viết ẩu để thấy nó bắt được gì:
+
+```bash
+cat > /tmp/Dockerfile.te <<'EOF'
+FROM node:latest
+RUN apt-get update
+RUN apt-get install -y curl
+ADD . /app
+WORKDIR /app
+RUN npm install
+CMD npm start
+EOF
+
+docker run --rm -i hadolint/hadolint < /tmp/Dockerfile.te
+```
+
+**Bạn sẽ thấy:**
+```text
+-:1 DL3007 warning: Using latest is prone to errors if the image will ever update.
+      Pin the version explicitly to a release tag
+-:2 DL3009 info: Delete the apt-get lists after installing something
+-:3 DL3008 warning: Pin versions in apt get install
+-:4 DL3020 error: Use COPY instead of ADD for files and folders
+-:7 DL3025 warning: Use arguments JSON notation for CMD and ENTRYPOINT arguments
+```
+
+✅ **Checkpoint:** bắt đúng các lỗi kinh điển, kèm mã luật tra cứu được.
+
+💡 Chú ý `DL3007` — chính là bài học `latest` của Ngày 33, giờ được **tự động cưỡng chế**. Đây là điểm hay của công cụ: biến kinh nghiệm thành luật máy kiểm tra, không phụ thuộc vào việc người review có nhớ hay không.
+
+#### Bước 4 — Quét hạ tầng dạng code bằng Checkov
+
+```bash
+cd ~/lab48-terraform
+docker run --rm -v "$PWD:/tf" bridgecrew/checkov:latest \
+  -d /tf --compact --quiet --framework terraform
+```
+
+**Bạn sẽ thấy:**
+```text
+terraform scan results:
+Passed checks: 8, Failed checks: 3, Skipped checks: 0
+
+Check: CKV_DOCKER_3: "Ensure that a user for the container has been created"
+	FAILED for resource: docker_container.ung_dung
+...
+```
+
+✅ **Checkpoint:** có bảng tổng kết passed/failed.
+
+Thử với một cấu hình thật sự nguy hiểm:
+
+```bash
+mkdir -p /tmp/tf-te && cat > /tmp/tf-te/main.tf <<'EOF'
+resource "aws_s3_bucket" "du_lieu" {
+  bucket = "du-lieu-cong-ty"
+}
+
+resource "aws_security_group" "mo_toang" {
+  name = "cho-phep-tat-ca"
+  ingress {
+    from_port   = 0
+    to_port     = 65535
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]     # MỞ TOÀN BỘ CỔNG RA INTERNET
+  }
+}
+EOF
+
+docker run --rm -v /tmp/tf-te:/tf bridgecrew/checkov:latest -d /tf --compact --quiet
+```
+
+**Bạn sẽ thấy:**
+```text
+Check: CKV_AWS_260: "Ensure no security groups allow ingress from 0.0.0.0:0 to port 80"
+	FAILED
+Check: CKV_AWS_19: "Ensure all data stored in the S3 bucket is securely encrypted at rest"
+	FAILED
+Check: CKV_AWS_21: "Ensure all data stored in the S3 bucket have versioning enabled"
+	FAILED
+...
+```
+
+✅ **Checkpoint:** bắt được nhóm bảo mật mở toang và bucket không mã hoá.
+
+💡 **Đây là loại lỗi gây rò rỉ dữ liệu nhiều nhất ngoài đời thật** — không phải kỹ thuật tấn công tinh vi, mà chỉ là một bucket cấu hình sai. Checkov bắt được nó **trước khi** `terraform apply`, tức trước khi nó tồn tại.
+
+#### Bước 5 — Đưa tất cả vào CI
+
+```bash
+cd ~/ci-demo
+# tạo .gitleaks.toml, .hadolint.yaml, .github/workflows/bao-mat.yml theo phần LAB
+git add .gitleaks.toml .hadolint.yaml .github/workflows/bao-mat.yml
+git commit -m "Thêm quét bảo mật tự động vào CI"
+git push
+```
+
+Mở tab **Actions** → workflow **Quét bảo mật**.
+
+**Bạn sẽ thấy 3 job chạy song song:**
+```text
+Quét bí mật          ✅
+Kiểm tra Dockerfile  ✅
+Quét lỗ hổng         ✅
+```
+
+✅ **Checkpoint:** cả 3 job xanh.
+
+⚠️ **Nếu job quét bí mật báo lỗi thiếu lịch sử:** kiểm tra đã có `fetch-depth: 0` chưa. Mặc định `checkout` chỉ lấy **một** commit — quét như vậy sẽ bỏ sót toàn bộ lịch sử.
+
+#### Bước 6 — Chứng minh CI thật sự chặn được
+
+```bash
+cd ~/ci-demo
+git checkout -b thu-bao-mat
+echo 'const token = "TOKEN_GIA_SINH_LUC_CHAY";' > lo-bi-mat.js
+git add lo-bi-mat.js
+git commit -m "Thử: cố ý làm lộ token"
+git push -u origin thu-bao-mat
+```
+
+Mở Pull Request trên GitHub.
+
+**Bạn sẽ thấy:**
+```text
+❌ Quét bí mật — Failing after 25s
+🔒 Merging is blocked
+```
+
+✅ **Checkpoint:** PR bị chặn, không merge được (nhờ branch protection Ngày 32).
+
+💡 **Đây là toàn bộ ý nghĩa của DevSecOps gói trong một màn hình:** bảo mật không còn là một cuộc họp ở cuối dự án, mà là **một cánh cửa tự động khoá lại** ngay khi có vấn đề — 25 giây sau khi bạn push.
+
+Dọn dẹp:
+```bash
+git checkout main
+git branch -D thu-bao-mat
+git push origin --delete thu-bao-mat
+```
+
+#### Bước 7 — SBOM: biết mình đang dùng những gì
+
+```bash
+docker run --rm \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  aquasec/trivy:latest image --format cyclonedx --quiet ci-demo:quet \
+  > /tmp/sbom.json
+
+python -c "
+import json
+d = json.load(open('/tmp/sbom.json'))
+tp = d.get('components', [])
+print(f'Tổng số thành phần: {len(tp)}')
+for c in tp[:8]:
+    print(' -', c.get('name'), c.get('version'))
+"
+```
+
+**Bạn sẽ thấy:**
+```text
+Tổng số thành phần: 42
+ - alpine-baselayout 3.6.x
+ - busybox 1.37.x
+ - musl 1.2.x
+ - nodejs 20.x.x
+ ...
+```
+
+✅ **Checkpoint:** liệt kê được toàn bộ thành phần trong image.
+
+💡 **SBOM (Software Bill of Materials)** là "danh mục thành phần" của phần mềm. Khi một lỗ hổng lớn được công bố (như Log4Shell năm 2021), câu hỏi đầu tiên của mọi công ty là *"chúng ta có dùng thư viện đó không, ở những đâu?"*. Có SBOM thì trả lời trong 5 phút; không có thì mất nhiều ngày rà soát. Nhiều nơi giờ đã **bắt buộc** nhà cung cấp phải nộp SBOM.
+
+### 💡 Đi làm mới thấm (sách cơ bản hay bỏ quên)
+
+- **Cảnh báo quá nhiều thì không ai đọc.** Bật quét ở mọi mức nghiêm trọng sẽ cho ra hàng trăm phát hiện ngày đầu tiên, cả đội nản và bắt đầu bỏ qua — kể cả cái thật sự nguy hiểm. Bắt đầu bằng **CRITICAL + HIGH, và chỉ những cái đã có bản vá** (`ignore-unfixed`), rồi siết dần. Đây đúng là bài học *alert fatigue* của Ngày 44, áp cho bảo mật.
+- **`ignore-unfixed` là lựa chọn thực dụng.** Lỗ hổng chưa có bản vá thì chặn pipeline cũng chẳng giải quyết được gì — bạn không thể sửa. Ghi nhận, theo dõi, nhưng đừng để nó làm tê liệt việc phát hành.
+- **Quét theo lịch quan trọng ngang quét theo commit.** Image bạn build hôm nay sạch sẽ; ba tuần nữa có CVE mới công bố cho một thư viện trong đó. Không quét lại định kỳ thì bạn chạy hàng tháng trời với một lỗ hổng đã biết mà không hay. Đó là lý do workflow ở trên có `schedule`.
+- **Dependabot / Renovate lo phần nâng cấp.** Quét chỉ cho biết có vấn đề; hai công cụ này **tự mở Pull Request** nâng phiên bản thư viện. Kết hợp với CI đầy đủ (Ngày 32), bạn có được vòng lặp cập nhật gần như tự động.
+- **Người là lớp phòng thủ cuối, không phải lớp đầu.** Công cụ bắt được cái đã biết; còn logic phân quyền sai (người dùng A xem được đơn hàng của người dùng B) thì không công cụ nào phát hiện. Quét tự động để giải phóng thời gian con người cho những thứ chỉ con người thấy được.
+- **Đừng để quá trình build tự tải mã lạ về chạy.** `curl | bash` trong Dockerfile, action GitHub ghim `@main`, thư viện không khoá phiên bản — đó là những cánh cửa của tấn công chuỗi cung ứng. Ghim phiên bản (lý tưởng là ghim SHA) ở mọi tầng: image nền, thư viện, action, module Terraform.
 
 ### 🎯 Đúc kết Ngày 49
 
 **3 điều phải mang theo:**
-1. **Shift-left:** kiểm bảo mật ngay khi code/PR — sửa sớm rẻ hơn nghìn lần so với lúc đã lên production.
-2. **5 loại quét canh 5 cửa:** SCA (thư viện), SAST (code bạn viết), image scan (nền OS), IaC scan (cấu hình), secret scan (chìa khoá lỡ commit) — kẻ xấu chỉ cần một cửa hở.
-3. **Defense in depth + least privilege:** NetworkPolicy deny-by-default, RBAC quyền tối thiểu — giả định sẽ bị chọc thủng, khoanh vùng thiệt hại.
 
-> 🧠 **Một câu để nhớ:** bảo mật là **nhiều lớp** (defense in depth): firewall → NetworkPolicy → RBAC → least privilege → quét → quản secret. Không lớp nào đủ một mình.
+1. **Shift-left: phát hiện càng sớm càng rẻ.** Bảo mật phải là một bước tự động trong pipeline, không phải một cuộc rà soát ở cuối.
+2. **Bí mật đã commit là bí mật đã lộ** — kể cả khi bạn đã xoá file. Thu hồi trước, dọn lịch sử sau.
+3. **Bốn lớp quét, bốn loại rủi ro khác nhau:** bí mật (Gitleaks), lỗ hổng (Trivy), cách viết Dockerfile (Hadolint), cấu hình hạ tầng (Checkov). Không cái nào thay thế cái nào.
 
-**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
-- [ ] Tích hợp Trivy quét image trong CI, fail khi có CVE nghiêm trọng
-- [ ] Chạy tfsec/checkov quét cấu hình IaC sai
-- [ ] Tạo NetworkPolicy deny-by-default rồi mở đúng đường cần
-- [ ] Cấu hình RBAC least privilege (Role + RoleBinding)
-- [ ] Giải thích 5 loại quét và vì sao secret lộ phải xoay chứ không chỉ xoá
+> 🧠 **Một câu để nhớ:** bảo mật không phải một bước cuối cùng trước khi phát hành — nó là **một cánh cửa tự động khoá** đứng ngay trong dây chuyền.
 
-✅ **Kết quả đạt được:** Tích hợp bảo mật vào pipeline và hạ tầng (shift-left, quét, NetworkPolicy, RBAC) — tư duy DevSecOps.
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+
+- [ ] Giải thích shift-left và vì sao phát hiện sớm rẻ hơn nhiều lần
+- [ ] Quét image bằng Trivy và giải thích vì sao image alpine ít lỗ hổng hơn
+- [ ] Chứng minh `git rm` không xoá được bí mật khỏi lịch sử
+- [ ] Nói đúng thứ tự xử lý khi lỡ commit bí mật
+- [ ] Dùng Hadolint và giải thích ít nhất 3 mã luật nó báo
+- [ ] Dùng Checkov bắt được security group mở toang
+- [ ] Đưa quét vào CI với `exit-code: 1` và chứng minh PR bị chặn
+- [ ] Nói được SBOM là gì và vì sao nó quan trọng lúc có CVE lớn
+
+✅ **Kết quả đạt được:** Pipeline có bốn lớp phòng thủ tự động — bí mật, lỗ hổng, Dockerfile và hạ tầng đều được soi trước khi vào `main`, và bạn đã tự kiểm chứng rằng nó thật sự chặn được.
 
 ---
 
