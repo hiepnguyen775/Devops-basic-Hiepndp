@@ -26,7 +26,7 @@
 | [24](#ngày-24--cơ-sở-dữ-liệu-cho-devops) | Cơ sở dữ liệu cho DevOps |
 | [25](#ngày-25--git-nâng-cao--rebase-tag-workflow) | Git nâng cao — Rebase, Tag, Workflow |
 | [26](#ngày-26--làm-quen-cloud--khái-niệm--free-tier) | Làm quen Cloud — Khái niệm & Free Tier |
-| [27](#ngày-27--máy-chủ-cloud--tạo--quản-lý-vm-ec2) | Máy chủ Cloud — Tạo & quản lý VM (EC2) |
+| [27](#ngày-27--máy-chủ-cloud--tạo--quản-lý-vm) | Máy chủ Cloud — Tạo & quản lý VM |
 | [28](#ngày-28--triển-khai-app-lên-cloud-docker-trên-vm) | Triển khai App lên Cloud (Docker trên VM) |
 | [29](#ngày-29--infrastructure-as-code--giới-thiệu-terraform) | Infrastructure as Code — Giới thiệu Terraform |
 | [30](#ngày-30--milestone--lab-tổng-hợp-giai-đoạn-2) | **Milestone — LAB tổng hợp Giai đoạn 2** |
@@ -3151,357 +3151,872 @@ git bisect reset
 
 > ⏱️ ~90 phút · Loại: Cloud
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 25 (Git nâng cao) → **Ngày 26 (bước chân vào Cloud: khái niệm + tài khoản an toàn)** → Ngày 27 (tạo VM thật). Đây là ngày đầu tiên với cloud — làm đúng ngay để tránh hoá đơn nghìn đô và bị hack.
-> 🌐 *Ví dụ dùng AWS; tương đương: **GCP** (Compute Engine/Cloud Storage/IAM), **Azure** (VM/Blob/Entra ID).*
+> 🧭 **Bạn đang ở đâu:** Ngày 25 (Git nâng cao) → **Ngày 26 (bước chân vào cloud: khái niệm + tài khoản an toàn)** → Ngày 27 (tạo máy ảo). Ngày đầu tiên với cloud — làm đúng ngay từ đầu để tránh hai tai nạn kinh điển: **hoá đơn nghìn đô** và **lộ khoá truy cập**.
 >
-> ✅ **Chuẩn bị:** một thẻ (Free Tier vẫn yêu cầu thẻ để xác thực) hoặc dùng Oracle Cloud Free Tier nếu lo chi phí. Email để đăng ký.
+> 🌐 *Ví dụ dùng AWS. Tương đương: **GCP** (Compute Engine / Cloud Storage / IAM), **Azure** (VM / Blob / Entra ID). Khái niệm giống nhau, chỉ khác tên.*
+>
+> ✅ **Chuẩn bị:** Docker (cho LAB miễn phí). Tài khoản cloud thật là **tuỳ chọn** — phần A của lab chạy hoàn toàn trên máy bạn.
+>
+> 🎁 **Cuối ngày bạn có gì:** thao tác thành thạo với API cloud qua `aws` CLI **mà không tốn một đồng**, cộng một checklist an toàn tài khoản mà bạn sẽ dùng thật khi mở tài khoản.
 
 ### 📘 Lý thuyết
 
-#### 1. Cloud là gì — "thuê" thay vì "mua"
+#### 1. Cloud là đổi "mua tài sản" lấy "thuê theo mức dùng"
 
-Thay vì mua server vật lý (đắt, phải bảo trì), bạn **thuê** tài nguyên của AWS/Google/Azure theo nhu cầu, trả tiền theo lượng dùng — như thuê khách sạn thay vì xây nhà.
+Trước đây: mua máy chủ (tốn tiền lớn một lần), tự lo điện, mạng, thay ổ cứng. Mua thừa thì phí, mua thiếu thì kẹt cả tháng chờ hàng về.
 
-#### 2. IaaS / PaaS / SaaS — 3 mức "ăn sẵn"
+Cloud biến nó thành hoá đơn kiểu tiền điện: cần bao nhiêu bật bấy nhiêu, không dùng thì tắt. Nhưng chính sự tiện lợi đó là con dao hai lưỡi — **quên tắt là vẫn bị tính tiền, 24 giờ mỗi ngày**.
 
-| Mức | Ví như | Ví dụ |
+#### 2. IaaS / PaaS / SaaS — bạn tự lo bao nhiêu phần
+
+| Mức | Ví như | Bạn lo | Ví dụ |
+|---|---|---|---|
+| **IaaS** | Thuê đất, tự xây nhà | Hệ điều hành trở lên | EC2, Compute Engine |
+| **PaaS** | Thuê nhà có nội thất | Chỉ code | App Engine, Elastic Beanstalk |
+| **SaaS** | Ở khách sạn | Không lo gì | Gmail, Notion |
+
+Chọn mức nào là chọn đánh đổi giữa **quyền kiểm soát** và **công sức vận hành**.
+
+#### 3. Năm dịch vụ cốt lõi (tên khác giữa các hãng, ý giống nhau)
+
+| AWS | Làm gì | GCP | Azure |
+|---|---|---|---|
+| **EC2** | Máy ảo | Compute Engine | Virtual Machines |
+| **S3** | Kho chứa file | Cloud Storage | Blob Storage |
+| **VPC** | Mạng riêng ảo | VPC | Virtual Network |
+| **IAM** | Người dùng & quyền | IAM | Entra ID |
+| **RDS** | Database do nhà cung cấp vận hành | Cloud SQL | Azure SQL |
+
+#### 4. Region và Availability Zone
+
+**Region** = một khu vực địa lý (ví dụ `ap-southeast-1` là Singapore). **Availability Zone** = một trung tâm dữ liệu riêng biệt bên trong region đó.
+
+Chọn region ảnh hưởng ba thứ: **độ trễ** (gần người dùng), **giá** (khác nhau giữa các region), và **tuân thủ pháp lý** (dữ liệu được phép đặt ở đâu).
+
+> 🔑 Nhiều AZ trong cùng một region cho bạn HA chống hỏng một trung tâm dữ liệu. Nhưng **cả region vẫn có thể sập** — muốn chống điều đó phải triển khai nhiều region, và đắt hơn hẳn (Ngày 52).
+
+#### 5. Trách nhiệm chia sẻ — hiểu sai là trả giá
+
+Nhà cung cấp lo bảo mật **của** cloud (phần cứng, trung tâm dữ liệu, lớp ảo hoá). **Bạn** lo bảo mật **trong** cloud (cấu hình, phân quyền, dữ liệu, bản vá).
+
+Nói cách khác: **"lên cloud" không tự động an toàn.** Bucket cấu hình sai vẫn công khai ra Internet; khoá truy cập lộ trên GitHub vẫn bị lợi dụng. Đó là phần của bạn.
+
+#### 6. Hai tai nạn kinh điển và cách phòng
+
+| Tai nạn | Vì sao xảy ra | Cách phòng |
 |---|---|---|
-| **IaaS** | Thuê đất, tự xây nhà | EC2/VM — tự cài mọi thứ |
-| **PaaS** | Thuê nhà có nội thất | App Engine, Elastic Beanstalk — chỉ đẩy code |
-| **SaaS** | Ở khách sạn, dùng luôn | Gmail, Notion |
+| **Hoá đơn nghìn đô** | Quên tắt tài nguyên; hoặc khoá bị lộ rồi bị dùng để đào tiền ảo | Đặt cảnh báo ngân sách **ngay ngày đầu**; luôn `destroy` sau buổi học |
+| **Lộ khoá truy cập** | Commit `AWS_SECRET_ACCESS_KEY` lên GitHub | Không bao giờ để khoá trong code; quét bí mật (Ngày 49) |
 
-#### 3. Dịch vụ AWS cốt lõi (tên khác giữa hãng, ý giống)
+> ⚠️ Có những bot **liên tục quét GitHub** tìm khoá AWS mới commit. Thời gian từ lúc bạn push tới lúc khoá bị dùng để đào tiền ảo thường tính bằng **phút**. Đây không phải chuyện hiếm — đó là chuyện xảy ra hằng ngày.
 
-| Dịch vụ | Làm gì |
-|---|---|
-| **EC2** | Máy ảo |
-| **S3** | Kho lưu trữ file (object storage) |
-| **VPC** | Mạng riêng ảo |
-| **IAM** | Quản lý quyền/người dùng |
-| **RDS** | Database do AWS vận hành |
+### 🧪 LAB Phần A — Học API cloud mà không tốn tiền
 
-#### 4. Region & Availability Zone
+> **LocalStack** giả lập các dịch vụ AWS ngay trên máy bạn. Cùng một lệnh `aws` CLI, cùng khái niệm, nhưng **không tài khoản, không thẻ, không hoá đơn**.
 
-Region = khu vực địa lý (vd `ap-southeast-1` Singapore). Chọn region ảnh hưởng **độ trễ** (gần người dùng), **chi phí** (giá khác nhau), **tuân thủ** (dữ liệu ở quốc gia nào).
+**Thư mục:**
 
-#### 5. ⚠️ 2 việc phải làm NGAY khi tạo tài khoản
+```text
+lab26-cloud/
+├── docker-compose.yml       # LocalStack
+└── chinh-sach-doc.json      # chính sách IAM chỉ cho đọc
+```
 
-1. **Bật MFA + tạo IAM user** — đừng dùng tài khoản **root** hàng ngày; gán quyền tối thiểu (least privilege).
-2. **Đặt Billing Alert** — quên tắt máy hoặc lộ access key = hoá đơn nghìn đô.
+#### File 1 — `docker-compose.yml`
 
-> 🔑 **Shared Responsibility:** nhà cung cấp lo bảo mật *của* cloud (phần cứng); **BẠN** lo bảo mật *trong* cloud (cấu hình, IAM, dữ liệu). "Lên cloud" không tự an toàn. Access key lộ trên GitHub là nguyên nhân #1 của hoá đơn khổng lồ.
+```yaml
+services:
+  localstack:
+    image: localstack/localstack:3.8
+    container_name: localstack
+    ports:
+      - "4566:4566"                   # một cổng duy nhất cho mọi dịch vụ
+    environment:
+      SERVICES: s3,iam,sts,logs
+      DEBUG: 0
+      AWS_DEFAULT_REGION: ap-southeast-1
+    volumes:
+      - localstack-data:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
 
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
+volumes:
+  localstack-data:
+```
 
-> 📘 đã có bảng IaaS/PaaS/SaaS và dịch vụ AWS. Mục này cho bạn **hình dung** để nhớ.
+#### File 2 — `chinh-sach-doc.json`
 
-**Cloud là đổi "mua tài sản" lấy "thuê theo dùng".** Trước đây muốn có server phải bỏ tiền lớn mua máy, tự lo điện/mạng/bảo trì — mua thừa thì phí, mua thiếu thì kẹt. Cloud biến nó thành hoá đơn kiểu tiền điện: cần bao nhiêu bật bấy nhiêu, không dùng thì tắt cho khỏi tốn. Nhưng chính sự tiện đó là con dao hai lưỡi — *quên tắt là vẫn cứ bị tính tiền*.
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ChiChoPhepDocMotBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::kho-tai-lieu",
+        "arn:aws:s3:::kho-tai-lieu/*"
+      ]
+    }
+  ]
+}
+```
 
-**IaaS/PaaS/SaaS = bạn tự lo bao nhiêu phần.** Càng lên cao càng "ăn sẵn": IaaS cho bạn máy trần tự cài mọi thứ (EC2/VM); PaaS lo sẵn nền tảng, bạn chỉ đẩy code (App Engine); SaaS thì dùng luôn sản phẩm hoàn chỉnh (Gmail). Chọn mức nào là chọn đánh đổi giữa *quyền kiểm soát* và *công sức vận hành*.
+### 🧭 Hướng dẫn làm LAB Phần A — step by step
 
-**Hai nỗi đau lớn nhất của người mới lên cloud — và đều phòng được ngay ngày đầu.** Một là *hoá đơn sốc*: quên tắt máy, hoặc access key lỡ commit lên GitHub bị bot lợi dụng đào tiền ảo → đặt Billing Alert và không bao giờ commit key. Hai là *bị chiếm tài khoản*: dùng root hằng ngày, không bật MFA → bật MFA, tạo IAM user quyền tối thiểu. Nhớ *Shared Responsibility*: nhà cung cấp lo an toàn phần cứng, còn cấu hình/khoá cửa là việc của **bạn**.
+#### Bước 1 — Khởi động LocalStack và cài AWS CLI
 
-### 🧪 Lab cơ bản
+```bash
+mkdir -p ~/lab26-cloud && cd ~/lab26-cloud
+# tạo 2 file theo phần LAB
+docker compose up -d
 
-1. Tạo tài khoản AWS Free Tier (hoặc Oracle Cloud Free Tier nếu lo chi phí).
-2. Bật MFA cho tài khoản, tạo 1 IAM user với quyền hạn chế.
-3. Thiết lập Billing Alert để tránh bị tính tiền bất ngờ.
-4. Khám phá AWS Console: tìm EC2, S3, VPC, IAM.
-5. Đọc tài liệu về EC2 instance types & pricing (chỉ đọc, chưa tạo).
+# Cài AWS CLI nếu chưa có
+aws --version 2>/dev/null || {
+  curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscli.zip
+  unzip -q awscli.zip && sudo ./aws/install && rm -rf awscli.zip aws
+}
+aws --version
+```
 
-### 🚀 Lab nâng cao (best-practice)
+**Bạn sẽ thấy:**
+```text
+aws-cli/2.x.x Python/3.x.x Linux/...
+```
 
-> Mục tiêu: thiết lập tài khoản cloud an toàn ngay từ đầu — đây là nơi sai lầm = hóa đơn nghìn đô hoặc bị hack.
+✅ **Checkpoint:** AWS CLI in ra phiên bản, container `localstack` đang `Up`.
 
-1. **Khóa root account, dùng IAM:** bật MFA cho root, **không dùng root hàng ngày**, tạo IAM user/role cho mọi việc.
-2. **Least privilege từ đầu:** gán policy tối thiểu, không gán `AdministratorAccess` bừa bãi.
-3. **Billing alarm + Budget** nhiều mức ($1, $5, $10) — phát hiện sớm bất thường.
-4. **Bật MFA + dùng access key cẩn thận:** access key bị lộ trên GitHub là nguyên nhân #1 của hóa đơn cloud khổng lồ. Đừng commit, dùng `aws configure` lưu cục bộ, xoay key định kỳ.
+Tạo một hồ sơ trỏ vào LocalStack (giá trị khoá là giả, LocalStack không kiểm tra):
 
-### 💡 Bổ sung thực tế: tư duy cloud & bẫy chi phí
+```bash
+aws configure set aws_access_key_id     test --profile local
+aws configure set aws_secret_access_key test --profile local
+aws configure set region ap-southeast-1 --profile local
 
-- **IaaS/PaaS/SaaS qua ví dụ:** IaaS = thuê đất tự xây nhà (EC2/VM); PaaS = thuê nhà có sẵn nội thất (App Engine, Elastic Beanstalk); SaaS = ở khách sạn (Gmail, Notion).
-- **Region quan trọng cho 2 thứ:** **độ trễ** (chọn gần người dùng) và **chi phí** (giá khác nhau giữa region) và **tuân thủ** (dữ liệu phải ở quốc gia nào).
-- **Bẫy chi phí phổ biến:** quên tắt instance, NAT Gateway chạy 24/7, traffic egress (đẩy dữ liệu RA internet tốn tiền, vào thì free), snapshot/volume mồ côi. → **Billing alert là việc đầu tiên** sau khi tạo tài khoản.
-- **Shared responsibility:** nhà cung cấp lo bảo mật "của" cloud (phần cứng, hạ tầng); **bạn** lo bảo mật "trong" cloud (cấu hình, IAM, dữ liệu, patch OS). Đừng tưởng "lên cloud là tự an toàn".
+# Đặt hàm rút gọn để đỡ gõ endpoint mỗi lần
+alias awsl='aws --endpoint-url=http://localhost:4566 --profile local'
+awsl sts get-caller-identity
+```
 
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+**Bạn sẽ thấy:**
+```text
+{
+    "UserId": "AKIAIOSFODNN7EXAMPLE",
+    "Account": "000000000000",
+    "Arn": "arn:aws:iam::000000000000:root"
+}
+```
 
-**Trình tự nên làm:** tạo tài khoản cloud → bật MFA cho root → tạo IAM user quyền hạn chế → đặt Billing Alert → khám phá Console.
+✅ **Checkpoint:** CLI nói chuyện được với LocalStack.
 
-**Giải nghĩa & kết quả mong đợi:**
-- Bật **MFA** cho root account — xác thực 2 lớp. **Vì sao:** root bị chiếm = mất sạch tài khoản + hóa đơn khổng lồ.
-- Tạo **IAM user** riêng cho công việc hàng ngày (không dùng root). *Kết quả:* đăng nhập bằng IAM user.
-- **Billing Alert / Budget** ($1, $5, $10) — cảnh báo khi chi phí vượt. *Kết quả:* nhận email khi vượt ngưỡng.
+💡 Chú ý bạn vừa dùng **đúng lệnh `aws` thật**, chỉ đổi endpoint. Mọi thứ học ở đây chuyển sang AWS thật chỉ bằng cách bỏ `--endpoint-url`.
 
-**🧪 Thử nghiệm:**
-- Gán IAM user quyền chỉ-đọc (ReadOnly) rồi thử tạo tài nguyên → bị từ chối. **Bài học:** least privilege hoạt động thế nào.
-- Xem bảng giá 1 instance type ở 2 region khác nhau. **Bài học:** region ảnh hưởng chi phí + độ trễ.
+#### Bước 2 — S3: kho chứa file
 
-⚠️ **Dễ sai:** commit access key lên GitHub = nguyên nhân #1 của hóa đơn cloud khổng lồ (bot quét GitHub liên tục). Không bao giờ commit key; dùng `aws configure` lưu cục bộ.
+```bash
+awsl s3 mb s3://kho-tai-lieu
+awsl s3 ls
 
-💡 **Hiểu sâu:** **Shared responsibility** — nhà cung cấp lo bảo mật *của* cloud (phần cứng); BẠN lo bảo mật *trong* cloud (IAM, cấu hình, dữ liệu). "Lên cloud" không tự an toàn.
+echo "Báo cáo quý 4 - nội dung thử nghiệm" > bao-cao.txt
+awsl s3 cp bao-cao.txt s3://kho-tai-lieu/tai-lieu/bao-cao.txt
+awsl s3 ls s3://kho-tai-lieu --recursive
+```
 
-### 🐛 Gỡ lỗi nhanh
+**Bạn sẽ thấy:**
+```text
+make_bucket: kho-tai-lieu
+2026-09-23 14:30:00 kho-tai-lieu
 
-| Triệu chứng | Nguyên nhân | Cách sửa |
+upload: ./bao-cao.txt to s3://kho-tai-lieu/tai-lieu/bao-cao.txt
+2026-09-23 14:30:05        39 tai-lieu/bao-cao.txt
+```
+
+✅ **Checkpoint:** tải lên và liệt kê được file.
+
+Tải về để kiểm chứng:
+```bash
+awsl s3 cp s3://kho-tai-lieu/tai-lieu/bao-cao.txt ve-lai.txt
+cat ve-lai.txt
+```
+
+💡 **S3 không phải ổ đĩa, nó là kho đối tượng.** Không có thư mục thật — `tai-lieu/bao-cao.txt` chỉ là *một cái tên có chứa dấu gạch chéo*. Hiểu điều này giúp bạn khỏi bối rối khi thấy "thư mục rỗng tự biến mất".
+
+#### Bước 3 — Bật những thứ đáng lẽ phải bật mặc định
+
+Bucket mới tạo **không** có phiên bản, **không** mã hoá, và **có thể** công khai. Đây chính là nguồn gốc của vô số vụ rò rỉ dữ liệu.
+
+```bash
+# 1) Bật phiên bản — cứu bạn khi lỡ ghi đè hoặc xoá nhầm
+awsl s3api put-bucket-versioning \
+  --bucket kho-tai-lieu \
+  --versioning-configuration Status=Enabled
+
+# 2) Bật mã hoá khi lưu
+awsl s3api put-bucket-encryption --bucket kho-tai-lieu \
+  --server-side-encryption-configuration \
+  '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+
+# 3) Chặn mọi truy cập công khai
+awsl s3api put-public-access-block --bucket kho-tai-lieu \
+  --public-access-block-configuration \
+  "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+
+awsl s3api get-bucket-versioning --bucket kho-tai-lieu
+```
+
+**Bạn sẽ thấy:**
+```text
+{
+    "Status": "Enabled"
+}
+```
+
+✅ **Checkpoint:** phiên bản đã bật.
+
+Thấy tác dụng của phiên bản ngay:
+
+```bash
+echo "Phiên bản 2 - đã sửa" > bao-cao.txt
+awsl s3 cp bao-cao.txt s3://kho-tai-lieu/tai-lieu/bao-cao.txt
+awsl s3api list-object-versions --bucket kho-tai-lieu \
+  --prefix tai-lieu/bao-cao.txt --query 'Versions[].[VersionId,LastModified]' --output table
+```
+
+**Bạn sẽ thấy** hai phiên bản — bản cũ **vẫn còn** dù đã bị ghi đè.
+
+✅ **Checkpoint:** thấy hai phiên bản của cùng một file.
+
+💡 **Ba lệnh ở trên là ba câu hỏi Checkov sẽ hỏi bạn ở Ngày 49.** Giờ bạn đã biết chúng có ý nghĩa gì trong thực tế, chứ không phải chỉ là luật để chiều lòng công cụ.
+
+#### Bước 4 — IAM và nguyên tắc đặc quyền tối thiểu
+
+```bash
+awsl iam create-user --user-name ung-dung-doc
+awsl iam create-policy --policy-name ChiDoc \
+  --policy-document file://chinh-sach-doc.json
+awsl iam attach-user-policy --user-name ung-dung-doc \
+  --policy-arn arn:aws:iam::000000000000:policy/ChiDoc
+
+awsl iam list-attached-user-policies --user-name ung-dung-doc
+```
+
+**Bạn sẽ thấy:**
+```text
+{
+    "AttachedPolicies": [
+        {
+            "PolicyName": "ChiDoc",
+            "PolicyArn": "arn:aws:iam::000000000000:policy/ChiDoc"
+        }
+    ]
+}
+```
+
+✅ **Checkpoint:** người dùng đã được gắn chính sách chỉ đọc.
+
+💡 Đọc lại `chinh-sach-doc.json`: nó cho phép đúng hai hành động (`GetObject`, `ListBucket`) trên đúng một bucket. Đó là **đặc quyền tối thiểu** — thứ bạn đã gặp ở Ngày 33 (`permissions` của workflow) và sẽ gặp lại ở Ngày 39 (RBAC), Ngày 49.
+
+⚠️ Cám dỗ lớn nhất khi mới học cloud là gán `AdministratorAccess` cho mọi thứ "cho nhanh". Đó chính là lý do một khoá bị lộ có thể dẫn tới mất toàn bộ tài khoản, thay vì chỉ mất một bucket.
+
+#### Bước 5 — Dọn dẹp Phần A
+
+```bash
+cd ~/lab26-cloud
+docker compose down -v
+```
+
+### 🔐 LAB Phần B — Mở tài khoản cloud an toàn (nếu bạn muốn dùng thật)
+
+> Phần này làm **một lần duy nhất** và dùng cho cả Ngày 27–28. Nếu chưa muốn mở tài khoản, cứ dùng phương án thay thế miễn phí ở Ngày 27.
+
+#### Bước 6 — Danh sách kiểm tra bắt buộc
+
+Làm **đúng thứ tự này**, đừng bỏ bước nào:
+
+| # | Việc | Vì sao bắt buộc |
 |---|---|---|
-| Hoá đơn tăng bất ngờ | Quên tắt instance / NAT Gateway / egress traffic | Đặt Billing Alert; tắt/terminate tài nguyên không dùng; xem Cost Explorer |
-| Access key bị lạm dụng | Lỡ commit key lên GitHub | **Xoá & xoay key ngay**; bật cảnh báo; không commit key |
-| Không tạo được tài nguyên | IAM user thiếu quyền | Gán policy phù hợp (least privilege, không AdminAccess bừa) |
-| Bị khoá tài khoản root | Không bật MFA, bị chiếm | Bật MFA ngay; dùng IAM user hàng ngày |
-| App chậm/độ trễ cao | Region xa người dùng | Chọn region gần; cân nhắc CDN |
+| 1 | Đăng ký, chọn region gần bạn (`ap-southeast-1`) | Độ trễ thấp hơn |
+| 2 | **Bật MFA cho tài khoản gốc** | Tài khoản gốc mất là mất tất cả |
+| 3 | **Tạo một IAM user riêng** để dùng hằng ngày | Không bao giờ dùng tài khoản gốc cho việc thường |
+| 4 | **Đặt cảnh báo ngân sách 1 USD** | Biết ngay khi có gì đó phát sinh chi phí |
+| 5 | **Cất tài khoản gốc đi**, chỉ dùng IAM user | Giảm thiệt hại nếu lộ thông tin |
+| 6 | Bật MFA cho cả IAM user | Lớp bảo vệ thứ hai |
 
-### 📝 Bài ôn tập & Demo đối chiếu
+> ⚠️ **Bước 4 là bước quan trọng nhất.** Cảnh báo ngân sách 1 USD nghĩa là **bất kỳ khoản phát sinh nào** cũng làm bạn nhận email ngay. Đây là thứ đứng giữa bạn và một hoá đơn bất ngờ.
 
-**✍️ Tự kiểm tra:**
+Đặt cảnh báo ngân sách bằng CLI (khi đã có tài khoản thật):
 
-<details>
-<summary>1. Phân biệt IaaS, PaaS, SaaS qua ví dụ.</summary>
+```bash
+cat > ngan-sach.json <<'EOF'
+{
+  "BudgetName": "canh-bao-1-do",
+  "BudgetLimit": { "Amount": "1", "Unit": "USD" },
+  "TimeUnit": "MONTHLY",
+  "BudgetType": "COST"
+}
+EOF
 
-> IaaS = thuê đất tự xây nhà (EC2/VM). PaaS = thuê nhà có nội thất, chỉ đẩy code (App Engine). SaaS = ở khách sạn dùng luôn (Gmail).
-</details>
+cat > thong-bao.json <<'EOF'
+[{
+  "Notification": {
+    "NotificationType": "ACTUAL",
+    "ComparisonOperator": "GREATER_THAN",
+    "Threshold": 1,
+    "ThresholdType": "PERCENTAGE"
+  },
+  "Subscribers": [{ "SubscriptionType": "EMAIL", "Address": "ban@example.com" }]
+}]
+EOF
 
-<details>
-<summary>2. EC2, S3, IAM mỗi dịch vụ làm gì?</summary>
+aws budgets create-budget \
+  --account-id <so-tai-khoan-cua-ban> \
+  --budget file://ngan-sach.json \
+  --notifications-with-subscribers file://thong-bao.json
+```
 
-> EC2 = máy ảo. S3 = kho lưu file (object storage). IAM = quản lý người dùng & quyền.
-</details>
+✅ **Checkpoint:** vào **Billing → Budgets** thấy ngân sách vừa tạo.
 
-<details>
-<summary>3. Vì sao bật Billing Alert ngay khi tạo tài khoản?</summary>
+#### Bước 7 — Tự kiểm tra an toàn tài khoản
 
-> Cloud tính tiền theo dùng; quên tắt máy hoặc lộ key → hoá đơn nghìn đô. Billing Alert cảnh báo sớm khi chi phí vượt ngưỡng.
-</details>
+```bash
+echo "▸ Đang dùng danh tính nào?"
+aws sts get-caller-identity --query Arn --output text
+echo "  (phải là :user/<ten-iam-user>, KHÔNG được là :root)"
 
-<details>
-<summary>4. "Shared Responsibility" nghĩa là gì?</summary>
+echo "▸ Tài khoản gốc đã bật MFA chưa?"
+aws iam get-account-summary --query 'SummaryMap.AccountMFAEnabled'
+echo "  (phải là 1)"
 
-> Nhà cung cấp lo bảo mật *của* cloud (phần cứng, hạ tầng). Bạn lo bảo mật *trong* cloud (IAM, cấu hình, dữ liệu, patch OS). Lên cloud không tự an toàn.
-</details>
+echo "▸ Có khoá truy cập nào của tài khoản gốc không?"
+aws iam get-account-summary --query 'SummaryMap.AccountAccessKeysPresent'
+echo "  (phải là 0 — tài khoản gốc KHÔNG nên có khoá)"
+```
 
-**🔬 Demo đối chiếu:**
+⚠️ **Nếu dòng đầu ra `:root`** — bạn đang dùng tài khoản gốc. Dừng lại, tạo IAM user và chuyển sang dùng nó trước khi đi tiếp.
 
-| Demo đối chiếu | Kết quả mong đợi |
-|---|---|
-| Tạo tài khoản Free Tier | Đăng nhập Console thành công |
-| Bật MFA + IAM user | Đăng nhập bằng IAM user, không dùng root |
-| Đặt billing alarm | Budget alert > $1 đã tạo |
+### 💡 Đi làm mới thấm (sách cơ bản hay bỏ quên)
 
-### 📚 Thuật ngữ Anh–Việt (ngày này)
-
-| Thuật ngữ | Nghĩa |
-|---|---|
-| **IaaS / PaaS / SaaS** | 3 mức dịch vụ cloud |
-| **EC2 / S3 / VPC / IAM / RDS** | Máy ảo / kho file / mạng / quyền / DB |
-| **Region / AZ** | Khu vực địa lý / vùng sẵn sàng |
-| **Free Tier** | Gói miễn phí để học |
-| **IAM user / MFA** | Người dùng có quyền / xác thực 2 lớp |
-| **Billing Alert** | Cảnh báo chi phí |
-| **Shared Responsibility** | Chia trách nhiệm bảo mật cloud |
+- **Free tier không phải miễn phí vô điều kiện.** Nó miễn phí *trong hạn mức*: 750 giờ máy nhỏ mỗi tháng, 5 GB S3... Vượt hạn mức là tính tiền bình thường, và **không có ai chặn bạn lại**. Cảnh báo ngân sách là thứ duy nhất báo cho bạn biết.
+- **Khoá truy cập bị lộ là sự cố tính bằng phút.** Bot quét GitHub liên tục. Nếu lỡ commit khoá: **vô hiệu hoá nó ngay lập tức** (trước cả khi xoá khỏi lịch sử), rồi kiểm tra hoá đơn và các tài nguyên lạ xem có gì được tạo ra không.
+- **Xoá tài nguyên đúng cách, đừng chỉ tắt.** `stop` một máy ảo vẫn tính tiền ổ đĩa. Ổ đĩa mồ côi, IP tĩnh không dùng, snapshot cũ — tất cả vẫn tính tiền hằng tháng (Ngày 53). Tập thói quen dọn sạch sau mỗi buổi học.
+- **Chọn region rồi thì đừng đổi tuỳ tiện.** Tài nguyên ở region khác **không thấy nhau** một cách tự nhiên, và người mới hay hoảng vì "máy ảo của tôi biến mất" — thực ra chỉ là đang xem nhầm region.
+- **Dùng LocalStack để học và để chạy test.** Không chỉ hợp cho người mới: nhiều đội dùng nó trong CI để kiểm thử mã tương tác với AWS mà không tốn tiền và không cần tài khoản thật.
+- **Mọi thứ hôm nay bấm tay, ba ngày nữa sẽ viết thành code.** Ngày 29 bạn học Terraform và làm lại đúng những việc này bằng khai báo. Hãy bấm tay hôm nay để hiểu *cái gì đang được tạo ra* — rồi mới tự động hoá.
 
 ### 🎯 Đúc kết Ngày 26
 
 **3 điều phải mang theo:**
-1. **Cloud = thuê theo dùng** — tiện nhưng quên tắt là vẫn tính tiền. IaaS/PaaS/SaaS khác nhau ở "bạn tự lo bao nhiêu".
-2. **2 việc làm NGAY khi tạo tài khoản:** bật MFA + tạo IAM user (đừng dùng root hằng ngày); đặt Billing Alert.
-3. **Shared Responsibility:** nhà cung cấp lo an toàn *của* cloud; BẠN lo an toàn *trong* cloud (IAM, cấu hình, dữ liệu). Không commit access key.
 
-> 🧠 **Một câu để nhớ:** *Shared Responsibility* — nhà cung cấp lo bảo mật *của* cloud (phần cứng); **BẠN** lo bảo mật *trong* cloud (cấu hình, mật khẩu, dữ liệu). "Lên cloud" không tự an toàn.
+1. **Cloud tiện nên dễ quên tắt.** Đặt cảnh báo ngân sách **trước** khi tạo tài nguyên đầu tiên, không phải sau.
+2. **Trách nhiệm chia sẻ:** nhà cung cấp lo phần cứng, **bạn lo cấu hình**. Lên cloud không tự động an toàn.
+3. **Đặc quyền tối thiểu ngay từ ngày đầu.** Không dùng tài khoản gốc, không gán quyền quản trị cho mọi thứ — để một khoá lộ không đồng nghĩa mất tất cả.
+
+> 🧠 **Một câu để nhớ:** thứ đắt nhất trên cloud không phải máy chủ — mà là **tài nguyên bạn quên mất là mình đang thuê**.
 
 **✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
-- [ ] Phân biệt IaaS/PaaS/SaaS qua ví dụ
-- [ ] Nói được EC2/S3/VPC/IAM/RDS mỗi cái làm gì
-- [ ] Bật MFA và tạo IAM user quyền hạn chế
-- [ ] Đặt Billing Alert nhiều mức
-- [ ] Giải thích Shared Responsibility và vì sao không commit access key
 
-✅ **Kết quả đạt được:** Hiểu mô hình cloud (IaaS/PaaS/SaaS), có tài khoản an toàn với MFA, IAM user và cảnh báo chi phí.
+- [ ] Phân biệt IaaS / PaaS / SaaS và cho ví dụ từng loại
+- [ ] Giải thích mô hình trách nhiệm chia sẻ
+- [ ] Dùng `aws` CLI tạo bucket, tải file lên, tải về
+- [ ] Bật phiên bản + mã hoá + chặn công khai cho bucket, nói rõ vì sao
+- [ ] Viết một chính sách IAM chỉ cho phép đúng việc cần
+- [ ] Kể đủ 6 bước mở tài khoản an toàn và nói bước nào quan trọng nhất
+- [ ] Nói rõ việc cần làm đầu tiên khi lỡ commit khoá truy cập lên Git
+
+✅ **Kết quả đạt được:** Thao tác được với cloud qua dòng lệnh mà không tốn chi phí, và có checklist an toàn tài khoản để dùng thật — hai điều kiện trước khi tạo máy ảo ở Ngày 27.
 
 ---
 
-## Ngày 27 — Máy chủ Cloud — Tạo & quản lý VM (EC2)
+## Ngày 27 — Máy chủ Cloud — Tạo & quản lý VM
 
 > ⏱️ ~90 phút · Loại: Cloud
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 26 (tài khoản cloud an toàn) → **Ngày 27 (tạo & vận hành 1 VM thật trên cloud)** → Ngày 28 (deploy Docker lên VM). Đây là lúc kiến thức Linux/SSH/hardening (GĐ1) gặp cloud.
+> 🧭 **Bạn đang ở đâu:** Ngày 26 (tài khoản cloud an toàn) → **Ngày 27 (tạo và vận hành một máy ảo)** → Ngày 28 (đưa ứng dụng Docker lên máy đó). Đây là lúc kiến thức Linux, SSH và hardening của Giai đoạn 1 gặp cloud.
+>
 > 🌐 *EC2 (AWS) ≈ Compute Engine (GCP) ≈ Virtual Machines (Azure). Security Group ≈ Firewall rules ≈ Network Security Group.*
 >
-> ✅ **Chuẩn bị:** tài khoản cloud có IAM user + billing alert (Ngày 26). Ôn SSH bằng key (Ngày 8) và hardening (Ngày 9).
+> ✅ **Chuẩn bị:** máy Linux. LAB chính dùng **Multipass** — tạo máy ảo Ubuntu thật ngay trên máy bạn, **miễn phí hoàn toàn**. Phần cuối có hướng dẫn làm trên cloud thật.
+>
+> 🎁 **Cuối ngày bạn có gì:** một máy chủ dựng **hoàn toàn tự động từ file cấu hình** — có user riêng, SSH chỉ dùng khoá, tường lửa bật sẵn — dựng lại trong 90 giây bất cứ lúc nào.
 
 ### 📘 Lý thuyết
 
-#### 1. EC2 instance — máy ảo thuê trên cloud
+#### 1. Máy ảo trên cloud — bốn thứ bạn phải chọn
 
-Chọn **AMI** (hệ điều hành, vd Ubuntu), **instance type** (`t2.micro` — free tier), **storage**, rồi SSH vào dùng như server Linux thật.
-
-#### 2. Key pair — chìa khoá vào máy
-
-Khi tạo EC2, tải về file khoá `.pem` (chỉ tải được **1 lần** — giữ kỹ, mất là không vào được). Bắt buộc `chmod 400 key.pem`, nếu không SSH từ chối. Kết nối: `ssh -i key.pem ubuntu@<public-ip>`.
-
-#### 3. Security Group — tường lửa của cloud
-
-"Người gác cổng" ở tầng cloud (trước cả khi gói tin tới máy). Mặc định **chặn hết**, mở cổng cần (22, 80, 443). Cùng với UFW bên trong máy = **2 lớp bảo vệ** (defense in depth).
-
-| | Security Group | UFW |
+| Lựa chọn | Là gì | Lưu ý cho người mới |
 |---|---|---|
-| Tầng | Cloud (trước máy) | Hệ điều hành (trong máy) |
-| Mặc định | Deny all inbound | Lớp phòng thủ thứ 2 |
+| **Ảnh hệ điều hành** (AMI) | Hệ điều hành cài sẵn | Ubuntu LTS là lựa chọn an toàn |
+| **Loại máy** (instance type) | CPU + RAM bao nhiêu | Bắt đầu nhỏ, mở rộng sau; loại nhỏ thường nằm trong free tier |
+| **Ổ đĩa** | Dung lượng và loại đĩa | **Vẫn tính tiền kể cả khi máy đã tắt** |
+| **Mạng & tường lửa** | Máy nằm ở mạng nào, mở cổng nào | Mặc định chặn hết — bạn phải chủ động mở |
 
-#### 4. Elastic IP & User data
+#### 2. Khoá SSH — chìa khoá vào máy
 
-- **Elastic IP**: IP tĩnh (IP mặc định đổi mỗi lần stop/start).
-- **User data**: script chạy tự động khi khởi tạo instance (cài đặt/hardening ban đầu).
+Cloud **không dùng mật khẩu** cho máy mới. Bạn tạo một cặp khoá, phần công khai được nạp vào máy lúc khởi tạo, phần riêng bạn giữ.
 
-#### 5. Vòng đời — `stop` vs `terminate` (đừng nhầm!)
+```bash
+ssh -i khoa-rieng.pem ubuntu@<dia-chi-ip>
+```
 
-| Lệnh | Tác dụng |
-|---|---|
-| `stop` | Tắt máy, **giữ ổ đĩa** (vẫn trả phí storage), bật lại được |
-| `terminate` | **Xoá hẳn** máy + ổ đĩa → mất dữ liệu vĩnh viễn |
+Ba điều hay vấp:
+- File khoá phải `chmod 400` — quyền rộng hơn là SSH từ chối dùng
+- AWS chỉ cho tải file `.pem` **đúng một lần** — mất là không vào được máy nữa
+- Tên người dùng khác nhau tuỳ ảnh hệ điều hành: `ubuntu` (Ubuntu), `ec2-user` (Amazon Linux), `debian` (Debian)
 
-> 🔑 ĐỪNG mở SSH (cổng 22) cho `0.0.0.0/0` (cả thế giới) — bot sẽ dò mật khẩu liên tục. Chỉ mở cho IP của bạn.
+#### 3. Hai lớp tường lửa — đừng nhầm lẫn
 
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
-
-> 📘 đã có bảng Security Group vs UFW và stop vs terminate. Mục này cho bạn **hình dung** để nhớ.
-
-**EC2 chỉ là "một máy Linux ở xa" — mọi kỹ năng GĐ1 dùng lại nguyên.** Đừng thấy chữ "cloud" mà sợ: sau khi SSH vào, nó y hệt server bạn đã luyện. Cái mới chỉ là *lớp vỏ cloud* bọc quanh: cách tạo máy, chìa khoá vào máy (key pair `.pem`), tường lửa tầng cloud (Security Group), và IP có thể đổi.
-
-**Hai lớp tường lửa, phòng thủ theo chiều sâu.** Security Group chặn ở *tầng cloud* — gói tin bị lọc trước cả khi tới máy; mặc định chặn hết, bạn chỉ mở đúng cổng cần. UFW chặn ở *trong máy* (tầng OS). Có cả hai nghĩa là kẻ tấn công phải qua hai cửa — nếu một lớp lỡ cấu hình sai, lớp kia vẫn đỡ. Đây là lý do vẫn nên bật UFW dù đã có Security Group.
-
-**`stop` và `terminate` — nhầm một chữ, mất cả dữ liệu.** `stop` là *tắt máy tạm*: giữ nguyên ổ đĩa (vẫn trả phí lưu trữ), bật lại được, chỉ mất Public IP nếu không dùng Elastic IP. `terminate` là *xoá hẳn*: máy và ổ đĩa đi luôn, dữ liệu không cứu được. Và mẹo sống còn ngay phút đầu: `chmod 400 key.pem` — SSH sẽ *từ chối* chạy nếu chìa khoá để quyền quá mở (người khác đọc được).
-
-### 🧪 Lab cơ bản
-
-1. Tạo 1 EC2 instance t2.micro (Ubuntu), tạo key pair và tải `.pem`.
-2. Cấu hình Security Group mở cổng 22 (SSH) và 80 (HTTP).
-3. Đặt quyền cho key: `chmod 400 key.pem`, rồi SSH vào instance.
-4. Trên EC2: cài nginx, mở trình duyệt bằng public IP → thấy trang nginx.
-5. Thực hành dùng User Data tự động cài nginx khi tạo instance mới.
-
-### 🚀 Lab nâng cao (best-practice)
-
-> Mục tiêu: vận hành VM cloud an toàn — kết hợp đúng kiến thức hardening Giai đoạn 1.
-
-1. **Security Group + UFW = 2 lớp** — Security Group chặn ở tầng cloud, UFW chặn ở tầng OS (defense in depth). Áp checklist hardening (Ngày 9) cho mọi instance mới.
-2. **User data tự hardening** ngay khi tạo máy:
-   ```bash
-   #!/bin/bash
-   apt update && apt install -y nginx fail2ban
-   ufw allow 22; ufw allow 80; ufw --force enable
-   systemctl enable --now nginx fail2ban
-   ```
-3. **Security Group chỉ mở SSH từ IP của bạn**, không phải `0.0.0.0/0` (cả thế giới quét cổng 22 liên tục).
-4. **Tag tài nguyên** (Name, Environment, Owner) — không có tag = không quản lý được chi phí/tài nguyên khi nhiều máy.
-
-### 💡 Bổ sung thực tế: Security Group vs UFW & stop vs terminate
-
-- **Security Group khác UFW thế nào:**
-  | | Tầng | Đặc điểm |
-  |---|---|---|
-  | Security Group | cloud (trước khi gói tới máy) | stateful, mặc định **deny all inbound**, theo instance |
-  | UFW | hệ điều hành (trong máy) | lớp phòng thủ thứ 2, vẫn cần dù có SG |
-- **stop vs terminate (kẻo mất dữ liệu / tốn tiền):**
-  - `stop` = tắt máy, **giữ disk** (vẫn trả tiền storage), bật lại được. Public IP đổi (trừ khi dùng Elastic IP).
-  - `terminate` = **xóa hẳn** instance + disk (mặc định) → mất dữ liệu vĩnh viễn.
-- **`chmod 400 key.pem` bắt buộc:** SSH **từ chối** key có quyền quá mở (người khác đọc được). Đây là lỗi người mới gặp ngay phút đầu dùng EC2.
-- **t2.micro là free tier nhưng có giới hạn CPU credit** — chạy tải nặng liên tục sẽ bị bóp. Hiểu "burstable instance" để khỏi ngạc nhiên khi app chậm bất thường.
-
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
-
-**Trình tự nên làm:** tạo VM (t2.micro) + key pair → mở Security Group 22/80 → `chmod 400` key → SSH vào → cài nginx → thử User Data.
-
-**Giải nghĩa & kết quả mong đợi:**
-- Tạo VM, tải file key `.pem` (chỉ tải được 1 lần — giữ kỹ). *Kết quả:* instance State `Running`, có Public IP.
-- `chmod 400 key.pem` — chỉ owner đọc. **Vì sao bắt buộc:** SSH *từ chối* key quyền quá mở.
-- `ssh -i key.pem ubuntu@<public-ip>` — đăng nhập. *Kết quả:* vào shell của VM.
-- **Security Group** = firewall tầng cloud; chỉ mở 22 (SSH) + 80 (HTTP). **User Data** = script chạy tự động khi tạo máy.
-
-**🧪 Thử nghiệm:**
-- Mở SSH cho `0.0.0.0/0`, sau vài giờ xem `/var/log/auth.log` → đầy lượt quét. Đổi thành chỉ IP của bạn. **Bài học:** đừng mở SSH cho cả thế giới.
-- `stop` instance rồi `start` lại → Public IP đổi (trừ khi dùng Elastic IP). **Bài học:** IP động.
-
-⚠️ **Dễ sai:** `terminate` thay vì `stop` → **xóa hẳn** máy + disk → mất dữ liệu. `stop` chỉ tắt, giữ disk.
-
-💡 **Hiểu sâu:** Security Group (tầng cloud) + UFW (tầng OS) = 2 lớp phòng thủ (defense in depth). Áp checklist hardening Ngày 9 cho MỌI instance mới.
-
-### 🐛 Gỡ lỗi nhanh
-
-| Triệu chứng | Nguyên nhân | Cách sửa |
+| | **Tường lửa của cloud** (Security Group) | **Tường lửa trong máy** (UFW) |
 |---|---|---|
-| SSH `Permission denied (publickey)` | Sai user (dùng `ubuntu`/`ec2-user`) hoặc sai key | Đúng user theo AMI; đúng file `.pem` |
-| SSH `UNPROTECTED PRIVATE KEY` | Quyền `.pem` quá mở | `chmod 400 key.pem` |
-| SSH `Connection timed out` | Security Group chưa mở 22 / sai IP | Thêm rule cổng 22 cho IP của bạn |
-| Web không vào được | Chưa mở 80/443 ở Security Group | Thêm rule 80/443 |
-| Public IP đổi sau restart | IP động | Gắn Elastic IP |
-| Lỡ `terminate` mất dữ liệu | Nhầm với `stop` | Dùng `stop` để giữ disk; bật "termination protection" |
+| Nằm ở đâu | Trước khi gói tin tới máy | Bên trong hệ điều hành |
+| Ai quản | Nhà cung cấp cloud | Bạn, qua SSH |
+| Mặc định | **Chặn hết chiều vào** | Thường tắt |
+| Khi chặn | Gói tin bị bỏ im lặng → **timeout** | Thường trả về **refused** |
 
-### 📝 Bài ôn tập & Demo đối chiếu
+> 🔑 Có cả hai gọi là **phòng thủ nhiều lớp**. Và mẹo chẩn đoán từ Ngày 7 rất hữu ích ở đây: **`timeout` thường là tường lửa cloud chặn; `connection refused` thường là dịch vụ chưa chạy**. Phân biệt được hai cái đó tiết kiệm rất nhiều thời gian mò mẫm.
 
-**✍️ Tự kiểm tra:**
+#### 4. cloud-init — máy tự cấu hình lúc sinh ra
 
-<details>
-<summary>1. Security Group khác gì với UFW trong instance?</summary>
+Đây là khái niệm quan trọng nhất hôm nay, và cũng là thứ người mới hay bỏ qua.
 
-> Security Group là firewall ở **tầng cloud** (trước khi gói tới máy, deny-all mặc định). UFW là firewall ở **tầng OS** (trong máy). Dùng cả hai = 2 lớp phòng thủ.
-</details>
+Thay vì tạo máy rồi SSH vào cài đặt thủ công, bạn đưa cho nó một **file cấu hình khởi tạo**. Máy tự làm mọi thứ ngay lần khởi động đầu tiên: tạo user, nạp khoá SSH, cài gói, bật tường lửa.
 
-<details>
-<summary>2. Vì sao cần `chmod 400` cho file `.pem`?</summary>
+```text
+  Cách thủ công:   tạo máy → SSH vào → gõ 20 lệnh → hy vọng không quên gì
+  Cách cloud-init: viết file 1 lần → mọi máy sinh ra đều giống hệt nhau
+```
 
-> SSH từ chối private key nếu quyền quá mở (người khác đọc được). `400` = chỉ chủ đọc.
-</details>
+Trên AWS nó gọi là **user data**; trên GCP là **startup script** — cùng một cơ chế cloud-init bên dưới. Đây là bước đệm dẫn tới Ansible (Ngày 47) và Terraform (Ngày 29).
 
-<details>
-<summary>3. `stop` và `terminate` khác nhau về chi phí và dữ liệu?</summary>
+#### 5. Vòng đời máy — `stop` khác `terminate`
 
-> `stop`: tắt máy, giữ ổ đĩa (vẫn trả phí storage), bật lại được. `terminate`: xoá hẳn máy + ổ đĩa → mất dữ liệu vĩnh viễn.
-</details>
+| Hành động | Máy | Ổ đĩa | Địa chỉ IP | Còn tính tiền? |
+|---|---|---|---|---|
+| **stop** | Tắt | **Giữ nguyên** | IP công khai **mất** | **Có** — vẫn trả tiền ổ đĩa |
+| **terminate** | Xoá hẳn | Xoá (theo mặc định) | Mất | Không |
 
-<details>
-<summary>4. Vì sao không mở SSH cho `0.0.0.0/0`?</summary>
+> ⚠️ Hai nhầm lẫn tốn tiền và tốn thời gian: (1) tưởng `stop` là hết tính tiền — không, ổ đĩa vẫn tính; (2) `stop` rồi `start` thì **địa chỉ IP công khai đổi**, nên mọi thứ trỏ tới IP cũ đều hỏng. Muốn IP cố định phải xin một IP tĩnh — và IP tĩnh **không gắn với máy nào cũng bị tính tiền**.
 
-> Bot cả thế giới sẽ dò mật khẩu cổng 22 liên tục. Chỉ mở cho IP của bạn (hoặc dùng bastion/VPN).
-</details>
+### 🧪 LAB — Dựng máy chủ hoàn toàn tự động
 
-**🔬 Demo đối chiếu:**
+> Dùng **Multipass** (của Canonical) để tạo máy ảo Ubuntu thật trên máy bạn. Nó dùng **chính cloud-init** như AWS/GCP, nên mọi thứ bạn học ở đây chuyển sang cloud thật gần như nguyên vẹn.
 
-| Demo đối chiếu | Kết quả mong đợi |
-|---|---|
-| Khởi tạo EC2 | Trạng thái Running, có Public IP |
-| SSH vào EC2 | `ssh -i key.pem ubuntu@<ip>` vào được shell |
-| Cấu hình Security Group | Chỉ mở 22 và 80, truy cập đúng như mong đợi |
+**Thư mục:**
 
-### 📚 Thuật ngữ Anh–Việt (ngày này)
+```text
+lab27-vm/
+├── cloud-init.yaml      # file cấu hình khởi tạo (chính là "user data")
+└── kiem-tra.sh          # kiểm chứng máy đã đúng chuẩn
+```
 
-| Thuật ngữ | Nghĩa |
-|---|---|
-| **EC2 instance** | Máy ảo trên cloud |
-| **AMI** | Ảnh hệ điều hành để tạo máy |
-| **Key pair / `.pem`** | Cặp khoá SSH đăng nhập máy |
-| **Security Group** | Firewall tầng cloud theo instance |
-| **Elastic IP** | IP tĩnh |
-| **User data** | Script chạy khi khởi tạo máy |
-| **stop / terminate** | Tắt giữ đĩa / xoá hẳn |
+#### File 1 — `cloud-init.yaml`
+
+```yaml
+#cloud-config
+# Dòng đầu tiên BẮT BUỘC phải là #cloud-config — thiếu nó, file bị bỏ qua hoàn toàn
+
+# ---- Tạo người dùng quản trị, KHÔNG dùng root ----
+users:
+  - name: quantri
+    groups: [sudo, docker]
+    shell: /bin/bash
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    lock_passwd: true                # không cho đăng nhập bằng mật khẩu
+    ssh_authorized_keys:
+      - KHOA_CONG_KHAI_CUA_BAN       # script sẽ thay bằng khoá thật
+
+# ---- Cài gói cần thiết ----
+package_update: true
+package_upgrade: false               # bật ở production; tắt ở lab cho nhanh
+packages:
+  - ufw
+  - fail2ban
+  - curl
+  - htop
+  - ca-certificates
+
+# ---- Ghi file cấu hình ----
+write_files:
+  - path: /etc/ssh/sshd_config.d/99-siet-chat.conf
+    content: |
+      # Hardening SSH — đúng bài học Ngày 9
+      PermitRootLogin no
+      PasswordAuthentication no
+      PubkeyAuthentication yes
+      MaxAuthTries 3
+      ClientAliveInterval 300
+    permissions: "0644"
+
+  - path: /etc/motd
+    content: |
+      ============================================
+        Máy chủ dựng bằng cloud-init
+        Mọi thay đổi thủ công sẽ MẤT khi dựng lại
+      ============================================
+    permissions: "0644"
+
+# ---- Lệnh chạy lần đầu, theo thứ tự ----
+runcmd:
+  # Tường lửa: chặn hết chiều vào, chỉ mở những gì cần
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow 22/tcp comment 'SSH'
+  - ufw allow 80/tcp comment 'HTTP'
+  - ufw allow 443/tcp comment 'HTTPS'
+  - ufw --force enable
+
+  # Chặn dò mật khẩu
+  - systemctl enable --now fail2ban
+
+  # Nạp lại cấu hình SSH đã siết
+  - systemctl restart ssh
+
+  # Cài Docker (chuẩn bị cho Ngày 28)
+  - curl -fsSL https://get.docker.com | sh
+  - usermod -aG docker quantri
+
+  # Đánh dấu đã xong để bên ngoài kiểm tra được
+  - date -Is > /var/log/cloud-init-xong.txt
+
+final_message: "Máy đã sẵn sàng sau $UPTIME giây"
+```
+
+#### File 2 — `kiem-tra.sh`
+
+```bash
+#!/usr/bin/env bash
+# Kiểm chứng máy đã được dựng đúng chuẩn
+set -uo pipefail
+MAY="${1:-may-web}"
+
+echo "═══════════════════════════════════════════"
+echo "  KIỂM TRA MÁY: $MAY"
+echo "═══════════════════════════════════════════"
+
+chay() { multipass exec "$MAY" -- bash -c "$1" 2>/dev/null; }
+
+kiem() {
+  local mo_ta="$1" lenh="$2" mong_doi="$3"
+  local kq; kq=$(chay "$lenh")
+  if echo "$kq" | grep -q "$mong_doi"; then
+    echo "  ✅ $mo_ta"
+  else
+    echo "  ❌ $mo_ta  (nhận được: ${kq:-rỗng})"
+  fi
+}
+
+echo ""
+echo "▸ Người dùng và quyền"
+kiem "User quantri tồn tại"        "id quantri"                    "quantri"
+kiem "quantri có quyền sudo"       "groups quantri"                "sudo"
+kiem "quantri thuộc nhóm docker"   "groups quantri"                "docker"
+
+echo ""
+echo "▸ Hardening SSH"
+kiem "Cấm đăng nhập bằng root"     "sshd -T | grep permitrootlogin" "permitrootlogin no"
+kiem "Cấm đăng nhập bằng mật khẩu" "sshd -T | grep passwordauth"    "passwordauthentication no"
+
+echo ""
+echo "▸ Tường lửa"
+kiem "UFW đang bật"                "sudo ufw status | head -1"      "active"
+kiem "Cổng 22 đã mở"               "sudo ufw status"                "22/tcp"
+kiem "Cổng 80 đã mở"               "sudo ufw status"                "80/tcp"
+
+echo ""
+echo "▸ Dịch vụ"
+kiem "fail2ban đang chạy"          "systemctl is-active fail2ban"   "active"
+kiem "Docker đã cài"               "docker --version"               "Docker version"
+
+echo ""
+echo "▸ cloud-init"
+kiem "cloud-init hoàn tất"         "cat /var/log/cloud-init-xong.txt" "20"
+echo ""
+```
+
+### 🧭 Hướng dẫn làm LAB — step by step
+
+#### Bước 1 — Cài Multipass
+
+```bash
+sudo snap install multipass
+multipass version
+```
+
+**Bạn sẽ thấy:**
+```text
+multipass   1.15.x
+multipassd  1.15.x
+```
+
+✅ **Checkpoint:** in ra phiên bản.
+
+⚠️ Không có `snap`? Xem hướng dẫn tại [multipass.run/install](https://multipass.run/install). Hoặc thay bằng **Vagrant + VirtualBox** — khái niệm cloud-init giống hệt.
+
+#### Bước 2 — Tạo khoá SSH riêng cho lab và chèn vào file cấu hình
+
+```bash
+mkdir -p ~/lab27-vm && cd ~/lab27-vm
+ssh-keygen -t ed25519 -f ./khoa-may-chu -N "" -C "lab27"
+
+# tạo cloud-init.yaml theo phần LAB, rồi chèn khoá công khai vào
+sed -i "s|KHOA_CONG_KHAI_CUA_BAN|$(cat khoa-may-chu.pub)|" cloud-init.yaml
+grep -A1 ssh_authorized_keys cloud-init.yaml
+```
+
+**Bạn sẽ thấy:**
+```text
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... lab27
+```
+
+✅ **Checkpoint:** khoá công khai đã nằm trong file cấu hình.
+
+💡 Đây đúng là cách cloud hoạt động: **phần công khai nạp vào máy lúc sinh ra, phần riêng bạn giữ**. Không có mật khẩu nào cả — và đó là điều tốt.
+
+#### Bước 3 — Dựng máy và bấm giờ
+
+```bash
+time multipass launch 24.04 \
+  --name may-web \
+  --cpus 1 --memory 1G --disk 5G \
+  --cloud-init cloud-init.yaml
+```
+
+**Bạn sẽ thấy** (lần đầu mất vài phút để tải ảnh hệ điều hành):
+```text
+Launched: may-web
+
+real    1m32.418s
+```
+
+✅ **Checkpoint:** máy được tạo, không lỗi.
+
+```bash
+multipass list
+```
+
+**Bạn sẽ thấy:**
+```text
+Name      State     IPv4            Image
+may-web   Running   10.115.42.118   Ubuntu 24.04 LTS
+```
+
+💡 **Hãy dừng lại và nhận ra điều vừa xảy ra:** trong 90 giây, một máy chủ đã được tạo, có user riêng, SSH đã siết chặt, tường lửa đã bật, fail2ban đang chạy và Docker đã cài — **bạn chưa gõ một lệnh nào bên trong nó**. Làm tay từng bước sẽ mất khoảng 20 phút và rất dễ quên.
+
+#### Bước 4 — Kiểm chứng mọi thứ đúng như khai báo
+
+```bash
+chmod +x kiem-tra.sh
+./kiem-tra.sh may-web
+```
+
+**Bạn sẽ thấy:**
+```text
+▸ Người dùng và quyền
+  ✅ User quantri tồn tại
+  ✅ quantri có quyền sudo
+  ✅ quantri thuộc nhóm docker
+
+▸ Hardening SSH
+  ✅ Cấm đăng nhập bằng root
+  ✅ Cấm đăng nhập bằng mật khẩu
+
+▸ Tường lửa
+  ✅ UFW đang bật
+  ✅ Cổng 22 đã mở
+  ✅ Cổng 80 đã mở
+
+▸ Dịch vụ
+  ✅ fail2ban đang chạy
+  ✅ Docker đã cài
+
+▸ cloud-init
+  ✅ cloud-init hoàn tất
+```
+
+✅ **Checkpoint:** tất cả đều ✅.
+
+⚠️ **Nếu vài mục ❌:** cloud-init có thể chưa chạy xong. Chờ thêm 30 giây rồi chạy lại. Vẫn lỗi thì xem nhật ký:
+```bash
+multipass exec may-web -- sudo cat /var/log/cloud-init-output.log | tail -30
+```
+Đây là **file nhật ký quan trọng nhất** khi cloud-init không như ý — nó ghi lại đúng lỗi của từng lệnh trong `runcmd`.
+
+#### Bước 5 — SSH bằng khoá, đúng cách của cloud
+
+```bash
+IP=$(multipass info may-web --format json | python3 -c "import sys,json; print(json.load(sys.stdin)['info']['may-web']['ipv4'][0])")
+echo "Địa chỉ IP: $IP"
+
+ssh -i ./khoa-may-chu -o StrictHostKeyChecking=no quantri@$IP hostname
+```
+
+**Bạn sẽ thấy:** tên máy in ra — bạn vừa SSH vào bằng **đúng quy trình dùng trên cloud thật**.
+
+✅ **Checkpoint:** đăng nhập được bằng khoá.
+
+Thử những thứ đáng lẽ phải bị chặn:
+
+```bash
+echo "--- Thử đăng nhập bằng root (phải bị từ chối) ---"
+ssh -i ./khoa-may-chu -o StrictHostKeyChecking=no -o BatchMode=yes \
+  root@$IP hostname 2>&1 | head -2
+
+echo "--- Thử đăng nhập bằng mật khẩu (phải bị từ chối) ---"
+ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no \
+  -o StrictHostKeyChecking=no -o ConnectTimeout=5 quantri@$IP 2>&1 | head -2
+```
+
+**Bạn sẽ thấy:**
+```text
+--- Thử đăng nhập bằng root ---
+Permission denied (publickey).
+
+--- Thử đăng nhập bằng mật khẩu ---
+Permission denied (publickey).
+```
+
+✅ **Checkpoint:** cả hai đường tấn công phổ biến nhất đều bị chặn.
+
+💡 Máy chủ mở cổng 22 ra Internet sẽ bị dò mật khẩu **liên tục, hàng nghìn lần mỗi ngày**. Hai dòng cấu hình (`PermitRootLogin no`, `PasswordAuthentication no`) vô hiệu hoá gần như toàn bộ loại tấn công đó.
+
+#### Bước 6 — Thấy tường lửa hoạt động thật
+
+```bash
+multipass exec may-web -- sudo ufw status numbered
+```
+
+**Bạn sẽ thấy:**
+```text
+Status: active
+
+     To                         Action      From
+     --                         ------      ----
+[ 1] 22/tcp                     ALLOW IN    Anywhere    # SSH
+[ 2] 80/tcp                     ALLOW IN    Anywhere    # HTTP
+[ 3] 443/tcp                    ALLOW IN    Anywhere    # HTTPS
+```
+
+Kiểm chứng cổng **không** mở thì hành xử ra sao:
+
+```bash
+multipass exec may-web -- bash -c "python3 -m http.server 8888 &>/dev/null &"
+sleep 2
+echo "Cổng 80 (đã mở trong tường lửa, chưa có dịch vụ):"
+timeout 5 curl -s -o /dev/null -w "  %{http_code}\n" http://$IP:80 || echo "  refused (dịch vụ chưa chạy)"
+echo "Cổng 8888 (có dịch vụ, nhưng tường lửa CHẶN):"
+timeout 5 curl -s -o /dev/null http://$IP:8888 || echo "  timeout (tường lửa chặn im lặng)"
+```
+
+✅ **Checkpoint:** thấy rõ khác biệt giữa **refused** (không có dịch vụ) và **timeout** (tường lửa chặn).
+
+💡 **Đây chính xác là bài học Ngày 7, giờ gặp lại trong bối cảnh cloud.** Khi ứng dụng "không vào được", phân biệt hai tín hiệu này cho bạn biết ngay nên đi sửa tường lửa hay đi xem dịch vụ.
+
+#### Bước 7 — Chứng minh máy dựng lại được (điểm cốt lõi)
+
+Hãy phá máy đi:
+
+```bash
+multipass exec may-web -- sudo rm -rf /etc/ufw /home/quantri/.ssh
+multipass exec may-web -- sudo systemctl stop fail2ban
+./kiem-tra.sh may-web | grep "❌" | head -5
+```
+
+Giờ dựng lại từ đầu:
+
+```bash
+multipass delete may-web --purge
+time multipass launch 24.04 --name may-web --cpus 1 --memory 1G --disk 5G \
+  --cloud-init cloud-init.yaml
+./kiem-tra.sh may-web | grep -c "✅"
+```
+
+**Bạn sẽ thấy:**
+```text
+real    1m28.102s
+11
+```
+
+✅ **Checkpoint:** máy mới đạt lại **toàn bộ** tiêu chí, trong khoảng 90 giây.
+
+💡 **Đây là ý tưởng "máy chủ dùng một lần" (cattle, not pets).** Máy hỏng thì không cần chẩn đoán và chữa — **xoá đi dựng lại**, vì mọi cấu hình đều nằm trong file. Tư duy này là nền của Kubernetes (Ngày 36) và của toàn bộ hạ tầng hiện đại.
+
+#### Bước 8 — Dọn dẹp
+
+```bash
+multipass delete may-web --purge
+multipass list
+```
+
+### ☁️ Làm trên cloud thật (khi bạn đã sẵn sàng)
+
+Cùng file `cloud-init.yaml`, chỉ khác cách đưa nó vào:
+
+```bash
+# AWS — nội dung file chính là "user data"
+aws ec2 run-instances \
+  --image-id ami-xxxxxxxx \
+  --instance-type t3.micro \
+  --key-name khoa-cua-ban \
+  --security-group-ids sg-xxxxxxxx \
+  --user-data file://cloud-init.yaml \
+  --tag-specifications 'ResourceType=instance,Tags=[{Key=moi_truong,Value=lab},{Key=chu_so_huu,Value=hoc-vien}]'
+
+# GCP — gọi là "startup script"
+gcloud compute instances create may-web \
+  --machine-type=e2-micro \
+  --image-family=ubuntu-2404-lts-amd64 --image-project=ubuntu-os-cloud \
+  --metadata-from-file=user-data=cloud-init.yaml \
+  --labels=moi_truong=lab,chu_so_huu=hoc-vien
+```
+
+⚠️ **Ba điều bắt buộc khi làm thật:**
+1. **Kiểm tra cảnh báo ngân sách đã bật** (Ngày 26) trước khi tạo bất cứ thứ gì.
+2. **`terminate` sau khi học xong**, không phải `stop` — `stop` vẫn tính tiền ổ đĩa.
+3. **Gắn thẻ mọi tài nguyên** ngay từ đầu (Ngày 53) — nếu không, một tháng sau bạn sẽ không nhớ nổi thứ này để làm gì.
+
+Kiểm tra không còn gì sót lại:
+```bash
+aws ec2 describe-instances \
+  --query 'Reservations[].Instances[?State.Name!=`terminated`].[InstanceId,State.Name]' --output table
+aws ec2 describe-volumes --query 'Volumes[?State==`available`].[VolumeId,Size]' --output table
+aws ec2 describe-addresses --query 'Addresses[?AssociationId==null].[PublicIp]' --output table
+```
+Cả ba bảng phải **rỗng**. Ổ đĩa `available` và IP tĩnh không gắn với gì đều đang **âm thầm tính tiền**.
+
+### 💡 Đi làm mới thấm (sách cơ bản hay bỏ quên)
+
+- **`stop` không phải là hết tiền.** Ổ đĩa vẫn tính phí hằng tháng dù máy đã tắt. Muốn dừng hẳn chi phí thì phải `terminate` và xoá ổ đĩa. Đây là khoản lãng phí phổ biến nhất của người mới học cloud.
+- **Địa chỉ IP công khai đổi sau mỗi lần stop/start.** Mọi thứ trỏ tới IP cũ sẽ hỏng. Giải pháp là IP tĩnh — nhưng nhớ rằng IP tĩnh **không gắn với máy nào** lại bị tính tiền, đúng kiểu tài nguyên mồ côi ở Ngày 53.
+- **Đừng SSH vào sửa tay rồi quên.** Nó chính là **trôi cấu hình** của Ngày 43 và 47, ở tầng máy chủ. Máy dựng lại là mọi sửa tay biến mất. Sửa vào `cloud-init.yaml`, rồi dựng lại — đó mới là cách làm bền.
+- **cloud-init chỉ chạy ở lần khởi động đầu tiên.** Sửa file rồi khởi động lại máy cũ **không** có tác dụng gì. Phải tạo máy mới. Nhiều người mất cả buổi vì hiểu nhầm điểm này.
+- **Đọc `/var/log/cloud-init-output.log` khi có chuyện.** Đây là nơi duy nhất cho biết lệnh nào trong `runcmd` đã thất bại và vì sao. Không có nó thì bạn chỉ đoán mò.
+- **Ảnh hệ điều hành tự dựng (golden image) cho môi trường lớn.** cloud-init chạy lúc khởi động nên máy mất 1–2 phút mới sẵn sàng. Khi cần mở rộng nhanh, người ta nướng sẵn mọi thứ vào một ảnh hệ điều hành (bằng Packer) — máy lên là dùng được ngay. Cùng tư duy với Docker image ở Ngày 17.
 
 ### 🎯 Đúc kết Ngày 27
 
 **3 điều phải mang theo:**
-1. **EC2 = máy Linux ở xa** — SSH vào là dùng như GĐ1. Áp checklist hardening (Ngày 9) cho mọi máy mới.
-2. **2 lớp tường lửa:** Security Group (tầng cloud, deny-all mặc định) + UFW (tầng OS) = defense in depth. Chỉ mở SSH cho IP của bạn.
-3. **`stop` (giữ đĩa, bật lại được) ≠ `terminate` (xoá hẳn, mất dữ liệu)**; `chmod 400 key.pem` là bắt buộc.
 
-> 🧠 **Một câu để nhớ:** ĐỪNG mở SSH (cổng 22) cho `0.0.0.0/0` (cả thế giới) — bot sẽ dò mật khẩu liên tục. Chỉ mở cho IP của bạn.
+1. **cloud-init biến việc dựng máy thành một file.** Máy sinh ra đã đúng chuẩn, giống nhau mọi lần, không phụ thuộc trí nhớ ai.
+2. **Hai lớp tường lửa, hai tín hiệu lỗi khác nhau.** `timeout` là tường lửa chặn; `refused` là dịch vụ chưa chạy.
+3. **Máy chủ là đồ dùng một lần.** Hỏng thì xoá dựng lại trong 90 giây, đừng ngồi chữa — mọi thứ đã nằm trong file cấu hình.
+
+> 🧠 **Một câu để nhớ:** nếu bạn phải SSH vào máy để cấu hình nó, thì máy tiếp theo sẽ lại cần bạn SSH vào lần nữa. **Đưa cấu hình vào file** là cách duy nhất thoát khỏi vòng lặp đó.
 
 **✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
-- [ ] Tạo EC2, tải key `.pem`, `chmod 400` rồi SSH vào
-- [ ] Cấu hình Security Group chỉ mở 22 (từ IP mình) + 80
-- [ ] Giải thích Security Group khác UFW thế nào
-- [ ] Phân biệt `stop` và `terminate` về chi phí & dữ liệu
-- [ ] Dùng User Data tự cài dịch vụ khi khởi tạo máy
 
-✅ **Kết quả đạt được:** Tạo, kết nối, cấu hình bảo mật (Security Group + UFW) và triển khai dịch vụ trên server cloud thật.
+- [ ] Viết `cloud-init.yaml` tạo user, nạp khoá SSH, cài gói, bật tường lửa
+- [ ] Giải thích cloud-init chạy vào lúc nào và vì sao sửa rồi reboot không ăn
+- [ ] SSH bằng khoá và chứng minh root cùng mật khẩu đều bị chặn
+- [ ] Phân biệt tường lửa cloud với tường lửa trong máy, và hai tín hiệu lỗi
+- [ ] Nói rõ `stop` khác `terminate` ở điểm nào về chi phí
+- [ ] Xoá máy rồi dựng lại đạt đủ tiêu chí trong dưới 2 phút
+- [ ] Biết đọc `/var/log/cloud-init-output.log` khi có lỗi
+- [ ] Kiểm tra được tài nguyên mồ côi còn sót trên cloud
+
+✅ **Kết quả đạt được:** Một máy chủ dựng hoàn toàn từ khai báo — an toàn ngay từ giây đầu tiên và dựng lại được bất cứ lúc nào. Ngày 28 sẽ đưa ứng dụng lên chính máy này.
 
 ---
 
@@ -3509,173 +4024,501 @@ Khi tạo EC2, tải về file khoá `.pem` (chỉ tải được **1 lần** �
 
 > ⏱️ ~90 phút · Loại: Cloud
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 27 (tạo VM) → **Ngày 28 (đưa app lên VM cloud — app "ra đời thật")** → Ngày 29 (Terraform). Cột mốc lớn: app của bạn online trên Internet. Đồng thời bạn sẽ *cảm nhận nỗi đau* của deploy tay để hiểu vì sao cần CI/CD.
+> 🧭 **Bạn đang ở đâu:** Ngày 27 (máy chủ dựng bằng cloud-init) → **Ngày 28 (đưa ứng dụng thật lên chạy)** → Ngày 29 (Terraform). Hôm nay bạn deploy **bằng tay** — và quan trọng không kém: **cảm nhận rõ nó tệ ở chỗ nào**. Đó chính là động cơ cho Giai đoạn 3.
 >
-> ✅ **Chuẩn bị:** một VM cloud SSH được (Ngày 27) + app full-stack đóng gói bằng Compose (Ngày 21).
+> ✅ **Chuẩn bị:** máy ảo từ Ngày 27 (`multipass launch` với `cloud-init.yaml`), hoặc một VM cloud thật đã cài Docker.
+>
+> 🎁 **Cuối ngày bạn có gì:** một ứng dụng đang phục vụ qua reverse proxy, tự khởi động lại khi máy reboot — **và một danh sách năm điểm đau do chính bạn đo được**, sẽ được Giai đoạn 3 giải quyết từng cái một.
 
 ### 📘 Lý thuyết
 
-#### 1. Quy trình deploy thủ công
+#### 1. Ba cách đưa ứng dụng lên máy chủ
 
-SSH vào VM → cài Docker → pull/clone app → `docker compose up -d` → cấu hình nginx reverse proxy → (tuỳ chọn) HTTPS.
-
-#### 2. Đưa app lên VM
-
-- Cài Docker trên VM (theo docs hoặc User Data script từ Ngày 27).
-- **Pull image** từ Docker Hub, hoặc clone repo rồi build tại chỗ.
-- Chạy bằng `docker compose up -d`.
-
-#### 3. Domain & HTTPS thật
-
-- Trỏ **DNS A record** của domain về **Elastic IP** của VM.
-- Cấp chứng chỉ HTTPS miễn phí thật: `certbot --nginx -d yourdomain.com` (Let's Encrypt, tự gia hạn).
-
-#### 4. Quản lý môi trường
-
-Tách biến môi trường **dev/prod** rõ ràng — đừng để config dev (debug=true, DB test) lọt lên production. Dùng `restart: unless-stopped` + healthcheck để app tự lên lại khi VM reboot.
-
-#### 5. 5 điểm yếu của deploy thủ công (nhớ để hiểu giá trị CI/CD)
-
-| # | Điểm yếu |
-|---|---|
-| 1 | **Dễ sai** — gõ nhầm 1 lệnh giữa 20 bước |
-| 2 | **Không lặp lại** — "máy A chạy, máy B thì không" |
-| 3 | **Phụ thuộc 1 người** — chỉ bạn biết quy trình |
-| 4 | **Không dấu vết** — ai deploy gì, lúc nào? |
-| 5 | **Rollback chậm** — hỏng thì cuống cuồng sửa tay |
-
-> 🔑 Tư duy **"cattle, not pets"** — đừng nâng niu 1 server. Server hỏng thì thay máy mới bằng code; dữ liệu để ở chỗ bền vững (volume/DB/S3). 5 điểm yếu trên chính là lý do tồn tại của IaC (Ngày 29) + CI/CD (Giai đoạn 3).
-
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
-
-> 📘 đã liệt kê quy trình và 5 điểm yếu của deploy tay. Mục này cho bạn **góc nhìn** để nhớ.
-
-**Hôm nay có hai cảm xúc, và cả hai đều là bài học.** Cảm xúc thứ nhất: *tự hào* — app của bạn lần đầu online thật, người lạ trên Internet mở được. Cảm xúc thứ hai, quan trọng hơn: *mệt và bất an* — bạn nhận ra để lên tới đó phải gõ tay cả chuỗi lệnh, và lần cập nhật sau lại phải làm lại từ đầu. Hãy để ý kỹ cảm xúc thứ hai: nó chính là động lực để bạn *muốn* học CI/CD và IaC ở các phần sau.
-
-**"Nỗi đau" của deploy tay không phải vì bạn kém — mà vì con người vốn không hợp làm việc lặp.** Một chuỗi 20 bước làm tay thì sớm muộn cũng gõ nhầm, không ai khác lặp lại y hệt được, không có nhật ký ai làm gì lúc nào, và khi hỏng thì cuống. Máy làm những việc này giỏi hơn người — đó là toàn bộ lý do IaC (Ngày 29) và CI/CD (GĐ3) tồn tại.
-
-**"Cattle, not pets" — đổi cách nghĩ về server.** Đừng coi server là thú cưng: đặt tên, chăm bẵm, sửa tay, sợ nó "chết". Hãy coi nó như gia súc trong đàn: hỏng thì *thay con mới bằng code*, giống hệt, trong vài phút. Muốn làm được vậy thì dữ liệu phải nằm ở chỗ bền vững (volume/DB/S3), còn bản thân máy phải tái tạo được — đúng thứ Ngày 29 sẽ dạy.
-
-### 🧪 Lab cơ bản
-
-1. SSH vào VM, cài Docker + Docker Compose.
-2. Đẩy app full-stack (từ ngày 21) lên: pull image từ Docker Hub hoặc clone repo rồi build.
-3. Chạy bằng `docker compose up -d`, mở public IP → truy cập app thật trên Internet.
-4. Cấu hình nginx reverse proxy trên VM trỏ tới container.
-5. (Tùy chọn) Dùng Certbot cấp HTTPS nếu bạn có domain.
-
-### 🚀 Lab nâng cao (best-practice)
-
-> Mục tiêu: deploy thật + cảm nhận "nỗi đau" của deploy thủ công để hiểu vì sao cần CI/CD.
-
-1. **HTTPS thật + domain:** trỏ domain → Elastic IP → `certbot --nginx -d yourdomain.com`. Giờ app của bạn online với khóa xanh.
-2. **Tách biến môi trường dev/prod** rõ ràng — đừng để config dev (debug=true, DB test) lọt lên production.
-3. **Restart policy + healthcheck** để app tự lên lại khi VM reboot hoặc container chết.
-4. **Ghi lại quy trình deploy thành runbook** (từng bước) — rồi tự hỏi: làm thế này 10 lần/ngày có ổn không? Đây chính là động lực của Giai đoạn 3.
-
-### 💡 Bổ sung thực tế: vì sao deploy thủ công không bền vững
-
-- **5 điểm yếu của deploy thủ công** (ghi nhớ để hiểu giá trị CI/CD):
-  1. **Dễ sai** — gõ nhầm 1 lệnh giữa 20 bước.
-  2. **Không lặp lại** — "máy A chạy được, máy B thì không".
-  3. **Phụ thuộc 1 người** — chỉ bạn biết quy trình, bạn nghỉ là tắc.
-  4. **Không có dấu vết** — ai deploy gì, lúc nào, không rõ.
-  5. **Không rollback nhanh** — hỏng thì cuống cuồng sửa tay.
-- **Đây là lúc IaC + CI/CD bước vào:** Ngày 29 (Terraform — tạo hạ tầng bằng code) và Giai đoạn 3 (CI/CD — deploy tự động) giải quyết đúng 5 điểm trên.
-- **"Cattle, not pets":** đừng nâng niu 1 server như thú cưng (đặt tên, sửa tay, sợ mất). Coi server như đàn gia súc — hỏng thì thay máy mới bằng code, dữ liệu nằm ở chỗ bền vững (volume/DB/S3).
-
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
-
-**Trình tự nên làm:** SSH vào VM → cài Docker → kéo/clone app → `docker compose up -d` → cấu hình nginx/HTTPS → ghi runbook.
-
-**Giải nghĩa & kết quả mong đợi:**
-- Cài Docker trên VM (theo docs hoặc User Data). `docker compose up -d` chạy stack. *Kết quả:* `docker ps` thấy container; mở Public IP thấy app **thật trên Internet**.
-- `restart: unless-stopped` — app tự lên lại khi VM reboot/container chết.
-- `certbot --nginx -d domain` — HTTPS thật (nếu có domain).
-
-**🧪 Thử nghiệm:**
-- Đếm số bước phải gõ tay để deploy (SSH, pull, env, up, proxy...). **Bài học:** cảm nhận "nỗi đau" → hiểu vì sao cần CI/CD (GĐ3).
-- Reboot VM → kiểm tra app có tự lên lại không (nhờ restart policy).
-
-⚠️ **Dễ sai:** để config dev (debug=true, DB test) lọt lên production. Tách biến môi trường dev/prod rõ ràng.
-
-💡 **Hiểu sâu:** 5 điểm yếu của deploy tay: dễ sai · không lặp lại · phụ thuộc 1 người · không dấu vết · rollback chậm. CI/CD (GĐ3) + IaC (Ngày 29) sinh ra để giải đúng 5 cái này. Tư duy "cattle not pets": server hỏng thì thay bằng code.
-
-### 🐛 Gỡ lỗi nhanh
-
-| Triệu chứng | Nguyên nhân | Cách sửa |
+| Cách | Làm gì | Vấn đề |
 |---|---|---|
-| Mở Public IP không ra app | Security Group chưa mở 80/443 | Thêm rule 80/443; kiểm `docker ps` app có chạy |
-| `docker compose up` lỗi permission | User chưa trong nhóm docker | `sudo usermod -aG docker $USER` rồi đăng nhập lại |
-| App chết sau khi VM reboot | Thiếu restart policy | Thêm `restart: unless-stopped` |
-| Certbot lỗi cấp chứng chỉ | DNS chưa trỏ về IP / cổng 80 chưa mở | Trỏ A record đúng; mở 80; chờ DNS lan |
-| Config dev lọt lên prod | Không tách biến môi trường | Dùng `.env` riêng cho prod; kiểm trước khi up |
+| **Chép file thủ công** | `scp` code lên, chạy trực tiếp | Phụ thuộc môi trường máy đích; "máy tôi chạy được" |
+| **Docker + Compose** ← hôm nay | Đóng gói rồi chạy container | Vẫn phải tự lo cập nhật, chưa tự phục hồi tốt |
+| **Điều phối (Kubernetes)** | Cụm máy tự quản lý | Phức tạp hơn, học ở Ngày 36+ |
 
-### 📝 Bài ôn tập & Demo đối chiếu
+#### 2. Reverse proxy — vì sao không cho ứng dụng nghe thẳng cổng 80
 
-**✍️ Tự kiểm tra:**
+Ứng dụng Node của bạn nghe cổng 3000. Cám dỗ là cho nó nghe thẳng cổng 80. Đừng — hãy đặt **nginx đứng trước**:
 
-<details>
-<summary>1. Liệt kê các bước deploy thủ công 1 app Docker lên VM.</summary>
+```text
+   Internet :80/:443  →  nginx  →  app :3000 (chỉ nghe nội bộ)
+                          │
+                          ├── chấm dứt kết nối HTTPS
+                          ├── phục vụ file tĩnh (nhanh hơn Node nhiều)
+                          ├── giới hạn tần suất, chặn request rác
+                          ├── nén gzip
+                          └── định tuyến nhiều ứng dụng trên cùng một máy
+```
 
-> SSH vào VM → cài Docker → pull/clone app → tạo `.env` prod → `docker compose up -d` → cấu hình nginx reverse proxy → (tuỳ chọn) HTTPS bằng certbot.
-</details>
+Thêm một lý do quan trọng: cổng dưới 1024 cần quyền root. Không có reverse proxy, bạn phải chạy ứng dụng bằng root — điều đã bị cảnh báo suốt từ Ngày 33.
 
-<details>
-<summary>2. 5 điểm yếu của deploy thủ công là gì?</summary>
+#### 3. Ứng dụng phải sống lại sau khi máy khởi động lại
 
-> Dễ sai · không lặp lại được · phụ thuộc 1 người · không có dấu vết · rollback chậm. Đây là lý do cần IaC + CI/CD.
-</details>
+Máy chủ sẽ khởi động lại: vá lỗi kernel, mất điện, nhà cung cấp bảo trì. Nếu ứng dụng không tự lên, bạn sẽ biết điều đó qua một cuộc gọi lúc nửa đêm.
 
-<details>
-<summary>3. Vì sao tách biến môi trường dev/prod?</summary>
+Với Docker Compose, chỉ cần một dòng:
 
-> Tránh cấu hình dev (debug=true, DB test, secret test) lọt lên production gây lỗi/mất an toàn.
-</details>
+```yaml
+restart: unless-stopped     # tự bật lại khi Docker khởi động, trừ khi BẠN chủ động dừng
+```
 
-<details>
-<summary>4. "Cattle, not pets" nghĩa là gì?</summary>
-
-> Đừng nâng niu 1 server (sửa tay, sợ mất). Coi server như đàn gia súc — hỏng thì thay máy mới bằng code; dữ liệu để ở chỗ bền vững.
-</details>
-
-**🔬 Demo đối chiếu:**
-
-| Demo đối chiếu | Kết quả mong đợi |
+| Giá trị | Hành vi |
 |---|---|
-| Cài Docker trên VM & chạy app | `docker ps` hiện container đang chạy |
-| Truy cập app qua Public IP | `http://<ip>` mở được ứng dụng |
-| App tự khởi động lại | restart policy: container Up sau khi reboot |
+| `no` (mặc định) | Không bao giờ tự bật lại |
+| `on-failure` | Chỉ bật lại khi thoát với mã lỗi |
+| `always` | Luôn bật lại, kể cả khi bạn cố ý dừng |
+| **`unless-stopped`** | Bật lại, **trừ** khi bạn chủ động dừng ← nên dùng |
 
-### 📚 Thuật ngữ Anh–Việt (ngày này)
+#### 4. Deploy thủ công — năm điểm đau (hãy tự cảm nhận hôm nay)
 
-| Thuật ngữ | Nghĩa |
-|---|---|
-| **Deploy** | Triển khai app lên môi trường chạy |
-| **Runbook** | Tài liệu ghi từng bước vận hành |
-| **A record** | Bản ghi DNS trỏ tên miền → IP |
-| **Let's Encrypt / Certbot** | Cấp chứng chỉ HTTPS miễn phí, tự gia hạn |
-| **restart policy** | Chính sách tự khởi động lại container |
-| **Cattle not pets** | Coi server thay được, không nâng niu |
-| **Egress traffic** | Lưu lượng ra Internet (tốn phí trên cloud) |
+| # | Điểm đau | Giải quyết ở |
+|---|---|---|
+| 1 | Quy trình nằm trong đầu một người | Ngày 31 — viết thành pipeline |
+| 2 | Không có dấu vết ai deploy gì, lúc nào | Ngày 31 — log của CI |
+| 3 | Dễ quên bước (`npm install`, migration...) | Ngày 32 — máy làm, không quên |
+| 4 | Có gián đoạn khi cập nhật | Ngày 37 — cập nhật cuốn chiếu |
+| 5 | Quay lui = làm lại thủ công, run tay | Ngày 34 — quay lui bằng một lệnh |
+
+> 🔑 **Hôm nay bạn sẽ đo cả năm điểm này bằng số liệu thật.** Đừng chỉ đọc bảng — hãy tự bấm giờ. Con số bạn ghi lại hôm nay sẽ được đem ra so sánh ở Ngày 34.
+
+### 🧪 LAB — Đưa ứng dụng lên máy chủ
+
+**Cấu trúc trên máy chủ:**
+
+```text
+/opt/ungdung/
+├── docker-compose.yml       # app + nginx
+├── nginx.conf               # cấu hình reverse proxy
+├── .env                     # biến môi trường (KHÔNG commit)
+└── app/
+    ├── Dockerfile
+    ├── package.json
+    └── app.js
+```
+
+#### File 1 — `app/app.js`
+
+```javascript
+const http = require('node:http');
+const os = require('node:os');
+
+const PORT = process.env.PORT || 3000;
+const PHIEN_BAN = process.env.PHIEN_BAN || 'chua-ro';
+
+const server = http.createServer((req, res) => {
+  if (req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ trangThai: 'ok' }));
+  }
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({
+    thongDiep: 'Ứng dụng đang chạy trên máy chủ',
+    phienBan: PHIEN_BAN,
+    may: os.hostname(),
+    thoiGianChay: Math.round(process.uptime()) + 's',
+  }, null, 2));
+});
+
+server.listen(PORT, () => console.log(`Đang nghe cổng ${PORT}, phiên bản ${PHIEN_BAN}`));
+```
+
+#### File 2 — `app/package.json`
+
+```json
+{
+  "name": "ung-dung-cloud",
+  "version": "1.0.0",
+  "main": "app.js",
+  "scripts": { "start": "node app.js" },
+  "license": "MIT"
+}
+```
+
+#### File 3 — `app/Dockerfile`
+
+```dockerfile
+FROM node:20-alpine
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+RUN addgroup -S nhom && adduser -S ungdung -G nhom
+
+COPY package.json ./
+COPY app.js ./
+
+USER ungdung
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3000/health || exit 1
+
+CMD ["node", "app.js"]
+```
+
+#### File 4 — `nginx.conf`
+
+```nginx
+upstream ung_dung {
+    server app:3000;
+    keepalive 16;
+}
+
+# Giới hạn tần suất: chống một client làm ngộp máy chủ
+limit_req_zone $binary_remote_addr zone=gioi_han:10m rate=20r/s;
+
+server {
+    listen 80;
+    server_name _;
+
+    # Ẩn phiên bản nginx khỏi header phản hồi
+    server_tokens off;
+
+    # Vài header bảo mật cơ bản
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+
+    gzip on;
+    gzip_types application/json text/plain text/css application/javascript;
+
+    location / {
+        limit_req zone=gioi_han burst=40 nodelay;
+
+        proxy_pass http://ung_dung;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Timeout — bài học Ngày 54, áp dụng ngay từ bây giờ
+        proxy_connect_timeout 2s;
+        proxy_read_timeout    10s;
+    }
+
+    # Điểm kiểm tra sức khoẻ, không ghi log cho đỡ nhiễu
+    location /health {
+        access_log off;
+        proxy_pass http://ung_dung/health;
+    }
+}
+```
+
+#### File 5 — `docker-compose.yml`
+
+```yaml
+services:
+  app:
+    build: ./app
+    container_name: ung-dung
+    restart: unless-stopped          # tự lên lại sau khi máy khởi động lại
+    environment:
+      PHIEN_BAN: ${PHIEN_BAN:-v1}
+      NODE_ENV: production
+    expose:
+      - "3000"                       # CHỈ mở trong mạng nội bộ, không ra ngoài
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"              # chặn log làm đầy ổ đĩa
+        max-file: "3"
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: cong-vao
+    restart: unless-stopped
+    ports:
+      - "80:80"                      # CHỈ nginx mở ra ngoài
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      app:
+        condition: service_healthy   # chờ app khoẻ rồi mới nhận khách
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+```
+
+### 🧭 Hướng dẫn làm LAB — step by step
+
+#### Bước 1 — Dựng lại máy chủ từ Ngày 27
+
+```bash
+cd ~/lab27-vm
+multipass launch 24.04 --name may-web --cpus 1 --memory 1G --disk 5G \
+  --cloud-init cloud-init.yaml
+IP=$(multipass info may-web --format json | python3 -c "import sys,json; print(json.load(sys.stdin)['info']['may-web']['ipv4'][0])")
+echo "Máy chủ: $IP"
+multipass exec may-web -- docker --version
+```
+
+**Bạn sẽ thấy:** `Docker version 27.x.x` — Docker đã có sẵn nhờ cloud-init.
+
+✅ **Checkpoint:** máy chạy, Docker sẵn sàng.
+
+#### Bước 2 — Tạo ứng dụng ở máy cá nhân
+
+```bash
+mkdir -p ~/lab28-deploy/app && cd ~/lab28-deploy
+# tạo 5 file theo phần LAB
+find . -type f | sort
+```
+
+✅ **Checkpoint:** đủ 5 file.
+
+#### Bước 3 — Chuyển lên máy chủ (và bấm giờ — đây là điểm đau số 1)
+
+```bash
+BAT_DAU=$(date +%s)
+
+multipass exec may-web -- sudo mkdir -p /opt/ungdung
+multipass exec may-web -- sudo chown quantri:quantri /opt/ungdung
+
+multipass transfer -r ~/lab28-deploy/app  may-web:/opt/ungdung/
+multipass transfer ~/lab28-deploy/docker-compose.yml may-web:/opt/ungdung/
+multipass transfer ~/lab28-deploy/nginx.conf         may-web:/opt/ungdung/
+
+multipass exec may-web -- bash -c "echo 'PHIEN_BAN=v1' > /opt/ungdung/.env"
+multipass exec may-web -- ls -la /opt/ungdung
+```
+
+**Bạn sẽ thấy** danh sách file đã nằm trên máy chủ.
+
+✅ **Checkpoint:** đủ file trong `/opt/ungdung`.
+
+💡 Đếm thử số lệnh bạn vừa gõ. **Sáu lệnh, đúng thứ tự, không được sai.** Quên `chown` là bước sau lỗi quyền. Đây chính là điểm đau số 1: *quy trình nằm trong đầu bạn*.
+
+#### Bước 4 — Khởi động ứng dụng
+
+```bash
+multipass exec may-web -- bash -c "cd /opt/ungdung && docker compose up -d --build"
+sleep 10
+multipass exec may-web -- bash -c "cd /opt/ungdung && docker compose ps"
+```
+
+**Bạn sẽ thấy:**
+```text
+NAME        IMAGE              STATUS                   PORTS
+cong-vao    nginx:1.27-alpine  Up 8 seconds             0.0.0.0:80->80/tcp
+ung-dung    ungdung-app        Up 9 seconds (healthy)   3000/tcp
+```
+
+✅ **Checkpoint:** cả hai `Up`, container ứng dụng có chữ **(healthy)**.
+
+Kiểm chứng từ bên ngoài:
+
+```bash
+KET_THUC=$(date +%s)
+curl -s http://$IP/ | head -8
+echo ""
+echo "⏱️  Thời gian deploy lần đầu: $((KET_THUC - BAT_DAU)) giây"
+```
+
+**Bạn sẽ thấy:**
+```text
+{
+  "thongDiep": "Ứng dụng đang chạy trên máy chủ",
+  "phienBan": "v1",
+  "may": "abc123def456",
+  "thoiGianChay": "12s"
+}
+
+⏱️  Thời gian deploy lần đầu: 94 giây
+```
+
+✅ **Checkpoint:** ứng dụng phục vụ qua cổng 80, và bạn **có một con số** để so sánh về sau.
+
+#### Bước 5 — Xác nhận ứng dụng không hở ra ngoài
+
+```bash
+echo "▸ Cổng 80 (nginx) — phải vào được:"
+curl -s -o /dev/null -w "  HTTP %{http_code}\n" http://$IP/
+
+echo "▸ Cổng 3000 (ứng dụng) — KHÔNG được vào được từ ngoài:"
+timeout 5 curl -s -o /dev/null http://$IP:3000/ \
+  && echo "  ❌ HỞ RA NGOÀI" || echo "  ✅ đã đóng đúng"
+```
+
+**Bạn sẽ thấy:**
+```text
+▸ Cổng 80 (nginx) — phải vào được:
+  HTTP 200
+▸ Cổng 3000 (ứng dụng) — KHÔNG được vào được từ ngoài:
+  ✅ đã đóng đúng
+```
+
+✅ **Checkpoint:** chỉ nginx lộ ra Internet.
+
+💡 Hai lớp cùng bảo vệ: `expose` (thay vì `ports`) khiến Docker không mở cổng ra máy chủ, và UFW chỉ cho phép 22/80/443. **Phòng thủ nhiều lớp** đúng như Ngày 27.
+
+#### Bước 6 — Kiểm chứng ứng dụng sống lại sau khi máy khởi động lại
+
+Đây là bước rất nhiều người bỏ qua — cho tới ngày máy chủ tự reboot.
+
+```bash
+multipass restart may-web
+sleep 45
+curl -s http://$IP/ | head -4
+```
+
+**Bạn sẽ thấy** ứng dụng trả lời bình thường, `thoiGianChay` được tính lại từ đầu.
+
+✅ **Checkpoint:** ứng dụng tự lên sau khi máy khởi động lại, **không ai làm gì cả**.
+
+💡 Công lao của `restart: unless-stopped`. Nếu bỏ dòng đó, bạn phải tự SSH vào bật lại — và nếu máy reboot lúc 3 giờ sáng thì hệ thống chết tới sáng.
+
+#### Bước 7 — Cập nhật phiên bản, và đo điểm đau số 4 (gián đoạn)
+
+Sửa ứng dụng rồi deploy lại — **đồng thời đo xem người dùng có bị ảnh hưởng không**.
+
+**Terminal 1** — theo dõi liên tục:
+```bash
+IP=$(multipass info may-web --format json | python3 -c "import sys,json; print(json.load(sys.stdin)['info']['may-web']['ipv4'][0])")
+tc=0; tb=0
+for i in $(seq 1 100); do
+  if curl -fs --max-time 2 http://$IP/health > /dev/null 2>&1; then
+    tc=$((tc+1)); printf "."
+  else
+    tb=$((tb+1)); printf "X"
+  fi
+  sleep 0.3
+done
+echo ""
+echo "Thành công: $tc | Thất bại: $tb"
+```
+
+**Terminal 2** — trong lúc đó, deploy bản mới:
+```bash
+sleep 5
+sed -i "s/Ứng dụng đang chạy trên máy chủ/Ứng dụng PHIÊN BẢN 2/" ~/lab28-deploy/app/app.js
+multipass transfer ~/lab28-deploy/app/app.js may-web:/opt/ungdung/app/app.js
+multipass exec may-web -- bash -c \
+  "cd /opt/ungdung && echo 'PHIEN_BAN=v2' > .env && docker compose up -d --build"
+```
+
+**Bạn sẽ thấy ở Terminal 1:**
+```text
+.............XXXXXXXXX..............................
+Thành công: 91 | Thất bại: 9
+```
+
+✅ **Checkpoint:** có **khoảng 3 giây gián đoạn** — người dùng thật sự bị lỗi trong lúc bạn deploy.
+
+```bash
+curl -s http://$IP/ | grep -E "thongDiep|phienBan"
+```
+
+**Bạn sẽ thấy:** `"thongDiep": "Ứng dụng PHIÊN BẢN 2"`, `"phienBan": "v2"`.
+
+💡 **Đây là điểm đau số 4, đo được bằng con số.** Docker Compose dừng container cũ rồi mới tạo container mới — giữa hai việc đó là khoảng trống. Với trang web cá nhân thì không sao; với hệ thống bán hàng thì mỗi lần deploy là mất đơn. **Ngày 37 (cập nhật cuốn chiếu của Kubernetes)** sinh ra để xoá khoảng trống này.
+
+#### Bước 8 — Thử quay lui, và cảm nhận điểm đau số 5
+
+Bản v2 có lỗi, cần về v1 ngay. Bấm giờ:
+
+```bash
+BAT_DAU=$(date +%s)
+
+sed -i "s/Ứng dụng PHIÊN BẢN 2/Ứng dụng đang chạy trên máy chủ/" ~/lab28-deploy/app/app.js
+multipass transfer ~/lab28-deploy/app/app.js may-web:/opt/ungdung/app/app.js
+multipass exec may-web -- bash -c \
+  "cd /opt/ungdung && echo 'PHIEN_BAN=v1' > .env && docker compose up -d --build"
+
+KET_THUC=$(date +%s)
+curl -s http://$IP/ | grep phienBan
+echo "⏱️  Thời gian quay lui: $((KET_THUC - BAT_DAU)) giây"
+```
+
+**Bạn sẽ thấy:**
+```text
+  "phienBan": "v1",
+⏱️  Thời gian quay lui: 38 giây
+```
+
+✅ **Checkpoint:** quay lui được, nhưng bằng cách **sửa code ngược lại và build lại**.
+
+💡 **Hãy nhận ra vấn đề thật sự ở đây:** bạn không "quay lui" — bạn **làm lại thủ công**. Bản v1 không còn tồn tại ở đâu cả, bạn phải tái tạo nó. Nếu quên chính xác v1 có gì thì không về được. Và lúc 2 giờ sáng, tay run, sửa code ngược lại là cách rất dễ gây thêm lỗi.
+>
+> **Ngày 33** (tag image bất biến) và **Ngày 34** (quay lui bằng tag cũ) giải đúng chỗ này: bản cũ vẫn nằm nguyên trong kho, quay lui chỉ là chọn một chuỗi ký tự khác.
+
+#### Bước 9 — Ghi lại năm con số của bạn
+
+Đây là bảng bạn sẽ mở lại ở Ngày 34 để so sánh:
+
+```bash
+cat > ~/lab28-deploy/diem-dau.md <<'EOF'
+# Đo đạc deploy thủ công — Ngày 28
+
+| # | Điểm đau | Số đo của tôi | Sẽ giải quyết ở |
+|---|---|---|---|
+| 1 | Số lệnh phải gõ đúng thứ tự | 6 lệnh | Ngày 31 (pipeline) |
+| 2 | Dấu vết ai deploy lúc nào | KHÔNG CÓ | Ngày 31 (log CI) |
+| 3 | Thời gian deploy lần đầu | ___ giây | Ngày 32 |
+| 4 | Thời gian gián đoạn khi cập nhật | ___ giây | Ngày 37 (rolling update) |
+| 5 | Thời gian quay lui | ___ giây (phải build lại) | Ngày 34 (đổi tag) |
+
+## Điều khó chịu nhất
+(tự ghi lại cảm nhận của bạn)
+
+## Câu hỏi không trả lời được
+- Ba tuần nữa, ai deploy bản đang chạy? Lúc nào? Từ code nào?
+EOF
+
+echo "Đã ghi vào ~/lab28-deploy/diem-dau.md — điền số đo của bạn vào."
+```
+
+💡 **Điền số thật vào file này.** Ngày 34, khi pipeline của bạn deploy trong 4 phút và quay lui trong 45 giây **mà không ai chạm vào server**, bạn sẽ mở lại bảng này. Cảm giác so sánh đó có giá trị hơn nhiều so với đọc một bảng lý thuyết.
+
+#### Bước 10 — Dọn dẹp
+
+```bash
+multipass exec may-web -- bash -c "cd /opt/ungdung && docker compose down"
+multipass delete may-web --purge
+```
+
+⚠️ **Nếu bạn dùng VM cloud thật:** `terminate`, đừng chỉ `stop` — và kiểm tra lại ổ đĩa mồ côi theo lệnh ở Ngày 27.
+
+### 💡 Đi làm mới thấm (sách cơ bản hay bỏ quên)
+
+- **Giới hạn log là việc bắt buộc, không phải tuỳ chọn.** Container chạy vài tháng có thể đẻ ra hàng chục GB log và làm đầy ổ đĩa — kéo theo toàn bộ dịch vụ trên máy đó chết. `max-size` và `max-file` trong compose là hai dòng cứu bạn khỏi một sự cố rất vô duyên.
+- **`expose` khác `ports`.** `ports: "3000:3000"` mở cổng ra ngoài máy; `expose: "3000"` chỉ cho các container trong cùng mạng thấy. Ứng dụng phía sau reverse proxy **luôn** dùng `expose`.
+- **File `.env` không bao giờ được commit.** Nó chứa thông tin kết nối và mật khẩu. Thêm vào `.gitignore` ngay từ commit đầu tiên, và dùng `.env.example` (chỉ có tên biến, không có giá trị) để người khác biết cần khai gì.
+- **HTTPS ở production là bắt buộc.** Lab này dùng HTTP cho gọn. Ngoài đời, cách nhanh nhất là dùng **Caddy** (tự xin và gia hạn chứng chỉ Let's Encrypt, chỉ cần vài dòng cấu hình) hoặc `certbot` với nginx.
+- **`docker compose up -d --build` trên máy chủ production là cách làm tạm.** Nó build ngay trên máy đang phục vụ — tốn CPU, và nếu build lỗi thì bạn kẹt ở trạng thái nửa vời. Cách đúng: **build ở nơi khác, đẩy lên registry, máy chủ chỉ kéo image về chạy** (Ngày 33).
+- **Nếu phải deploy tay, ít nhất hãy viết thành script.** Một file `deploy.sh` có `set -euo pipefail` vẫn tốt hơn nhiều so với gõ tay sáu lệnh. Nó là bước đệm tự nhiên dẫn tới pipeline ở Ngày 31 — thực chất pipeline chỉ là script đó, chạy bởi máy, có log và có dấu vết.
 
 ### 🎯 Đúc kết Ngày 28
 
 **3 điều phải mang theo:**
-1. **Deploy tay chạy được nhưng không bền:** dễ sai · không lặp lại · phụ thuộc 1 người · không dấu vết · rollback chậm.
-2. **5 điểm yếu đó = lý do tồn tại của IaC (Ngày 29) + CI/CD (GĐ3)** — để máy làm thay, lặp lại được, có dấu vết.
-3. **"Cattle, not pets":** server hỏng thì thay bằng code; dữ liệu để ở chỗ bền vững (volume/DB/S3). Nhớ `restart: unless-stopped` để app tự lên lại.
 
-> 🧠 **Một câu để nhớ:** tư duy *"cattle, not pets"* (gia súc, không phải thú cưng) — đừng nâng niu 1 server. Server hỏng thì thay máy mới bằng code; dữ liệu để ở chỗ bền vững (volume/DB/S3).
+1. **Reverse proxy đứng trước ứng dụng** — lo HTTPS, nén, giới hạn tần suất, và giữ cho ứng dụng không phải lộ ra Internet.
+2. **`restart: unless-stopped` là một dòng nhưng cứu bạn khỏi cuộc gọi lúc nửa đêm.** Máy chủ sẽ khởi động lại, đó là chuyện chắc chắn xảy ra.
+3. **Deploy thủ công chạy được, nhưng không lặp lại được, không có dấu vết, có gián đoạn và không quay lui được.** Năm con số bạn vừa đo chính là lý do tồn tại của cả Giai đoạn 3.
+
+> 🧠 **Một câu để nhớ:** deploy tay không sai — nó chỉ **không lặp lại được**. Và thứ không lặp lại được thì không thể tin cậy, dù hôm nay nó chạy tốt.
 
 **✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
-- [ ] SSH vào VM, cài Docker, `docker compose up -d` để app online thật
-- [ ] Cấu hình nginx reverse proxy (và HTTPS nếu có domain)
-- [ ] Liệt kê 5 điểm yếu của deploy thủ công
-- [ ] Thêm `restart: unless-stopped` và kiểm app tự lên lại sau reboot
-- [ ] Giải thích "cattle, not pets"
 
-✅ **Kết quả đạt được:** Triển khai ứng dụng thật lên cloud, truy cập từ Internet, và hiểu vì sao deploy thủ công cần được tự động hoá — cột mốc lớn!
+- [ ] Giải thích vì sao cần reverse proxy thay vì cho ứng dụng nghe cổng 80
+- [ ] Phân biệt `expose` và `ports`, nói rõ khi nào dùng cái nào
+- [ ] Chọn đúng chính sách `restart` và giải thích lý do
+- [ ] Kiểm chứng ứng dụng tự lên sau khi máy khởi động lại
+- [ ] Đo được thời gian gián đoạn khi cập nhật bằng cách này
+- [ ] Nói rõ vì sao quay lui thủ công là "làm lại" chứ không phải "quay lui"
+- [ ] Kể đủ 5 điểm đau và biết mỗi cái được giải quyết ở ngày nào
+
+✅ **Kết quả đạt được:** Ứng dụng đang phục vụ thật sau reverse proxy, tự phục hồi sau reboot — và quan trọng hơn: **năm con số đo được** làm động cơ cho toàn bộ Giai đoạn 3.
 
 ---
 
