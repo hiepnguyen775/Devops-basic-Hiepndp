@@ -8553,14 +8553,21 @@ Total: 87 (HIGH: 79, CRITICAL: 8)
 
 Đây là bước nhớ lâu nhất. Cố tình commit một "mật khẩu":
 
+> 📌 **Vì sao lab này SINH chuỗi lúc chạy thay vì in sẵn trong tài liệu:** một chuỗi giống token thật nằm trong file Markdown sẽ bị **chính GitHub chặn khi push** (tính năng secret scanning). Bản thân việc đó đã là một bài học — và cũng là lý do bạn sẽ tạo chuỗi bằng lệnh ngay dưới đây.
+
 ```bash
 cd ~/ci-demo
-cat > cau-hinh-tam.js <<'EOF'
+
+# Sinh các chuỗi CÓ HÌNH DẠNG GIỐNG token thật — nhưng là số ngẫu nhiên, vô giá trị
+KHOA_AWS="AKIA$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Z0-9' | head -c 16)"
+TOKEN_SLACK="xoxb-$(shuf -i 1000000000-9999999999 -n1)-$(shuf -i 1000000000-9999999999 -n1)-$(head -c 32 /dev/urandom | base64 | tr -dc 'a-z0-9' | head -c 24)"
+
+cat > cau-hinh-tam.js <<EOF
 // File này CỐ Ý sai để thấy công cụ bắt được
 const cauHinh = {
   duongDanDb: "postgres://admin:SieuMatKhau@db.congty.com:5432/donhang",
-  khoaApiAws: "AKIAIOSFODNN7EXAMPLE",
-  tokenSlack: "TOKEN_GIA_SINH_LUC_CHAY",
+  khoaApiAws: "$KHOA_AWS",
+  tokenSlack: "$TOKEN_SLACK",
 };
 module.exports = cauHinh;
 EOF
@@ -8568,6 +8575,8 @@ EOF
 git add cau-hinh-tam.js
 git commit -m "Thêm cấu hình (CỐ Ý SAI để thử công cụ)"
 ```
+
+⚠️ **Tuyệt đối không `git push` nhánh này lên GitHub.** Lab này chỉ làm việc với repo ở máy. Nếu lỡ push, GitHub sẽ chặn — và đó chính xác là điều nên xảy ra.
 
 Giờ quét toàn bộ lịch sử:
 
@@ -8759,11 +8768,20 @@ Quét lỗ hổng         ✅
 ```bash
 cd ~/ci-demo
 git checkout -b thu-bao-mat
-echo 'const token = "TOKEN_GIA_SINH_LUC_CHAY";' > lo-bi-mat.js
+cat > lo-bi-mat.js <<'EOF'
+const ketNoi = {
+  password: "P4ssw0rd-Production-That-2026",   // luật "mat-khau-trong-code" sẽ bắt
+};
+module.exports = ketNoi;
+EOF
 git add lo-bi-mat.js
-git commit -m "Thử: cố ý làm lộ token"
+git commit -m "Thử: cố ý để lộ mật khẩu"
 git push -u origin thu-bao-mat
 ```
+
+> 📌 **Vì sao ở đây dùng mật khẩu chứ không dùng token của nhà cung cấp:** GitHub có **push protection** — chuỗi giống token AWS/Slack/GitHub thật sẽ bị chặn **ngay lúc `git push`**, trước cả khi workflow kịp chạy. Bạn sẽ không thấy được CI chặn PR. Dùng mật khẩu trong code thì push được, và bạn quan sát được đúng thứ cần quan sát.
+>
+> Nhân tiện, đây là **hai lớp bảo vệ khác nhau** và bạn nên biết cả hai: push protection của nền tảng chặn ở cổng vào; gitleaks trong CI là lớp của riêng bạn, bắt được cả những thứ nền tảng không biết (mật khẩu nội bộ, khoá riêng của công ty).
 
 Mở Pull Request trên GitHub.
 
