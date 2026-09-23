@@ -2,7 +2,11 @@
 
 > **Ngày 13–30** · Quản lý mã nguồn chuyên nghiệp, đóng gói ứng dụng thành container, và lần đầu đưa app lên cloud bằng code.
 >
-> **Khuôn mỗi ngày:** 📘 Lý thuyết → 🧪 Lab cơ bản → 🚀 Lab nâng cao (best-practice) → 💡 Bổ sung thực tế → 📝 Bài ôn tập.
+> **Khuôn mỗi ngày:** 📘 Lý thuyết → 🧪 Lab cơ bản → 🚀 Lab nâng cao → 🧭 Hướng dẫn làm lab (lệnh → output mẫu → ✅ checkpoint → ⚠️ lỗi) → 💡 Bổ sung thực tế → 📝 Ôn tập → 🎯 Đúc kết.
+>
+> **Ngày Milestone (21, 30):** 📋 Đề bài → ✅ Yêu cầu → 📐 Tiêu chí chấm điểm → 🔥 Phép thử → 💬 Gợi ý khi bí. **Không hướng dẫn từng bước** — bạn tự làm và tự chấm.
+>
+> 💻 **Cụm Cloud (26–28) chạy miễn phí:** dùng **LocalStack** (giả lập AWS) và **Multipass** (máy ảo local dùng chính cloud-init như cloud thật) — **không cần thẻ tín dụng**. Mỗi bài đều kèm cách làm trên cloud thật khi bạn sẵn sàng.
 >
 > ✅ Trung lập nền tảng: ví dụ cloud dùng AWS cho cụ thể, nhưng luôn ghi chú **tương đương GCP/Azure** để bạn áp dụng cho bất kỳ nhà cung cấp nào.
 
@@ -2031,157 +2035,211 @@ docker compose down -v    # ⚠️ chỉ khi muốn XOÁ sạch cả dữ liệu
 
 ## Ngày 21 — MILESTONE: Đóng gói ứng dụng full-stack
 
-> ⏱️ ~120 phút · Loại: Milestone
+> ⏱️ ~150 phút · Loại: LAB Final
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 16–20 (từng mảnh Docker) → **Ngày 21 (ghép thành app 3 tầng hoàn chỉnh)** → Ngày 22+ (YAML, Nginx, DB, Cloud). Đây là lúc chứng minh bạn giải quyết được "works on my machine" từ đầu đến cuối.
+> 🧭 **Bạn đang ở đâu:** Ngày 16–20 (Docker, Dockerfile, multi-stage, volume, mạng, Compose) → **Ngày 21 (ghép thành một hệ thống nhiều tầng hoàn chỉnh)** → Ngày 22 (YAML, cấu hình).
 >
-> ✅ **Chuẩn bị:** đã nắm Dockerfile multi-stage (Ngày 18), volume/network (Ngày 19), Compose + healthcheck (Ngày 20). Tài khoản GitHub để đẩy repo.
+> ✅ **Chuẩn bị:** Docker và Docker Compose đang chạy.
+>
+> 🎯 **Đề bài + tiêu chí chấm.** Không hướng dẫn từng bước.
 
-### 📘 Lý thuyết — Tổng kết
+### 📋 Đề bài — "Đóng gói một hệ thống ba tầng"
 
-- **Mạch Docker:** image → Dockerfile → tối ưu → volume/network → Compose.
-- **Kiến trúc 3 tầng điển hình:** Frontend → Backend API → Database.
-- **Best practices:** mỗi container 1 nhiệm vụ · dữ liệu trong volume · secret qua env/secret · image nhỏ gọn.
+> Bạn nhận một ứng dụng gồm frontend, API backend và database. Nhiệm vụ: đóng gói toàn bộ sao cho **người khác clone repo về, chạy một lệnh, là hệ thống lên** — không cài Node, không cài PostgreSQL, không đọc hướng dẫn dài.
 
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
-
-**Milestone này luyện gì?**
-Ghép kiến thức Docker (Ngày 16–20) thành 1 app **3 tầng** hoàn chỉnh — kiến trúc kinh điển bạn sẽ gặp ở 90% web app: `Người dùng → [nginx: reverse proxy] → [backend: API] → [database]`.
-- **nginx (reverse proxy)** = lễ tân: nhận mọi request từ ngoài, chuyển vào trong.
-- **backend** = xử lý logic, đọc/ghi database.
-- **database** = kho dữ liệu (có volume để bền vững).
-
-**Tách network = bảo mật.**
-Mẹo quan trọng: đặt database ở network **riêng** mà Internet không thấy. Chỉ nginx ở "ngoài"; database "trong cùng" → kẻ tấn công không chọc thẳng vào DB được. Đây là tư duy phân lớp an toàn (defense in depth) — cùng một app này bạn sẽ deploy lên cloud (Ngày 28) rồi lên Kubernetes (GĐ3), nên hiểu kỹ ở đây là nền cho mọi thứ sau.
-
-### 🧪 Lab cơ bản (Milestone)
-
-1. Xây stack hoàn chỉnh: backend API (Node/Python) + database (Postgres) + reverse proxy (nginx), tất cả qua Docker Compose.
-2. Viết Dockerfile tối ưu (multi-stage) cho backend.
-3. Cấu hình volume cho DB, network nội bộ, biến env cho mật khẩu.
-4. Viết README hướng dẫn chạy bằng 1 lệnh: `docker compose up`.
-5. Đẩy toàn bộ lên GitHub repo `docker-fullstack-app`.
-
-### 🚀 Lab nâng cao (best-practice) — Mô hình hoàn chỉnh
-
-**Mô hình hệ thống mục tiêu:**
-```mermaid
-flowchart TD
-    Net(("🌐 Internet")) -->|"80 / 443"| NG["🌍 nginx · reverse proxy"]
-    subgraph FE["🔵 network: frontend"]
-        NG
-    end
-    NG --> API["⚙️ backend API<br/>multi-stage · USER thường · HEALTHCHECK"]
-    subgraph BE["🟠 network: backend — cô lập, Internet KHÔNG thấy"]
-        API --> DB[("🗄️ Postgres<br/>named volume · pg_isready")]
-    end
-    classDef pub fill:#e3f2fd,stroke:#1976d2,color:#0d47a1;
-    classDef sec fill:#fff3e0,stroke:#f57c00,color:#e65100;
-    class NG pub;
-    class API,DB sec;
+```text
+   Trình duyệt :8080
+        │
+        ▼
+   [ nginx ] ──/api──> [ backend ] ──> [ postgres ]
+   (frontend)           (API)           (dữ liệu bền)
 ```
 
-**Yêu cầu best-practice:**
-1. **2 network tách biệt** (frontend/backend) — DB không lộ ra ngoài.
-2. **Mọi service có `healthcheck`** + `restart: unless-stopped`.
-3. **Backend chờ DB `service_healthy`** mới khởi động.
-4. **Secret qua biến env/`.env`** (trong `.gitignore`), không hard-code.
-5. Cấu trúc repo:
-   ```
-   docker-fullstack-app/
-   ├── README.md              # sơ đồ kiến trúc + 1 lệnh chạy
-   ├── docker-compose.yml
-   ├── docker-compose.prod.yml
-   ├── .env.example           # mẫu biến (KHÔNG chứa secret thật)
-   ├── backend/
-   │   ├── Dockerfile         # multi-stage
-   │   └── .dockerignore
-   └── nginx/
-       └── nginx.conf
-   ```
+### ✅ Yêu cầu
 
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+#### Bắt buộc
 
-**Trình tự nên làm:** viết Dockerfile multi-stage cho backend → soạn compose (nginx + backend + db) → 2 network tách biệt → volume cho db → README chạy 1 lệnh → push GitHub.
+| # | Yêu cầu | Kiến thức từ |
+|---|---|---|
+| 1 | Ba dịch vụ chạy bằng **một lệnh** `docker compose up -d` | Ngày 20 |
+| 2 | Backend dùng **multi-stage build**, image dưới 200 MB | Ngày 18 |
+| 3 | Container **không chạy bằng root** | Ngày 17 |
+| 4 | Dữ liệu database **sống sót** khi xoá và tạo lại container | Ngày 19 |
+| 5 | Backend và database **không lộ cổng ra ngoài** — chỉ nginx mở | Ngày 19 |
+| 6 | Backend chờ database **sẵn sàng** rồi mới khởi động | Ngày 20 |
+| 7 | Có `HEALTHCHECK` cho backend và database | Ngày 17 |
+| 8 | Biến môi trường trong `.env`, có `.env.example`, **không commit `.env`** | Ngày 20 |
+| 9 | `.dockerignore` đầy đủ | Ngày 17, 18 |
+| 10 | README: chạy thế nào, dừng thế nào, xoá sạch thế nào | — |
 
-**Giải nghĩa & kết quả mong đợi:**
-- Stack 3 tầng: nginx (reverse proxy, lộ 80/443) → backend API → Postgres. *Kết quả:* `docker compose up` → cả 3 cùng lên, mở web tạo/đọc dữ liệu.
-- **2 network** (`frontend`/`backend`): nginx+backend ở frontend; backend+db ở backend → DB **không** ở network frontend = Internet không thấy DB.
-- Mọi service: `healthcheck` + `restart: unless-stopped`.
+#### Nâng cao
 
-**🧪 Thử nghiệm:**
-- `docker compose down` rồi `up` lại → dữ liệu DB vẫn còn (named volume). **Bài học:** dữ liệu bền vững qua restart.
-- Cho 1 máy khác clone repo + `docker compose up` → chạy được ngay. **Bài học:** *"works on my machine"* đã được giải quyết.
-
-⚠️ **Dễ sai:** đặt DB ở network frontend → lộ DB ra ngoài. Giữ DB chỉ ở network backend.
-
-💡 **Hiểu sâu:** đây là kiến trúc 3 tầng kinh điển. Cùng app này bạn sẽ deploy lên cloud (Ngày 28) rồi lên Kubernetes (GĐ3) — hiểu kỹ ở đây là nền cho mọi thứ sau.
-
-### 📝 Bài ôn tập & Demo đối chiếu
-
-**✍️ Tự kiểm tra (tổng hợp Docker):**
-
-<details>
-<summary>1. Vì sao đặt database ở network riêng (backend), không chung với nginx?</summary>
-
-> Để Internet không thấy DB. Chỉ nginx ở network "ngoài" (frontend); DB ở network "trong" (backend) → kẻ tấn công không chọc thẳng vào DB được. Phân lớp mạng = bảo mật.
-</details>
-
-<details>
-<summary>2. Làm sao đảm bảo backend không khởi động trước khi DB sẵn sàng?</summary>
-
-> DB có `healthcheck` (vd `pg_isready`), backend `depends_on: db: condition: service_healthy` → chờ DB khoẻ mới lên.
-</details>
-
-<details>
-<summary>3. Mục tiêu "thành công" của milestone này là gì?</summary>
-
-> Người khác clone repo về, gõ `docker compose up` là chạy được ngay — không cần sửa gì. Đó là đã thực sự giải quyết "works on my machine".
-</details>
-
-<details>
-<summary>4. Vì sao backend nên dùng Dockerfile multi-stage?</summary>
-
-> Image nhỏ, nhanh, ít lỗ hổng, chạy bằng user thường — chuẩn production (Ngày 18).
-</details>
-
-**🔬 Demo đối chiếu:**
-
-| Demo đối chiếu | Kết quả mong đợi |
+| # | Yêu cầu |
 |---|---|
-| `docker compose up` | frontend + backend + db cùng lên |
-| `down` rồi `up` lại | Dữ liệu vẫn còn (volume bền vững) |
-| Người khác clone repo | Chạy được ngay, không cần sửa |
+| 11 | Có profile `dev` (nạp lại code tự động) và `prod` (tối ưu) |
+| 12 | Giới hạn log để không đầy ổ đĩa |
+| 13 | Khai `resources.limits` cho từng dịch vụ |
+| 14 | Script `khoi-dong.sh` một lệnh: dựng, chờ khoẻ, in địa chỉ truy cập |
+| 15 | Image dưới 100 MB (dùng distroless hoặc alpine tối giản) |
 
-### 📚 Thuật ngữ Anh–Việt (tổng hợp Docker)
+### 📐 Tiêu chí chấm (100 điểm)
 
-| Thuật ngữ | Nghĩa |
-|---|---|
-| **3-tier architecture** | Kiến trúc 3 tầng: frontend → backend → database |
-| **Reverse proxy** | nginx đứng trước, nhận request rồi chuyển vào trong |
-| **Network segmentation** | Tách mạng theo tầng để cô lập/bảo mật |
-| **Named volume** | Volume có tên do Docker quản lý (dữ liệu bền vững) |
-| **healthcheck** | Kiểm tra dịch vụ đã sẵn sàng |
-| **`.env.example`** | File mẫu biến (không chứa secret thật) |
-| **restart: unless-stopped** | Tự khởi động lại container khi lỗi/reboot |
+| Hạng mục | Điểm | Đạt tối đa khi |
+|---|---:|---|
+| Chạy được bằng một lệnh | 15 | `docker compose up -d` từ repo sạch là lên, không thao tác thêm |
+| Chất lượng Dockerfile | 20 | Multi-stage, user thường, cache layer đúng thứ tự, `.dockerignore` |
+| Kích thước image | 10 | Backend dưới 200 MB (dưới 100 MB được tối đa) |
+| Dữ liệu bền | 15 | Xoá container, tạo lại, dữ liệu còn nguyên |
+| Mạng & bảo mật | 15 | Chỉ nginx lộ cổng; backend/db chỉ thấy trong mạng nội bộ |
+| Thứ tự khởi động & healthcheck | 10 | Backend chờ db khoẻ; mọi dịch vụ có healthcheck |
+| Quản lý cấu hình | 10 | `.env` + `.env.example`, không commit bí mật |
+| Tài liệu | 5 | README đủ để người lạ chạy được |
 
-### 🎯 Đúc kết Ngày 21
+> 🎯 **Từ 75 điểm** là vững để sang phần Cloud.
+
+### 🧪 Bộ kiểm chứng
+
+```bash
+#!/usr/bin/env bash
+# cham-diem.sh — tự chấm LAB Final Docker
+diem=0
+kiem() {
+  if eval "$2" &>/dev/null; then echo "  ✅ $1 (+$3)"; diem=$((diem+$3));
+  else echo "  ❌ $1"; fi
+}
+
+echo "▸ Khởi động"
+kiem "Ba dịch vụ đang chạy" "[ \$(docker compose ps --services --filter status=running | wc -l) -ge 3 ]" 15
+
+echo "▸ Dockerfile"
+kiem "Backend không chạy bằng root" "[ \"\$(docker compose exec -T backend whoami)\" != 'root' ]" 8
+kiem "Có multi-stage build"         "grep -c 'FROM' backend/Dockerfile | grep -qE '[2-9]'" 7
+kiem "Có .dockerignore"             "[ -f backend/.dockerignore ]" 5
+
+echo "▸ Kích thước image"
+kich_thuoc=$(docker images --format '{{.Repository}} {{.Size}}' | grep backend | head -1)
+echo "  ℹ️  $kich_thuoc"
+
+echo "▸ Mạng"
+kiem "nginx lộ cổng ra ngoài"       "docker compose port nginx 80" 5
+kiem "Backend KHÔNG lộ cổng"        "! docker compose port backend 3000 2>/dev/null | grep -q ." 5
+kiem "Database KHÔNG lộ cổng"       "! docker compose port db 5432 2>/dev/null | grep -q ." 5
+
+echo "▸ Healthcheck"
+kiem "Backend có healthcheck"       "docker inspect \$(docker compose ps -q backend) --format '{{.Config.Healthcheck}}' | grep -q CMD" 5
+kiem "Database có healthcheck"      "docker inspect \$(docker compose ps -q db) --format '{{.Config.Healthcheck}}' | grep -q CMD" 5
+
+echo "▸ Cấu hình"
+kiem "Có .env.example"              "[ -f .env.example ]" 5
+kiem ".env KHÔNG bị commit"         "! git ls-files | grep -q '^\.env$'" 5
+kiem "Có README"                    "[ -f README.md ]" 5
+
+echo ""
+echo "  ĐIỂM (phần tự động): $diem / 75"
+echo "  25 điểm còn lại: dữ liệu bền + thứ tự khởi động — kiểm bằng 2 phép thử dưới"
+```
+
+### 🔥 Hai phép thử quyết định
+
+**Phép thử 1 — Dữ liệu có thật sự bền không? (15 điểm)**
+
+```bash
+# Ghi dữ liệu
+docker compose exec -T db psql -U postgres -c \
+  "CREATE TABLE thu(id serial, ten text); INSERT INTO thu(ten) VALUES ('kiem-chung');"
+
+# Xoá SẠCH container (giữ volume)
+docker compose down
+docker compose up -d
+sleep 10
+
+# Dữ liệu phải còn
+docker compose exec -T db psql -U postgres -c "SELECT * FROM thu;"
+```
+> Mất dữ liệu nghĩa là bạn chưa gắn volume, hoặc gắn sai đường dẫn.
+
+**Phép thử 2 — Người lạ có chạy được không? (15 điểm)**
+
+```bash
+# Mô phỏng người mới clone repo
+cd /tmp && rm -rf thu-nghiem
+git clone <repo-cua-ban> thu-nghiem && cd thu-nghiem
+cp .env.example .env         # bước duy nhất được phép yêu cầu
+docker compose up -d
+sleep 20
+curl -s localhost:8080
+```
+> Phải chạy được. Mỗi bước thủ công thêm là một lỗ hổng trong đóng gói của bạn.
+
+### ⚠️ Những cái bẫy hay gặp
+
+| Bẫy | Hậu quả | Cách tránh |
+|---|---|---|
+| `COPY . .` trước `RUN npm ci` | Sửa một dòng code là cài lại toàn bộ thư viện | Copy `package*.json` trước |
+| Dùng `ports` cho backend/db | Lộ database ra Internet | Dùng `expose`, hoặc không khai gì |
+| `depends_on` không kèm `condition` | Backend khởi động khi db chưa sẵn sàng → crash | `condition: service_healthy` |
+| Gắn volume sai đường dẫn dữ liệu | Tưởng có volume mà vẫn mất dữ liệu | Kiểm bằng Phép thử 1 |
+| Commit `.env` | Lộ mật khẩu | `.gitignore` từ commit đầu |
+| Không có `.dockerignore` | Build chậm, image lẫn `node_modules` và `.git` | Tạo ngay từ đầu |
+
+### 💬 Gợi ý khi bí
+
+<details>
+<summary><b>Làm sao để backend chờ database thật sự sẵn sàng?</b></summary>
+
+`depends_on` thường chỉ chờ container **khởi động**, không chờ nó **sẵn sàng nhận kết nối**. Phải kết hợp healthcheck:
+
+```yaml
+  db:
+    image: postgres:16-alpine
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    depends_on:
+      db:
+        condition: service_healthy    # chờ db BÁO KHOẺ mới khởi động
+```
+
+Nhưng đừng phụ thuộc hoàn toàn vào Compose: ứng dụng vẫn nên **tự thử lại kết nối**. Database có thể khởi động lại giữa chừng, và lúc đó Compose không giúp gì được.
+</details>
+
+<details>
+<summary><b>Làm sao giảm kích thước image backend?</b></summary>
+
+Theo thứ tự hiệu quả giảm dần:
+
+1. **Đổi image nền:** `node:20` (~1,1 GB) → `node:20-alpine` (~140 MB). Hiệu quả nhất, chỉ một dòng.
+2. **Multi-stage:** tầng build cài cả devDependencies, tầng cuối chỉ chép `node_modules` production và code.
+3. **`npm ci --omit=dev`:** bỏ toàn bộ thư viện chỉ dùng khi phát triển.
+4. **`.dockerignore`:** đừng gửi `node_modules`, `.git`, `test` vào trình build.
+5. **Distroless** (`gcr.io/distroless/nodejs20`): nhỏ nhất và an toàn nhất, nhưng **không có shell** — không `docker exec` vào debug được. Đánh đổi có ý thức.
+
+Xem lớp nào nặng nhất: `docker history <image> --human --format "{{.Size}}\t{{.CreatedBy}}" | head -10`
+</details>
+
+### 🎯 Đúc kết Ngày 21 — Tổng kết phần Docker
 
 **3 điều phải mang theo:**
-1. **Kiến trúc 3 tầng:** Internet → nginx (reverse proxy) → backend API → database — khuôn của ~90% web app.
-2. **Tách network = bảo mật:** DB chỉ ở network backend, Internet không thấy; nginx ở frontend. Phân lớp mạng.
-3. **Chuẩn "chạy 1 lệnh":** healthcheck + `depends_on: service_healthy` + named volume + secret qua `.env` (`.gitignore`).
 
-> 🧠 **Một câu để nhớ:** mục tiêu milestone là *"người khác clone repo về, gõ `docker compose up` là chạy được ngay"*. Đạt được điều đó = bạn đã thực sự giải quyết "works on my machine".
+1. **"Một lệnh là chạy" là tiêu chuẩn, không phải điều xa xỉ.** Mỗi bước thủ công bạn bắt người dùng làm là một chỗ họ có thể làm sai.
+2. **Container là đồ dùng một lần, volume thì không.** Ranh giới đó quyết định bạn mất dữ liệu hay chỉ mất một container.
+3. **Chỉ lộ ra thứ cần lộ.** Database không bao giờ nên nhìn thấy được từ Internet — nguyên tắc này đúng từ Docker Compose cho tới Kubernetes.
 
-**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
-- [ ] Dựng stack 3 tầng (nginx + backend + db) chỉ bằng `docker compose up`
-- [ ] Viết Dockerfile multi-stage cho backend
-- [ ] Tách 2 network để DB không lộ ra Internet
-- [ ] DB có named volume + healthcheck, backend chờ DB healthy
-- [ ] Đẩy repo lên GitHub với README chạy được bằng 1 lệnh
+> 🧠 **Một câu để nhớ:** đóng gói tốt được đo bằng **số bước người lạ phải làm để chạy được hệ thống** — càng ít càng tốt, lý tưởng là một.
 
-✅ **Kết quả đạt được — MỐC 2:** Đóng gói được ứng dụng full-stack đa container (3 tầng, tách mạng, volume, healthcheck) — kỹ năng Docker thực chiến.
+**✅ Tự chấm Milestone:**
+
+- [ ] Đạt từ 75 điểm trở lên
+- [ ] Phép thử 1: dữ liệu sống sót sau `down` rồi `up`
+- [ ] Phép thử 2: người lạ clone về chạy được
+- [ ] Image backend dưới 200 MB
+- [ ] Giải thích được vì sao mỗi dịch vụ dùng `expose` hay `ports`
+
+✅ **Kết quả đạt được:** Một hệ thống ba tầng đóng gói hoàn chỉnh, chạy bằng một lệnh ở bất cứ máy nào có Docker — sẵn sàng để đưa lên cloud ở Ngày 26–28.
 
 ---
 
@@ -4775,148 +4833,298 @@ terraform destroy
 
 ## Ngày 30 — MILESTONE: LAB tổng hợp Giai đoạn 2
 
-> ⏱️ ~120 phút · Loại: Milestone (Git + Docker + Cloud + IaC)
+> ⏱️ ~180 phút · Loại: LAB Final
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 13–29 (Git, Docker, Cloud, Terraform) → **Ngày 30 (ghép tất cả: code → hạ tầng → app, tất cả bằng code)** → Giai đoạn 3 (CI/CD + Kubernetes). Đây là **nửa chặng đường** — chứng minh bạn làm được end-to-end.
+> 🧭 **Bạn đang ở đâu:** Ngày 13–29 (Git, Docker, Compose, Nginx, database, Cloud, Terraform) → **Ngày 30 (ghép tất cả: hạ tầng bằng code, ứng dụng bằng container, mọi thứ trong Git)** → Giai đoạn 3 (CI/CD & Kubernetes).
 >
-> ✅ **Chuẩn bị:** app full-stack (Ngày 21), tài khoản cloud + Terraform (Ngày 29), billing alert đang bật. ⚠️ Nhớ `terraform destroy` sau khi demo.
+> ✅ **Chuẩn bị:** Docker, Terraform, Multipass (hoặc VM cloud thật). Hệ thống ba tầng từ Ngày 21.
+>
+> 🎯 **Đề bài + tiêu chí chấm.** Đây là bài lớn nhất của Giai đoạn 2 — hãy dành đủ thời gian.
 
-### 📘 Lý thuyết — Tổng kết
+### 📋 Đề bài — "Từ repo Git tới hệ thống đang chạy"
 
-- **Mạch kiến thức:** Git/GitHub → Docker → Compose → Cloud (VM) → IaC (Terraform).
-- **Bức tranh:** code trên Git → đóng gói Docker → triển khai cloud bằng IaC.
-- Đây là **nửa chặng đường** — bạn đã có nền tảng SysOps + container + cloud cơ bản.
+> Yêu cầu duy nhất, nhưng khắt khe: **xoá sạch mọi thứ, rồi dựng lại toàn bộ hệ thống từ số 0 chỉ bằng các lệnh có trong README** — hạ tầng lẫn ứng dụng. Không bấm chuột, không thao tác nhớ trong đầu.
 
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
-
-**Milestone này = nửa chặng đường, ghép mọi thứ Giai đoạn 2.**
-Bạn dựng một quy trình hoàn chỉnh, **tất cả bằng code**: `GitHub (code) → Terraform dựng hạ tầng → app Docker chạy trên đó → online`. Từ con số 0, chỉ bằng các file trong 1 repo, bạn tái tạo được cả hệ thống. Đây là khác biệt giữa "biết dùng công cụ" và "làm được việc end-to-end".
-
-**Cấu trúc repo rõ ràng = chuyên nghiệp:**
-Tách `infra/` (Terraform — hạ tầng) và `app/` (Docker — ứng dụng), kèm README có sơ đồ. Người lạ nhìn vào hiểu ngay, và bạn 6 tháng sau cũng cảm ơn chính mình.
-
-**Đừng quên `terraform destroy` sau khi demo** — để máy chạy 24/7 trên cloud = hóa đơn bất ngờ. Đó cũng chính là tinh thần "cattle, not pets": xoá sạch rồi `apply` dựng lại trong một lệnh, không tiếc.
-
-### 🧪 Lab cơ bản (Milestone)
-
-1. Dùng Terraform tạo VM + Security Group, sau đó (thủ công hoặc user-data) deploy app Docker Compose lên đó.
-2. Toàn bộ code (Dockerfile, compose, terraform) trong 1 repo GitHub có cấu trúc rõ ràng.
-3. Viết README với sơ đồ kiến trúc và hướng dẫn deploy từ đầu.
-4. Chạy `terraform destroy` sau khi xong để tránh tốn phí.
-5. Tự đánh giá: bạn deploy được app lên cloud từ con số 0 bằng code chưa?
-
-### 🚀 Lab nâng cao (best-practice) — Mô hình hoàn chỉnh
-
-**Mô hình: từ code → hạ tầng → app, tất cả bằng code**
-```mermaid
-flowchart LR
-    subgraph REPO["📁 GitHub repo · 1 nguồn sự thật"]
-        direction TB
-        INFRA["📐 infra/ · Terraform<br/>VPC · VM · Security Group · Elastic IP"]
-        APP["📦 app/ · Docker Compose<br/>backend + db + nginx"]
-    end
-    INFRA -->|"terraform apply<br/>(state ở S3)"| VM["☁️ VM trên cloud<br/>user-data tự cài Docker + chạy"]
-    APP -->|"image từ registry"| VM
-    VM -->|"https://domain"| User(("👤 Người dùng"))
-    classDef code fill:#ede7f6,stroke:#5e35b1;
-    classDef run fill:#e8f5e9,stroke:#2e7d32;
-    class INFRA,APP code;
-    class VM run;
+```text
+   Git repo
+      │
+      ├── terraform/        → dựng máy chủ (Ngày 29)
+      ├── app/              → ứng dụng 3 tầng (Ngày 21)
+      ├── cloud-init.yaml   → máy tự cấu hình (Ngày 27)
+      └── deploy.sh         → đưa ứng dụng lên máy (Ngày 28)
 ```
 
-**Yêu cầu best-practice:**
-1. **Terraform có `variables`** (tên instance, region, instance type) — đổi môi trường không sửa code.
-2. **User-data tự cài Docker + hardening** (kết hợp Ngày 9, 27, 28).
-3. **Repo cấu trúc tách `infra/` và `app/`**, README có sơ đồ + lệnh chạy từng bước.
-4. **`terraform destroy`** sau khi demo để tránh hóa đơn.
-5. Bonus: state file để remote (S3) cho đúng chuẩn team.
+### ✅ Yêu cầu
 
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+#### Bắt buộc
 
-**Trình tự nên làm:** Terraform dựng VM+SG → user-data cài Docker → deploy compose → README + sơ đồ → `destroy` khi xong.
+| # | Yêu cầu | Kiến thức từ |
+|---|---|---|
+| 1 | **Terraform** dựng được máy chủ, có biến và output | Ngày 29 |
+| 2 | Máy tự cấu hình bằng **cloud-init**: user, SSH khoá, tường lửa, Docker | Ngày 27 |
+| 3 | Ứng dụng ba tầng chạy bằng **Docker Compose** sau reverse proxy | Ngày 21, 28 |
+| 4 | Database có **volume**, dữ liệu sống sót khi tạo lại container | Ngày 19 |
+| 5 | **Script deploy** một lệnh: đưa code lên và khởi động | Ngày 6, 28 |
+| 6 | **Lịch sử Git sạch**: commit có ý nghĩa, có nhánh, có tag phiên bản | Ngày 13–15, 25 |
+| 7 | **Không bí mật nào trong Git** — dùng `.env` và `.env.example` | Ngày 26 |
+| 8 | `terraform destroy` **xoá sạch**, không sót tài nguyên | Ngày 29 |
+| 9 | README: dựng từ số 0 thế nào, xoá thế nào | — |
 
-**Giải nghĩa & kết quả mong đợi:**
-- `terraform apply` (có `variables` cho region/instance type) dựng hạ tầng; user-data tự cài Docker + chạy app. *Kết quả:* mở Public IP/domain thấy app full-stack.
-- Repo tách `infra/` (Terraform) và `app/` (compose) — rõ ràng, dễ đọc.
-- `terraform destroy` sau demo → tránh hóa đơn.
+#### Nâng cao
 
-**🧪 Thử nghiệm:**
-- `terraform destroy` rồi `apply` lại từ đầu → dựng lại toàn bộ trong 1 lệnh. **Bài học:** hạ tầng "dùng 1 lần rồi vứt", tái tạo bằng code (cattle not pets).
-- Đổi `variable region` → `plan` thấy sẽ tạo ở region khác. **Bài học:** tham số hóa = tái dùng cho dev/prod.
-
-⚠️ **Dễ sai:** quên `terraform destroy` sau khi học → instance/NAT chạy 24/7 → hóa đơn bất ngờ. Đặt billing alert.
-
-💡 **Hiểu sâu:** bạn vừa đi trọn "code → hạ tầng → app, tất cả bằng code". Đây là **nửa chặng đường**. GĐ3 tự động hóa nốt phần deploy (CI/CD) và điều phối container quy mô lớn (Kubernetes).
-
-### 📝 Bài ôn tập & Demo đối chiếu
-
-**✍️ Tự kiểm tra (tổng hợp Giai đoạn 2):**
-
-<details>
-<summary>1. Mô tả mạch "code → hạ tầng → app, tất cả bằng code".</summary>
-
-> Code + Dockerfile + compose + Terraform nằm trong 1 repo GitHub → `terraform apply` dựng hạ tầng (VM, SG) → user-data cài Docker + chạy app Compose → app online. Xoá sạch bằng `terraform destroy`, dựng lại bất cứ lúc nào.
-</details>
-
-<details>
-<summary>2. Vì sao nên tách repo thành `infra/` và `app/`?</summary>
-
-> Rõ ràng, dễ đọc, dễ bảo trì: hạ tầng (Terraform) và ứng dụng (Docker) có vòng đời khác nhau. Người lạ (và bạn 6 tháng sau) hiểu ngay.
-</details>
-
-<details>
-<summary>3. Vì sao milestone nhắc `terraform destroy` sau demo?</summary>
-
-> Để máy chạy 24/7 trên cloud = hoá đơn bất ngờ. `destroy` xoá sạch; cần lại thì `apply` dựng trong 1 lệnh (cattle not pets).
-</details>
-
-<details>
-<summary>4. Giai đoạn 3 sẽ tự động hoá thêm phần nào?</summary>
-
-> CI/CD (tự build-test-deploy khi push) và Kubernetes (điều phối container ở quy mô lớn) — giải nốt phần deploy thủ công còn lại.
-</details>
-
-**🔬 Demo đối chiếu:**
-
-| Demo đối chiếu | Kết quả mong đợi |
+| # | Yêu cầu |
 |---|---|
-| `terraform apply` | Dựng VM + chạy Docker tự động |
-| App online | Mở Public IP/domain thấy app full-stack hoạt động |
-| `terraform destroy` | `Destroy complete!` — không tốn phí |
+| 10 | Terraform tách **module** thay vì viết phẳng |
+| 11 | Hai môi trường dev/prod khác quy mô từ cùng bộ code |
+| 12 | Script sao lưu database tự động, có kiểm chứng |
+| 13 | HTTPS bằng chứng chỉ tự ký hoặc Caddy tự động |
+| 14 | Tag Git khớp với phiên bản đang chạy trên máy chủ |
 
-### 📚 Thuật ngữ Anh–Việt (tổng hợp Giai đoạn 2)
+### 📐 Tiêu chí chấm (100 điểm)
 
-| Thuật ngữ | Nghĩa |
+| Hạng mục | Điểm | Đạt tối đa khi |
+|---|---:|---|
+| Hạ tầng bằng code | 20 | `apply` từ số 0 ra máy chủ hoạt động; có biến, output; `destroy` sạch |
+| Máy tự cấu hình | 15 | cloud-init lo hết; không SSH vào cài tay thứ gì |
+| Đóng gói ứng dụng | 15 | Ba tầng chạy được, chỉ proxy lộ cổng, dữ liệu bền |
+| Tự động hoá deploy | 15 | Một lệnh; có xử lý lỗi; chạy lại được nhiều lần |
+| Thực hành Git | 10 | Commit rõ nghĩa, có nhánh và tag, không file rác |
+| Bảo mật | 15 | Không bí mật trong Git, SSH chỉ khoá, tường lửa chặn mặc định |
+| Tài liệu | 10 | Người lạ dựng lại được toàn bộ hệ thống |
+
+> 🎯 **Từ 75 điểm** là sẵn sàng cho Giai đoạn 3.
+
+### 🔥 Phép thử lớn: "Xoá sạch rồi dựng lại"
+
+Đây là **bài kiểm tra duy nhất thật sự quan trọng** của ngày hôm nay. Bấm giờ từ đầu đến cuối.
+
+```bash
+BAT_DAU=$(date +%s)
+
+# ---- BƯỚC 1: XOÁ SẠCH ----
+cd terraform && terraform destroy -auto-approve && cd ..
+multipass list          # phải trống (hoặc: kiểm tra trên cloud không còn gì)
+
+# ---- BƯỚC 2: DỰNG LẠI, CHỈ DÙNG LỆNH TRONG README ----
+cd terraform
+terraform init && terraform apply -auto-approve
+IP=$(terraform output -raw dia_chi_ip)
+cd ..
+
+./deploy.sh "$IP"
+
+# ---- BƯỚC 3: KIỂM CHỨNG ----
+sleep 15
+curl -s "http://$IP/" | head -5
+curl -s -o /dev/null -w "HTTP %{http_code}\n" "http://$IP/api/health"
+
+KET_THUC=$(date +%s)
+echo "⏱️  Dựng lại toàn bộ từ số 0: $(( (KET_THUC-BAT_DAU)/60 )) phút $(( (KET_THUC-BAT_DAU)%60 )) giây"
+```
+
+| Thời gian | Đánh giá |
 |---|---|
-| **Version control** | Quản lý phiên bản (Git) |
-| **Container / Image** | Hộp chạy app / khuôn tạo container |
-| **Compose** | Mô tả nhiều container bằng 1 file |
-| **IaaS / VM** | Hạ tầng thuê / máy ảo |
-| **IaC (Terraform)** | Hạ tầng dưới dạng code |
-| **End-to-end** | Trọn quy trình từ đầu đến cuối |
-| **Single source of truth** | 1 nguồn sự thật (repo Git) |
+| Dưới 10 phút | 🟢 Tự động hoá tốt |
+| 10–20 phút | 🟡 Còn vài bước thủ công |
+| Trên 20 phút, hoặc phải sửa gì đó giữa chừng | 🔴 Chưa thật sự là Infrastructure as Code |
 
-### 🎯 Đúc kết Giai đoạn 2
+> 💡 **Mỗi lần bạn phải dừng lại gõ thêm một lệnh không có trong README, đó là một lỗi.** Ghi lại và bổ sung vào script. Lặp lại phép thử tới khi chạy trót lọt một mạch.
 
-**3 điều phải mang theo (cả GĐ2):**
-1. **Mọi thứ nên là code:** lịch sử bằng Git, app đóng gói bằng Docker/Compose, hạ tầng bằng Terraform — tái lập được, review được, version trong Git.
-2. **Mạch end-to-end:** GitHub (code) → Docker (đóng gói) → Cloud/VM (chạy) → IaC (dựng hạ tầng bằng code). Bạn dựng lại cả hệ thống từ 1 repo.
-3. **An toàn & tiết kiệm là mặc định:** secret không vào Git (rotate nếu lỡ), DB có volume, chỉ mở cổng cần, billing alert + `terraform destroy` sau khi học.
+### 🧪 Bộ kiểm chứng
 
-> 🧠 **Một câu để nhớ:** bạn vừa đi trọn *"code → hạ tầng → app, tất cả bằng code"*. Giai đoạn 3 sẽ tự động hóa nốt phần deploy (CI/CD) và điều phối container ở quy mô lớn (Kubernetes).
+```bash
+#!/usr/bin/env bash
+diem=0
+kiem() { if eval "$2" &>/dev/null; then echo "  ✅ $1 (+$3)"; diem=$((diem+$3)); else echo "  ❌ $1"; fi; }
 
-**✅ Tự chấm — năng lực chốt Giai đoạn 2** *(đánh dấu khi làm được mà không nhìn tài liệu):*
-- [ ] Dùng Git thành thạo: nhánh, merge/rebase, PR, xử lý conflict, cứu vãn
-- [ ] Đóng gói app bằng Dockerfile multi-stage và chạy multi-container bằng Compose
-- [ ] Quản lý dữ liệu bền vững (volume) và mạng giữa các container
-- [ ] Tạo & bảo mật 1 VM cloud (Security Group + UFW, SSH bằng key)
-- [ ] Dựng hạ tầng bằng Terraform (init→plan→apply→destroy) và deploy app end-to-end
+echo "▸ Hạ tầng bằng code"
+kiem "Terraform hợp lệ"              "terraform -chdir=terraform validate" 7
+kiem "Có biến có mô tả"              "grep -q 'description' terraform/variables.tf" 4
+kiem "Có output"                     "[ -f terraform/outputs.tf ] || grep -q 'output' terraform/*.tf" 4
+kiem "KHÔNG commit state"            "! git ls-files | grep -q tfstate" 5
 
-✅ **Kết quả đạt được — MỐC 3 (NỬA CHẶNG ĐƯỜNG):** Làm chủ Git + Docker + Cloud + IaC cơ bản, dựng được app lên cloud từ 0 bằng code.
+echo "▸ Máy tự cấu hình"
+kiem "Có cloud-init"                 "[ -f cloud-init.yaml ] || grep -rq 'cloud-config' ." 8
+kiem "cloud-init có khai tường lửa"  "grep -q 'ufw' cloud-init.yaml" 7
+
+echo "▸ Ứng dụng"
+kiem "Có docker-compose"             "[ -f app/docker-compose.yml ] || [ -f docker-compose.yml ]" 5
+kiem "Có định nghĩa volume"          "grep -rq 'volumes:' app/docker-compose.yml docker-compose.yml 2>/dev/null" 5
+kiem "Có healthcheck"                "grep -rq 'healthcheck' app/docker-compose.yml docker-compose.yml 2>/dev/null" 5
+
+echo "▸ Tự động hoá"
+kiem "Có script deploy"              "[ -x deploy.sh ]" 8
+kiem "Script có xử lý lỗi"           "head -5 deploy.sh | grep -q 'set -e'" 7
+
+echo "▸ Git"
+kiem "Có nhiều hơn 10 commit"        "[ \$(git rev-list --count HEAD) -gt 10 ]" 4
+kiem "Có tag phiên bản"              "git tag | grep -q ." 3
+kiem "Có .gitignore"                 "[ -f .gitignore ]" 3
+
+echo "▸ Bảo mật"
+kiem "Không commit .env"             "! git ls-files | grep -qE '^\.env$'" 5
+kiem "Có .env.example"               "[ -f .env.example ] || [ -f app/.env.example ]" 5
+kiem "Không có khoá riêng trong Git" "! git ls-files | grep -qE '\.pem$|id_rsa$|id_ed25519$'" 5
+
+echo "▸ Tài liệu"
+kiem "README có hướng dẫn dựng"      "grep -qiE 'terraform apply|deploy' README.md" 5
+kiem "README có hướng dẫn xoá"       "grep -qi 'destroy' README.md" 5
+
+echo ""
+echo "  ĐIỂM: $diem / 100"
+```
+
+Chạy thêm bộ quét bí mật để chắc chắn:
+```bash
+docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest detect --source=/repo --no-banner
+```
+
+### ⚠️ Những cái bẫy hay gặp
+
+| Bẫy | Hậu quả | Cách tránh |
+|---|---|---|
+| Sửa tay trên máy chủ rồi quên | Dựng lại là mất hết | Mọi thay đổi vào `cloud-init.yaml` hoặc `deploy.sh` |
+| Commit `terraform.tfstate` | **Lộ bí mật**, và xung đột khi làm nhóm | `.gitignore` từ commit đầu |
+| Commit file khoá `.pem` | Ai clone cũng vào được máy chủ | Đưa vào `.gitignore`, sinh khoá lúc chạy |
+| `destroy` không sạch | Tài nguyên mồ côi vẫn tính tiền | Kiểm tra lại sau mỗi lần destroy |
+| README viết lúc mới bắt đầu | Không khớp với thực tế cuối cùng | Viết lại **sau khi** làm xong phép thử lớn |
+| Script deploy chỉ chạy đúng lần đầu | Lần hai lỗi vì thư mục đã tồn tại | Viết script **chạy lại được nhiều lần** |
+
+### 💬 Gợi ý khi bí
+
+<details>
+<summary><b>Script deploy nên viết thế nào cho chạy lại được nhiều lần?</b></summary>
+
+Nguyên tắc: mọi bước đều phải an toàn khi chạy lần thứ hai (đây chính là **idempotent** mà Ngày 47 sẽ gọi tên).
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+IP="${1:?Dùng: ./deploy.sh <dia-chi-ip>}"
+KHOA="${KHOA_SSH:-./khoa-may-chu}"
+USER="${SSH_USER:-quantri}"
+DICH="/opt/ungdung"
+
+ssh_chay() { ssh -i "$KHOA" -o StrictHostKeyChecking=no "$USER@$IP" "$@"; }
+
+echo "[1/5] Chờ SSH sẵn sàng..."
+for i in $(seq 1 30); do
+  ssh_chay true 2>/dev/null && break
+  sleep 5
+done
+
+echo "[2/5] Tạo thư mục (an toàn khi đã tồn tại)..."
+ssh_chay "sudo mkdir -p $DICH && sudo chown $USER:$USER $DICH"
+
+echo "[3/5] Đồng bộ mã nguồn..."
+rsync -az --delete -e "ssh -i $KHOA -o StrictHostKeyChecking=no" \
+  --exclude '.git' --exclude 'node_modules' \
+  ./app/ "$USER@$IP:$DICH/"
+
+echo "[4/5] Khởi động dịch vụ..."
+ssh_chay "cd $DICH && docker compose up -d --build"
+
+echo "[5/5] Kiểm tra sức khoẻ..."
+for i in $(seq 1 20); do
+  if curl -fs --max-time 3 "http://$IP/health" >/dev/null; then
+    echo "✅ Hệ thống đã sẵn sàng: http://$IP"
+    exit 0
+  fi
+  sleep 3
+done
+echo "❌ Không phản hồi sau 60 giây"
+ssh_chay "cd $DICH && docker compose logs --tail 30"
+exit 1
+```
+
+Bốn điểm khiến script này dùng được thật: `set -euo pipefail`, chờ SSH sẵn sàng, `mkdir -p` an toàn khi lặp, và **kiểm tra sức khoẻ ở cuối** — không có bước cuối thì script luôn báo thành công kể cả khi ứng dụng chết.
+</details>
+
+<details>
+<summary><b>Làm sao tránh lộ khoá SSH trong Git?</b></summary>
+
+Đừng commit khoá — **sinh nó ra lúc chạy**:
+
+```bash
+# Trong README, bước đầu tiên:
+ssh-keygen -t ed25519 -f ./khoa-may-chu -N "" -C "lab30"
+```
+
+```gitignore
+# .gitignore
+khoa-may-chu
+khoa-may-chu.pub
+*.pem
+.env
+terraform.tfstate*
+.terraform/
+```
+
+Terraform đọc khoá công khai từ file lúc `apply`:
+```hcl
+variable "duong_dan_khoa_cong_khai" {
+  description = "Đường dẫn tới file khoá công khai"
+  type        = string
+  default     = "../khoa-may-chu.pub"
+}
+```
+
+Như vậy repo không chứa bí mật nào, mà người khác clone về vẫn dựng được — họ chỉ cần sinh khoá của chính họ.
+</details>
+
+<details>
+<summary><b>README nên có gì?</b></summary>
+
+Đúng bốn mục, và mục thứ hai phải **copy-dán chạy được**:
+
+```markdown
+## Hệ thống này là gì
+Ứng dụng 3 tầng chạy trên máy chủ được dựng hoàn toàn bằng code.
+
+## Dựng từ số 0
+```bash
+ssh-keygen -t ed25519 -f ./khoa-may-chu -N ""
+cd terraform && terraform init && terraform apply -auto-approve
+IP=$(terraform output -raw dia_chi_ip) && cd ..
+./deploy.sh "$IP"
+```
+Mở http://$IP
+
+## Xoá sạch
+```bash
+cd terraform && terraform destroy -auto-approve
+```
+
+## Kiến trúc
+(sơ đồ Mermaid)
+```
+
+Nguyên tắc kiểm tra: **mọi lệnh trong README phải copy-dán chạy được**, không có chỗ nào ghi "sau đó cấu hình X" mà không nói cấu hình thế nào.
+</details>
+
+### 🎯 Đúc kết Ngày 30 — Tổng kết Giai đoạn 2
+
+**3 điều phải mang theo:**
+
+1. **"Dựng lại được từ số 0" là thước đo duy nhất đáng tin.** Hệ thống chạy tốt nhưng không dựng lại được thì bạn đang sở hữu một quả bom hẹn giờ.
+2. **Mọi thứ phải nằm trong Git** — hạ tầng, cấu hình máy, đóng gói ứng dụng, script deploy. Thứ gì chỉ tồn tại trên máy chủ là thứ sẽ mất.
+3. **Bí mật không bao giờ vào Git.** Sinh khoá lúc chạy, cấu hình qua `.env`, và luôn có `.env.example` để người khác biết cần khai gì.
+
+> 🧠 **Một câu để nhớ:** hết Giai đoạn 2, bạn không còn "có một máy chủ" — bạn có **công thức để tạo ra máy chủ đó bất cứ lúc nào**. Đó là khác biệt lớn nhất giữa vận hành thủ công và vận hành bằng code.
+
+**✅ Tự chấm Milestone Giai đoạn 2:**
+
+- [ ] Đạt từ 75 điểm ở bộ kiểm chứng
+- [ ] **Phép thử lớn:** xoá sạch rồi dựng lại một mạch, dưới 20 phút
+- [ ] Gitleaks không phát hiện bí mật nào
+- [ ] `terraform destroy` xoá sạch, không sót tài nguyên
+- [ ] README đủ để người lạ dựng lại toàn bộ
+- [ ] Giải thích được vì sao mỗi thứ nằm ở chỗ của nó
+
+✅ **Kết quả đạt được:** Toàn bộ hệ thống — hạ tầng lẫn ứng dụng — nằm trong Git và dựng lại được bằng vài lệnh. Giai đoạn 3 sẽ để **máy tự chạy những lệnh đó thay bạn**.
 
 ---
-
-# 📎 Phụ lục Giai đoạn 2 — Kiến thức sống còn
 
 ## Phụ lục A — Lỗi thường gặp (Git · Docker · Cloud)
 

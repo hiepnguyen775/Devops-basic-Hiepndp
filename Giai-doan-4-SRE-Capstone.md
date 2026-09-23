@@ -1954,6 +1954,854 @@ print('  -> giãn dần, và jitter khiến các client KHÔNG thử lại cùng
 **Bạn sẽ thấy:**
 ```text
 Thử lại NGAY LẬP TỨC (sai):
+  lần 1: 0ms | lần 2: 0ms | lần 3: 0ms
+  -> 3 lần gọi dồn trong vài mili giây, đúng lúc dịch vụ đang yếu
+
+Chờ tăng dần + ngẫu nhiên (đúng):
+  lần 1: chờ 118ms
+  lần 2: chờ 243ms
+  lần 3: chờ 497ms
+  lần 4: chờ 906ms
+  -> giãn dần, và jitter khiến các client KHÔNG thử lại cùng lúc
+```
+
+✅ **Checkpoint:** hiểu vì sao cần cả *tăng dần* lẫn *ngẫu nhiên*.
+
+💡 **Phần "ngẫu nhiên" quan trọng hơn bạn tưởng.** Không có nó, 1000 client cùng gặp lỗi sẽ cùng thử lại sau đúng 100ms, rồi đúng 200ms — tạo ra từng đợt sóng đập vào dịch vụ đang ốm. Jitter làm các đợt sóng đó tãi ra.
+
+#### Bước 5 — Dọn dẹp Phần A
+
+```bash
+cd ~/lab54-mesh && docker compose down
+```
+
+### 🧪 LAB Phần B — Service mesh thật (tuỳ chọn, cần RAM)
+
+> Phần A đã dạy bạn **vấn đề**. Phần B cho thấy mesh giải nó thế nào mà **không phải sửa một dòng code nào**.
+
+#### Bước 6 — Cài Linkerd
+
+```bash
+minikube start --memory=4096 --cpus=2
+curl --proto '=https' --tlsv1.2 -sSfL https://run.linkerd.io/install-edge | sh
+export PATH=$HOME/.linkerd2/bin:$PATH
+linkerd version --client
+linkerd check --pre
+```
+
+**Bạn sẽ thấy:**
+```text
+Status check results are √
+```
+
+✅ **Checkpoint:** mọi mục kiểm tra trước cài đặt đều đạt.
+
+> 📌 Bản `edge` là bản miễn phí, cập nhật thường xuyên. Nếu lệnh cài đổi khác, xem [linkerd.io/getting-started](https://linkerd.io/getting-started). Không cài được cũng không sao — Phần A mới là phần cốt lõi.
+
+```bash
+linkerd install --crds | kubectl apply -f -
+linkerd install | kubectl apply -f -
+linkerd check
+```
+
+**Bạn sẽ thấy** (mất 1–2 phút): `Status check results are √`.
+
+#### Bước 7 — Đưa ứng dụng vào mesh mà không sửa code
+
+```bash
+kubectl create ns cua-hang
+
+# Triển khai 2 dịch vụ bình thường, KHÔNG biết gì về mesh
+kubectl -n cua-hang create deployment web --image=nginx:1.27-alpine
+kubectl -n cua-hang expose deployment web --port=80
+kubectl -n cua-hang create deployment api --image=hashicorp/http-echo:1.0 \
+  -- /http-echo -text="xin chào từ api" -listen=:5678
+kubectl -n cua-hang expose deployment api --port=5678
+
+kubectl -n cua-hang get pods
+```
+
+**Bạn sẽ thấy:** mỗi pod có `READY 1/1` — một container.
+
+Giờ tiêm mesh vào:
+
+```bash
+kubectl -n cua-hang get deploy -o yaml | linkerd inject - | kubectl apply -f -
+kubectl -n cua-hang rollout status deploy/web deploy/api
+kubectl -n cua-hang get pods
+```
+
+**Bạn sẽ thấy:**
+```text
+NAME                   READY   STATUS    RESTARTS   AGE
+api-7d9c8b5f4-x2mkp    2/2     Running   0          25s
+web-6b8f7d9c5-k4nqt    2/2     Running   0          25s
+```
+
+✅ **Checkpoint:** cột `READY` chuyển từ **1/1** thành **2/2** — container thứ hai chính là proxy.
+
+💡 **Bạn không sửa một dòng code nào, không build lại image nào.** Mesh chèn proxy vào cạnh ứng dụng và chiếm lấy toàn bộ lưu lượng mạng của nó. Đây là điều khiến mesh hấp dẫn — và cũng là lý do nó "ma thuật" đến mức khó debug khi có chuyện.
+
+#### Bước 8 — Thấy mTLS tự động
+
+```bash
+linkerd viz install | kubectl apply -f -
+linkerd check
+```
+
+Tạo lưu lượng rồi quan sát:
+
+```bash
+kubectl -n cua-hang run tao-tai --image=curlimages/curl:8.11.0 --restart=Never -- \
+  sh -c "while true; do curl -s http://web; curl -s http://api:5678; sleep 1; done"
+
+sleep 30
+linkerd viz -n cua-hang stat deploy
+linkerd viz -n cua-hang edges deploy
+```
+
+**Bạn sẽ thấy:**
+```text
+NAME   MESHED   SUCCESS      RPS   LATENCY_P95   LATENCY_P99
+api       1/1   100.00%   1.0rps           3ms           4ms
+web       1/1   100.00%   1.0rps           2ms           3ms
+
+SRC       DST   SRC_NS     DST_NS     SECURED
+tao-tai   web   cua-hang   cua-hang   √
+tao-tai   api   cua-hang   cua-hang   √
+```
+
+✅ **Checkpoint:** cột `SECURED` có dấu **√** — mọi kết nối đã được **mã hoá mTLS tự động**.
+
+💡 **Hãy để ý hai thứ bạn vừa nhận miễn phí:**
+1. **mTLS toàn bộ** — không tạo chứng chỉ, không sửa cấu hình, không đụng vào code. Ngày 39 bạn thấy bí mật trong cluster mong manh thế nào; mesh vá đúng chỗ đó ở tầng mạng.
+2. **Tỉ lệ thành công, RPS và p95** cho **mọi dịch vụ**, kể cả những cái không hề có metric. So với Ngày 45 — ở đó app phải tự expose `/metrics`.
+
+Mở dashboard xem trực quan:
+```bash
+linkerd viz dashboard &
+```
+
+#### Bước 9 — Dọn dẹp
+
+```bash
+kubectl delete ns cua-hang
+linkerd viz uninstall | kubectl delete -f - 2>/dev/null
+linkerd uninstall | kubectl delete -f - 2>/dev/null
+minikube stop
+```
+
+### 💡 Đi làm mới thấm (sách cơ bản hay bỏ quên)
+
+- **Timeout là tấm khiên quan trọng nhất, và rẻ nhất.** Nếu chỉ làm được một việc duy nhất hôm nay, hãy đặt timeout cho **mọi** lời gọi ra ngoài. Phần lớn thư viện HTTP mặc định **không có timeout** hoặc để rất dài — đó là quả bom hẹn giờ nằm sẵn trong code của bạn.
+- **Timeout phải giảm dần theo chiều sâu lời gọi.** Nếu A gọi B gọi C mà cả ba đều đặt 30 giây thì A có thể chờ tới 90 giây. Quy tắc: mỗi tầng sâu hơn phải có timeout **nhỏ hơn** tầng gọi nó.
+- **Chỉ thử lại những thao tác an toàn khi lặp.** Thử lại `GET` thì vô hại. Thử lại "tạo đơn hàng" có thể tạo **hai đơn**. Thao tác thay đổi dữ liệu cần **khoá chống trùng** (idempotency key) trước khi cho phép retry.
+- **Mesh làm debug khó hơn.** Khi có lỗi mạng, giờ bạn phải hỏi thêm: lỗi ở app, ở proxy, hay ở cấu hình mesh? Hãy học cách đọc log của proxy **trước khi** đưa mesh vào production, đừng học lúc đang có sự cố.
+- **Đừng dùng mesh chỉ để lấy mã hoá.** Nếu nhu cầu duy nhất là mTLS, có những cách nhẹ hơn nhiều (mTLS ở tầng ingress, hoặc lớp mạng như Cilium). Mesh xứng đáng khi bạn cần **nhiều thứ cùng lúc**: mã hoá + đo lường + định tuyến + khả năng chịu lỗi.
+- **Suy giảm có kiểm soát phải được thiết kế trước.** Câu hỏi cần trả lời khi thiết kế, không phải khi sự cố: *"nếu dịch vụ gợi ý sản phẩm chết, trang chủ vẫn hiện được chứ?"* Câu trả lời đúng gần như luôn là: hiện trang chủ không có phần gợi ý, **không phải** hiện trang lỗi.
+
+### 🎯 Đúc kết Ngày 54
+
+**3 điều phải mang theo:**
+
+1. **Chậm nguy hiểm hơn chết.** Dịch vụ chết trả lỗi ngay; dịch vụ chậm giữ tài nguyên của mọi người gọi nó cho tới khi cả hệ thống sập.
+2. **Timeout → retry có giới hạn → ngắt mạch → phương án dự phòng.** Bốn tấm khiên, theo đúng thứ tự quan trọng. Không có timeout thì ba cái sau vô nghĩa.
+3. **Service mesh chuyển những việc đó ra khỏi code**, đổi lấy một tầng phức tạp mới. Đáng giá khi nhiều dịch vụ, nhiều ngôn ngữ — không đáng khi hệ thống còn nhỏ.
+
+> 🧠 **Một câu để nhớ:** hệ thống của bạn chỉ đáng tin bằng **cách nó xử lý lúc thứ khác hỏng** — chứ không phải bằng lúc mọi thứ đều chạy tốt.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+
+- [ ] Mô tả sập dây chuyền và giải thích vì sao chậm nguy hiểm hơn chết
+- [ ] Kể 4 tấm khiên và nói rõ cái nào quan trọng nhất, vì sao
+- [ ] Giải thích retry storm và ba yếu tố khiến retry an toàn
+- [ ] Vẽ 3 trạng thái của circuit breaker
+- [ ] Tự gây sự cố và đo chênh lệch giữa có và không có timeout
+- [ ] Nói được mesh làm gì thay ứng dụng và cái giá phải trả
+- [ ] Nêu tiêu chí quyết định khi nào nên dùng mesh, khi nào chưa nên
+- [ ] Cho ví dụ về suy giảm có kiểm soát trong một hệ thống thật
+
+✅ **Kết quả đạt được:** Bạn đã tự tay tạo ra và chặn đứng một vụ sập dây chuyền, và hiểu chính xác service mesh làm gì thay mình — đủ cơ sở để quyết định có nên dùng nó hay không.
+
+---
+
+## Ngày 55 — Platform Engineering & Developer Experience
+
+> ⏱️ ~90 phút · Loại: Nền tảng
+>
+> 🧭 **Bạn đang ở đâu:** Ngày 54 (kiến trúc nhiều dịch vụ) → **Ngày 55 (biến tất cả những gì đã học thành thứ người khác dùng được)** → Ngày 56 (bắt đầu dự án tốt nghiệp). Đây là ngày lý thuyết cuối cùng, và nó trả lời câu hỏi: *sau khi bạn dựng xong mọi thứ, làm sao để cả đội dùng được mà không cần hỏi bạn?*
+>
+> ✅ **Chuẩn bị:** Git, Docker, Python 3. Nên có sẵn repo `ci-demo` (Ngày 31–34) để đo số liệu thật.
+>
+> 🎁 **Cuối ngày bạn có gì:** một **bộ khởi tạo dịch vụ** sinh ra project hoàn chỉnh chuẩn chỉnh trong 10 giây, và một script **đo 4 chỉ số DORA** từ chính lịch sử Git của bạn.
+
+### 📘 Lý thuyết
+
+#### 1. Vấn đề: bạn trở thành nút thắt cổ chai
+
+Bạn đã dựng CI/CD, Kubernetes, giám sát, IaC. Giờ một lập trình viên mới muốn đưa dịch vụ của họ lên. Chuyện gì xảy ra?
+
+- *"Anh ơi, viết Dockerfile thế nào?"*
+- *"Chị ơi, copy workflow CI ở đâu?"*
+- *"Sao pod em không lên?"*
+- *"Cho em xin quyền vào namespace..."*
+
+Mỗi câu hỏi là một lần bạn bị gián đoạn. Nhân với 30 lập trình viên: **bạn không còn làm được gì khác ngoài trả lời câu hỏi**. Và mỗi người tự xoay xở một kiểu, nên hệ thống dần trở thành 30 cách làm khác nhau.
+
+**Platform Engineering** là câu trả lời: thay vì phục vụ từng yêu cầu, bạn **xây một sản phẩm nội bộ** để họ tự phục vụ.
+
+> 🔑 Đổi cách nghĩ: **nền tảng của bạn là một sản phẩm, và lập trình viên là khách hàng.** Sản phẩm có tài liệu, có trải nghiệm sử dụng, có phản hồi từ người dùng và có phiên bản. Nếu khách hàng thấy khó dùng, họ sẽ đi đường vòng — và bạn mất kiểm soát.
+
+#### 2. Golden Path — con đường lát sẵn
+
+**Golden path** là *"cách làm mặc định đã được lát sẵn, đúng chuẩn, và dễ đi hơn mọi cách khác"*.
+
+| | Không có golden path | Có golden path |
+|---|---|---|
+| Tạo dịch vụ mới | Copy từ repo cũ nào đó, sửa lung tung | Một lệnh, ra project chuẩn |
+| Dockerfile | Mỗi người một kiểu | Đã tối ưu, đã quét bảo mật |
+| CI/CD | Người có, người không | Có sẵn, chạy được ngay |
+| Giám sát | Nhớ thì thêm | Mặc định đã có |
+| Thời gian tới lần deploy đầu | Vài ngày | **Dưới một giờ** |
+
+> ⚠️ **Lát sẵn, không phải bắt buộc.** Nếu một đội có lý do chính đáng để làm khác, họ phải được phép — nhưng khi đó họ tự chịu trách nhiệm phần đó. Nền tảng ép buộc sẽ bị người ta tìm cách lách; nền tảng *dễ dùng hơn cách tự làm* thì người ta tự nguyện dùng.
+
+#### 3. Bốn chỉ số DORA — thước đo hiệu quả đã được kiểm chứng
+
+Nghiên cứu DORA (DevOps Research and Assessment) qua nhiều năm và hàng chục nghìn đội đã chỉ ra **4 chỉ số** dự đoán được hiệu quả của một tổ chức phần mềm:
+
+| Chỉ số | Đo cái gì | Nhóm dẫn đầu | Nhóm chậm |
+|---|---|---|---|
+| **Tần suất triển khai** | Bao lâu deploy một lần | Nhiều lần mỗi ngày | Ít hơn 1 lần/tháng |
+| **Thời gian từ commit tới production** | Code viết xong bao lâu thì tới người dùng | Dưới 1 giờ | 1–6 tháng |
+| **Tỉ lệ thay đổi gây lỗi** | Bao nhiêu % lần deploy gây sự cố | Dưới 5% | 46–60% |
+| **Thời gian khôi phục** | Hỏng rồi bao lâu thì chữa xong | Dưới 1 giờ | Hơn 1 tuần |
+
+> 🔑 **Phát hiện phản trực giác và quan trọng nhất của DORA:** hai chỉ số đầu (tốc độ) và hai chỉ số sau (ổn định) **không đánh đổi nhau**. Đội đi nhanh cũng chính là đội ổn định nhất. Lý do: deploy thường xuyên nghĩa là mỗi lần thay đổi **nhỏ**, mà thay đổi nhỏ thì dễ kiểm tra, dễ hiểu, và dễ quay lui.
+>
+> Điều này phá bỏ niềm tin *"muốn an toàn thì phải deploy ít lại"*. Thực tế ngược lại: deploy ít khiến mỗi lần deploy trở thành một sự kiện to, rủi ro và đáng sợ.
+
+#### 4. Trải nghiệm lập trình viên — đo bằng ma sát
+
+Ba câu hỏi để đánh giá một nền tảng:
+
+1. **Người mới mất bao lâu để deploy được lần đầu?** (Nhóm tốt: dưới một ngày)
+2. **Từ lúc sửa code tới lúc thấy kết quả mất bao lâu?** (Vòng phản hồi càng ngắn càng tốt)
+3. **Bao nhiêu việc phải đi hỏi người khác?** (Càng ít càng tốt — mỗi lần hỏi là một lần chờ)
+
+Mỗi điểm ma sát nhỏ, nhân với số lập trình viên, nhân với số lần mỗi ngày — thành một khoản thời gian rất lớn bị đốt mà không ai ghi vào đâu cả.
+
+#### 5. Ba tầng của một nền tảng nội bộ
+
+```text
+   ┌─────────────────────────────────────────┐
+   │  Giao diện: CLI / cổng web / template   │  ← lập trình viên chạm vào đây
+   ├─────────────────────────────────────────┤
+   │  Tự động hoá: CI/CD, GitOps, scaffold   │  ← Giai đoạn 3 của bạn
+   ├─────────────────────────────────────────┤
+   │  Hạ tầng: K8s, mạng, lưu trữ, giám sát  │  ← Giai đoạn 2–3
+   └─────────────────────────────────────────┘
+```
+
+Bạn đã xây xong hai tầng dưới trong suốt khoá học. **Tầng trên cùng chính là thứ còn thiếu** — và cũng là thứ quyết định người ta có dùng được hai tầng kia hay không.
+
+### 🧪 LAB — Xây nền tảng nội bộ thu nhỏ
+
+**Thư mục:**
+
+```text
+lab55-platform/
+├── tao-dich-vu.sh      # bộ khởi tạo: 1 lệnh ra project chuẩn
+├── mau/                # khuôn mẫu golden path
+│   ├── Makefile
+│   ├── Dockerfile
+│   └── ci.yml
+└── do-dora.py          # đo 4 chỉ số DORA từ lịch sử Git
+```
+
+#### File 1 — `mau/Dockerfile`
+
+```dockerfile
+# Golden path: đã áp dụng mọi bài học từ Ngày 18, 33, 49
+FROM node:20-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm ci --omit=dev 2>/dev/null || npm install --omit=dev
+
+FROM node:20-alpine
+WORKDIR /app
+ENV NODE_ENV=production
+
+RUN addgroup -S nhom && adduser -S ungdung -G nhom
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --chown=ungdung:nhom . .
+
+USER ungdung
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3000/health || exit 1
+
+CMD ["node", "app.js"]
+```
+
+#### File 2 — `mau/Makefile`
+
+```makefile
+# Bộ lệnh CHUẨN cho mọi dịch vụ — người mới chỉ cần nhớ `make help`
+.PHONY: help cai dev test lint build chay quet sach
+
+TEN_DICH_VU ?= $(shell basename $(CURDIR))
+TAG ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "local")
+IMAGE = $(TEN_DICH_VU):$(TAG)
+
+help:            ## Hiện danh sách lệnh
+	@grep -E '^[a-z-]+:.*?##' $(MAKEFILE_LIST) | \
+	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
+
+cai:             ## Cài thư viện
+	npm install
+
+dev:             ## Chạy ở chế độ phát triển
+	npm start
+
+test:            ## Chạy test
+	npm test
+
+lint:            ## Kiểm tra chất lượng code
+	npm run lint --if-present
+
+build:           ## Build Docker image
+	docker build -t $(IMAGE) .
+	@echo "✅ Đã build: $(IMAGE)"
+
+chay: build      ## Build rồi chạy container
+	docker run --rm -p 3000:3000 --name $(TEN_DICH_VU) $(IMAGE)
+
+quet: build      ## Quét bảo mật image (Ngày 49)
+	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+	  aquasec/trivy:latest image --severity HIGH,CRITICAL --ignore-unfixed $(IMAGE)
+
+sach:            ## Dọn dẹp
+	docker rmi $(IMAGE) 2>/dev/null || true
+	rm -rf node_modules
+```
+
+#### File 3 — `mau/ci.yml`
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  kiem-tra:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci || npm install
+      - run: npm run lint --if-present
+      - run: npm test --if-present
+
+  bao-mat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Quét bí mật
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+#### File 4 — `tao-dich-vu.sh`
+
+```bash
+#!/usr/bin/env bash
+# Bộ khởi tạo dịch vụ — golden path của tổ chức
+set -euo pipefail
+
+TEN="${1:-}"
+CHU_SO_HUU="${2:-chua-ro}"
+
+if [ -z "$TEN" ]; then
+  echo "Dùng: $0 <ten-dich-vu> [doi-so-huu]"
+  echo "Ví dụ: $0 dich-vu-thanh-toan doi-backend"
+  exit 1
+fi
+
+if ! echo "$TEN" | grep -qE '^[a-z][a-z0-9-]{2,29}$'; then
+  echo "❌ Tên phải viết thường, chỉ gồm chữ/số/gạch ngang, dài 3-30 ký tự."
+  exit 1
+fi
+
+if [ -d "$TEN" ]; then
+  echo "❌ Thư mục '$TEN' đã tồn tại."
+  exit 1
+fi
+
+MAU="$(cd "$(dirname "$0")" && pwd)/mau"
+
+echo "🚀 Đang tạo dịch vụ '$TEN' (chủ sở hữu: $CHU_SO_HUU)..."
+
+mkdir -p "$TEN"/{src,test,.github/workflows}
+cd "$TEN"
+
+# ---- Mã nguồn khởi đầu ----
+cat > app.js <<'EOF'
+const http = require('node:http');
+const PORT = process.env.PORT || 3000;
+
+const server = http.createServer((req, res) => {
+  if (req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ trangThai: 'ok' }));
+  }
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ dichVu: process.env.TEN_DICH_VU || 'chua-dat-ten' }));
+});
+
+server.listen(PORT, () => console.log(`Đang nghe cổng ${PORT}`));
+EOF
+
+cat > test/app.test.js <<'EOF'
+const test = require('node:test');
+const assert = require('node:assert');
+
+test('ví dụ: thay bằng test thật của bạn', () => {
+  assert.strictEqual(1 + 1, 2);
+});
+EOF
+
+cat > package.json <<EOF
+{
+  "name": "$TEN",
+  "version": "0.1.0",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "test": "node --test test/"
+  },
+  "license": "UNLICENSED"
+}
+EOF
+
+# ---- Golden path: copy khuôn đã chuẩn hoá ----
+cp "$MAU/Dockerfile" .
+cp "$MAU/Makefile" .
+cp "$MAU/ci.yml" .github/workflows/ci.yml
+
+printf 'node_modules/\n.env\ndist/\n' > .gitignore
+printf 'node_modules\n.git\n.github\ntest\n*.md\n' > .dockerignore
+
+# ---- Tài liệu sinh sẵn ----
+cat > README.md <<EOF
+# $TEN
+
+> Chủ sở hữu: **$CHU_SO_HUU**
+> Sinh bởi bộ khởi tạo dịch vụ (golden path)
+
+## Bắt đầu nhanh
+
+\`\`\`bash
+make cai      # cài thư viện
+make test     # chạy test
+make chay     # build và chạy bằng Docker
+make help     # xem tất cả lệnh
+\`\`\`
+
+## Dịch vụ đã có sẵn những gì
+
+- ✅ Dockerfile nhiều tầng, chạy bằng user thường, có HEALTHCHECK
+- ✅ CI: lint + test + quét bí mật
+- ✅ Điểm kiểm tra sức khoẻ tại \`/health\`
+- ✅ Makefile với bộ lệnh chuẩn dùng chung toàn tổ chức
+
+## Điểm truy cập
+
+| Đường dẫn | Mô tả |
+|---|---|
+| \`/\` | Thông tin dịch vụ |
+| \`/health\` | Kiểm tra sức khoẻ (dùng cho probe) |
+EOF
+
+# ---- Siêu dữ liệu để quy trách nhiệm (Ngày 53) ----
+cat > dich-vu.yaml <<EOF
+ten: $TEN
+chu_so_huu: $CHU_SO_HUU
+tang: 3
+kenh_lien_he: "#$CHU_SO_HUU"
+slo:
+  kha_dung: 99.5
+  p95_do_tre_ms: 300
+EOF
+
+git init -q -b main
+git add .
+git commit -q -m "Khởi tạo $TEN từ golden path"
+
+echo ""
+echo "✅ Xong! Dịch vụ '$TEN' đã sẵn sàng."
+echo ""
+echo "   cd $TEN && make help"
+echo ""
+echo "Đã có sẵn: Dockerfile · CI · quét bảo mật · health check · README · Makefile"
+```
+
+#### File 5 — `do-dora.py`
+
+```python
+#!/usr/bin/env python3
+"""Ước lượng 4 chỉ số DORA từ lịch sử Git của một repo."""
+
+import subprocess
+import sys
+import datetime
+import statistics
+
+REPO = sys.argv[1] if len(sys.argv) > 1 else "."
+SO_NGAY = int(sys.argv[2]) if len(sys.argv) > 2 else 90
+
+
+def git(*args):
+    r = subprocess.run(["git", "-C", REPO, *args],
+                       capture_output=True, text=True)
+    return r.stdout.strip()
+
+
+tu_ngay = (datetime.date.today() - datetime.timedelta(days=SO_NGAY)).isoformat()
+
+# --- 1. Tần suất triển khai: đếm commit vào main (xấp xỉ số lần deploy) ---
+commits = [l for l in git("log", "--oneline", f"--since={tu_ngay}", "main").split("\n") if l]
+so_lan = len(commits)
+moi_tuan = so_lan / (SO_NGAY / 7) if SO_NGAY else 0
+
+# --- 2. Thời gian từ commit tới main: đo qua khoảng cách giữa các commit ---
+raw = git("log", f"--since={tu_ngay}", "--format=%ct", "main")
+moc = sorted(int(x) for x in raw.split("\n") if x.strip())
+khoang = [(b - a) / 3600 for a, b in zip(moc, moc[1:])] if len(moc) > 1 else []
+trung_vi_gio = statistics.median(khoang) if khoang else 0
+
+# --- 3. Tỉ lệ thay đổi gây lỗi: đếm commit sửa lỗi / revert ---
+tu_khoa = ["fix", "sửa", "hotfix", "revert", "khắc phục", "bug"]
+loi = [c for c in commits if any(k in c.lower() for k in tu_khoa)]
+ty_le_loi = len(loi) / so_lan * 100 if so_lan else 0
+
+print("═" * 58)
+print(f"  CHỈ SỐ DORA — {SO_NGAY} ngày gần nhất")
+print("═" * 58)
+
+
+def xep_hang(ten, gia_tri, don_vi, moc_tot, moc_kha, nho_hon_tot=False):
+    if nho_hon_tot:
+        hang = "🟢 Dẫn đầu" if gia_tri <= moc_tot else ("🟡 Khá" if gia_tri <= moc_kha else "🔴 Cần cải thiện")
+    else:
+        hang = "🟢 Dẫn đầu" if gia_tri >= moc_tot else ("🟡 Khá" if gia_tri >= moc_kha else "🔴 Cần cải thiện")
+    print(f"\n{ten}")
+    print(f"  Giá trị: {gia_tri:.1f} {don_vi}")
+    print(f"  Xếp hạng: {hang}")
+
+
+xep_hang("1. Tần suất triển khai", moi_tuan, "lần/tuần", 7, 1)
+xep_hang("2. Khoảng cách giữa các thay đổi", trung_vi_gio, "giờ (trung vị)", 24, 168, nho_hon_tot=True)
+xep_hang("3. Tỉ lệ thay đổi gây lỗi (ước lượng)", ty_le_loi, "%", 5, 15, nho_hon_tot=True)
+
+print("\n4. Thời gian khôi phục")
+print("  Không suy ra được từ Git — cần dữ liệu sự cố")
+print("  (lấy từ hệ thống cảnh báo, hoặc thống kê postmortem — Ngày 51)")
+
+print("\n" + "═" * 58)
+print(f"Tổng: {so_lan} thay đổi, trong đó {len(loi)} là sửa lỗi")
+print("\n📌 Lưu ý: đây là ƯỚC LƯỢNG từ Git. Số liệu chính xác cần lấy")
+print("   từ hệ thống CI/CD (thời điểm deploy) và hệ thống sự cố.")
+```
+
+### 🧭 Hướng dẫn làm LAB — step by step
+
+#### Bước 1 — Tạo bộ khởi tạo
+
+```bash
+mkdir -p ~/lab55-platform/mau && cd ~/lab55-platform
+# tạo 5 file theo phần LAB
+chmod +x tao-dich-vu.sh do-dora.py
+ls -R
+```
+
+✅ **Checkpoint:** có `tao-dich-vu.sh`, `do-dora.py` và thư mục `mau/` với 3 file.
+
+#### Bước 2 — Tạo dịch vụ mới trong 10 giây
+
+```bash
+cd ~/lab55-platform
+./tao-dich-vu.sh dich-vu-thanh-toan doi-backend
+```
+
+**Bạn sẽ thấy:**
+```text
+🚀 Đang tạo dịch vụ 'dich-vu-thanh-toan' (chủ sở hữu: doi-backend)...
+
+✅ Xong! Dịch vụ 'dich-vu-thanh-toan' đã sẵn sàng.
+
+   cd dich-vu-thanh-toan && make help
+
+Đã có sẵn: Dockerfile · CI · quét bảo mật · health check · README · Makefile
+```
+
+```bash
+cd dich-vu-thanh-toan
+find . -type f -not -path './.git/*' | sort
+```
+
+**Bạn sẽ thấy:**
+```text
+./.dockerignore
+./.github/workflows/ci.yml
+./.gitignore
+./Dockerfile
+./Makefile
+./README.md
+./app.js
+./dich-vu.yaml
+./package.json
+./test/app.test.js
+```
+
+✅ **Checkpoint:** project đầy đủ, **đã commit sẵn**, sẵn sàng push.
+
+💡 **Hãy đối chiếu với Ngày 31–33:** hôm đó bạn mất cả buổi để dựng từng thứ — viết Dockerfile, sửa đi sửa lại, thêm CI, thêm quét bảo mật. Giờ tất cả gói trong **một lệnh 10 giây**. Đó chính là ý nghĩa của golden path: **kinh nghiệm đã được đóng gói thành mặc định**.
+
+#### Bước 3 — Kiểm chứng project sinh ra thực sự dùng được
+
+```bash
+make help
+```
+
+**Bạn sẽ thấy:**
+```text
+  help       Hiện danh sách lệnh
+  cai        Cài thư viện
+  dev        Chạy ở chế độ phát triển
+  test       Chạy test
+  lint       Kiểm tra chất lượng code
+  build      Build Docker image
+  chay       Build rồi chạy container
+  quet       Quét bảo mật image (Ngày 49)
+  sach       Dọn dẹp
+```
+
+```bash
+make test
+make build
+```
+
+**Bạn sẽ thấy:**
+```text
+# pass 1
+# fail 0
+...
+✅ Đã build: dich-vu-thanh-toan:a3f2c9d
+```
+
+Chạy thử:
+```bash
+docker run -d --rm -p 3000:3000 --name thu dich-vu-thanh-toan:$(git rev-parse --short HEAD)
+sleep 2
+curl -s localhost:3000/health; echo
+curl -s localhost:3000; echo
+docker rm -f thu
+```
+
+**Bạn sẽ thấy:**
+```text
+{"trangThai":"ok"}
+{"dichVu":"chua-dat-ten"}
+```
+
+✅ **Checkpoint:** dịch vụ vừa sinh ra **build được, test được, chạy được** mà bạn chưa viết dòng code nào.
+
+💡 **`make help` là chi tiết nhỏ nhưng quan trọng.** Bộ lệnh giống nhau cho **mọi** dịch vụ trong tổ chức, nên người mới chuyển từ dự án này sang dự án khác không phải học lại. Giảm ma sát đúng chỗ người ta chạm vào hằng ngày.
+
+#### Bước 4 — Đo ma sát: bao lâu tới lần deploy đầu tiên?
+
+```bash
+cd ~/lab55-platform
+python3 -c "
+khong_nen_tang = [
+    ('Đọc tài liệu, hỏi han cách làm', 120),
+    ('Viết Dockerfile (thử sai vài lần)', 90),
+    ('Viết workflow CI', 60),
+    ('Sửa lỗi CI', 45),
+    ('Thêm health check, sửa probe', 30),
+    ('Thêm quét bảo mật', 30),
+    ('Viết README', 20),
+]
+co_nen_tang = [
+    ('Chạy ./tao-dich-vu.sh', 1),
+    ('Viết code nghiệp vụ của mình', 60),
+    ('Push lên', 2),
+]
+
+def bang(ten, cac_buoc):
+    tong = sum(p for _, p in cac_buoc)
+    print(f'\n{ten}')
+    for viec, p in cac_buoc:
+        print(f'   {viec:<40} {p:>4} phút')
+    print(f'   {\"TỔNG\":<40} {tong:>4} phút ({tong/60:.1f} giờ)')
+    return tong
+
+a = bang('❌ KHÔNG có nền tảng', khong_nen_tang)
+b = bang('✅ CÓ nền tảng', co_nen_tang)
+print(f'\n⏱️  Tiết kiệm: {a-b} phút/dịch vụ ({(a-b)/60:.1f} giờ)')
+print(f'📊 Với 30 dịch vụ mới mỗi năm: {(a-b)*30/60:.0f} giờ = {(a-b)*30/60/8:.1f} ngày công')
+"
+```
+
+**Bạn sẽ thấy:**
+```text
+❌ KHÔNG có nền tảng
+   ...
+   TỔNG                                      395 phút (6.6 giờ)
+
+✅ CÓ nền tảng
+   ...
+   TỔNG                                       63 phút (1.1 giờ)
+
+⏱️  Tiết kiệm: 332 phút/dịch vụ (5.5 giờ)
+📊 Với 30 dịch vụ mới mỗi năm: 166 giờ = 20.8 ngày công
+```
+
+✅ **Checkpoint:** thấy được giá trị của nền tảng bằng con số.
+
+💡 **Và đó mới chỉ là phần đo được.** Phần không đo được còn lớn hơn: **tính nhất quán**. Không có golden path, 30 dịch vụ sẽ có 30 Dockerfile khác nhau — vá một lỗ hổng bảo mật phải sửa 30 chỗ. Có golden path, bạn sửa khuôn mẫu một lần.
+
+#### Bước 5 — Đo chỉ số DORA trên repo thật của bạn
+
+```bash
+cd ~/lab55-platform
+python3 do-dora.py ~/ci-demo 90
+```
+
+**Bạn sẽ thấy:**
+```text
+══════════════════════════════════════════════════════════
+  CHỈ SỐ DORA — 90 ngày gần nhất
+══════════════════════════════════════════════════════════
+
+1. Tần suất triển khai
+  Giá trị: 1.6 lần/tuần
+  Xếp hạng: 🟡 Khá
+
+2. Khoảng cách giữa các thay đổi
+  Giá trị: 0.3 giờ (trung vị)
+  Xếp hạng: 🟢 Dẫn đầu
+
+3. Tỉ lệ thay đổi gây lỗi (ước lượng)
+  Giá trị: 23.8 %
+  Xếp hạng: 🔴 Cần cải thiện
+...
+```
+
+✅ **Checkpoint:** có số liệu từ chính lịch sử Git của bạn.
+
+💡 Con số của repo học tập sẽ méo mó (bạn cố tình tạo lỗi ở Ngày 31–34 nên tỉ lệ "gây lỗi" cao). Nhưng **cách làm** thì đúng: DORA phải được **đo tự động và theo dõi theo thời gian**, không phải hỏi cảm nhận.
+
+💡 **Cách dùng DORA cho đúng:** dùng nó để **theo dõi xu hướng của chính đội mình** (tháng này so tháng trước), **không** dùng để so sánh đội này với đội khác, và **tuyệt đối không** dùng để đánh giá cá nhân. Biến chỉ số thành thước đo thành tích thì người ta sẽ tối ưu con số thay vì tối ưu công việc — và bạn mất luôn một công cụ tốt.
+
+#### Bước 6 — Kiểm chứng tính nhất quán của nền tảng
+
+Tạo thêm hai dịch vụ và so sánh:
+
+```bash
+cd ~/lab55-platform
+./tao-dich-vu.sh dich-vu-don-hang doi-backend > /dev/null
+./tao-dich-vu.sh dich-vu-thong-bao doi-nen-tang > /dev/null
+
+for d in dich-vu-thanh-toan dich-vu-don-hang dich-vu-thong-bao; do
+  echo "── $d"
+  echo "   chủ sở hữu: $(grep chu_so_huu $d/dich-vu.yaml | cut -d' ' -f2)"
+  echo "   Dockerfile giống khuôn: $(diff -q mau/Dockerfile $d/Dockerfile > /dev/null && echo '✅ có' || echo '❌ đã lệch')"
+  echo "   có CI: $([ -f $d/.github/workflows/ci.yml ] && echo '✅' || echo '❌')"
+  echo "   có health check: $(grep -q '/health' $d/app.js && echo '✅' || echo '❌')"
+done
+```
+
+**Bạn sẽ thấy:**
+```text
+── dich-vu-thanh-toan
+   chủ sở hữu: doi-backend
+   Dockerfile giống khuôn: ✅ có
+   có CI: ✅
+   có health check: ✅
+── dich-vu-don-hang
+   ...
+```
+
+✅ **Checkpoint:** cả ba dịch vụ **giống hệt nhau về chuẩn**, khác nhau chỉ ở phần nghiệp vụ.
+
+💡 **Đây là thứ giúp bạn ngủ ngon:** khi mai kia phát hiện một lỗ hổng trong image nền, bạn biết chắc **mọi** dịch vụ đều dùng cùng một Dockerfile. Sửa khuôn, thông báo cho các đội cập nhật, xong. Không có golden path thì đó là một cuộc điều tra kéo dài nhiều ngày.
+
+#### Bước 7 — Dọn dẹp
+
+```bash
+cd ~/lab55-platform
+rm -rf dich-vu-thanh-toan dich-vu-don-hang dich-vu-thong-bao
+```
+
+💡 **Giữ lại `tao-dich-vu.sh` và thư mục `mau/`** — bạn sẽ dùng chính nó để khởi tạo dự án tốt nghiệp ở Ngày 56.
+
+### 💡 Đi làm mới thấm (sách cơ bản hay bỏ quên)
+
+- **Nền tảng là sản phẩm, không phải dự án.** Dự án có ngày kết thúc; sản phẩm thì có người dùng, có phản hồi, có phiên bản và có lộ trình. Nền tảng làm xong rồi bỏ đó sẽ lỗi thời trong sáu tháng và mọi người quay lại tự làm.
+- **Hỏi người dùng của bạn trước khi xây.** Rất nhiều nền tảng nội bộ thất bại vì đội hạ tầng xây thứ *họ* nghĩ là hay, không phải thứ lập trình viên *cần*. Hãy đi hỏi: *"tuần này việc gì làm bạn mất thời gian nhất?"* — câu trả lời thường bất ngờ và rất cụ thể.
+- **Lát đường, đừng dựng rào.** Nền tảng ép buộc sẽ bị lách bằng những cách sáng tạo và tệ hơn nhiều so với việc cho phép đi chệch có kiểm soát. Hãy làm con đường mặc định **dễ đi hơn** mọi lựa chọn khác — đó là cách duy nhất bền vững.
+- **Tài liệu là một phần của nền tảng, không phải phụ lục.** Script sinh sẵn README (như lab hôm nay) tốt hơn một wiki đồ sộ không ai đọc. Tài liệu tốt nhất là tài liệu **nằm ngay chỗ người ta cần nó**.
+- **Cẩn thận với "cổng thông tin nội bộ" quá sớm.** Backstage và các công cụ tương tự rất mạnh, nhưng chúng là **tầng giao diện**. Xây cổng đẹp trên nền tự động hoá chưa xong thì chỉ có vỏ. Thứ tự đúng: tự động hoá trước, giao diện sau.
+- **Đo DORA để cải thiện, đừng đo để chấm điểm.** Khoảnh khắc chỉ số trở thành thước đo thành tích cá nhân, nó ngừng phản ánh sự thật — người ta sẽ chia nhỏ commit để tăng tần suất, hoặc tránh ghi nhận sự cố để giảm tỉ lệ lỗi.
+
+### 🎯 Đúc kết Ngày 55
+
+**3 điều phải mang theo:**
+
+1. **Nền tảng là sản phẩm, lập trình viên là khách hàng.** Khó dùng thì họ đi đường vòng, và bạn mất kiểm soát.
+2. **Golden path là con đường lát sẵn, không phải rào chắn.** Đóng gói kinh nghiệm thành mặc định để không ai phải tự mò lại từ đầu.
+3. **Tốc độ và ổn định đi cùng nhau, không đánh đổi.** Deploy thường xuyên khiến mỗi lần thay đổi nhỏ hơn — mà nhỏ hơn thì an toàn hơn.
+
+> 🧠 **Một câu để nhớ:** nếu lập trình viên phải hỏi bạn mới deploy được, thì bạn chưa xây nền tảng — **bạn đang làm một dịch vụ trả lời câu hỏi**.
+
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+
+- [ ] Giải thích Platform Engineering giải quyết vấn đề gì
+- [ ] Nói rõ golden path là gì và vì sao phải lát đường chứ không dựng rào
+- [ ] Kể đủ 4 chỉ số DORA và phát hiện quan trọng nhất của nghiên cứu này
+- [ ] Viết script khởi tạo dịch vụ chuẩn từ khuôn mẫu
+- [ ] Giải thích vì sao Makefile chuẩn hoá lệnh lại giảm ma sát
+- [ ] Đo DORA từ lịch sử Git và nói rõ giới hạn của phép ước lượng đó
+- [ ] Nêu 3 câu hỏi để đánh giá trải nghiệm lập trình viên
+- [ ] Giải thích vì sao không nên dùng DORA để chấm điểm cá nhân
+
+✅ **Kết quả đạt được:** Một nền tảng nội bộ thu nhỏ — sinh dịch vụ chuẩn trong một lệnh, bộ lệnh thống nhất toàn tổ chức, và số liệu DORA đo được. Đây cũng là bộ công cụ bạn dùng để khởi động dự án tốt nghiệp ngày mai.
+
+---
+
 ## Ngày 56 — Dự án tốt nghiệp — Phần 1: Thiết kế & Hạ tầng
 
 > ⏱️ ~150 phút · Loại: Capstone

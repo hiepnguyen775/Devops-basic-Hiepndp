@@ -1,7 +1,11 @@
 # 🚀 Lộ trình SysOps & DevOps 60 Ngày — Từ cơ bản đến nâng cao
 
 > Tài liệu học **SysOps & DevOps** trong 60 ngày, dành cho người mới biết Linux căn bản.
-> Mỗi ngày ~90 phút: **Lý thuyết → Lab cơ bản → Lab nâng cao (best-practice) → Bài ôn tập**.
+> Mỗi ngày ~90 phút: **Lý thuyết → LAB (file đầy đủ) → Hướng dẫn step by step → Đúc kết**.
+>
+> 🎯 **Nguyên tắc biên soạn:** mọi LAB đều **chạy được thật**, mọi lệnh đều có **output mẫu** để bạn tự đối chiếu, và mỗi bài đều có ít nhất một lần **bạn tự gây sự cố** để thấy hệ thống phản ứng.
+>
+> 💻 **Chạy miễn phí 100%** trên máy bạn — không cần tài khoản cloud, không cần thẻ tín dụng.
 >
 > ✅ Trung lập nền tảng — học xong áp dụng được cho **server vật lý, máy ảo, hay cloud (AWS/GCP/Azure)**.
 
@@ -44,13 +48,38 @@
 
 ## 🧩 Mỗi ngày gồm
 
-- 📘 **Lý thuyết** — nắm khái niệm
-- 🧪 **Lab cơ bản** — làm tay theo từng bước
-- 🚀 **Lab nâng cao (best-practice)** — làm sát môi trường thật
-- 💡 **Bổ sung thực tế** — kiến thức dùng khi đi làm mà giáo trình cơ bản hay bỏ quên
-- 📝 **Bài ôn tập + Demo đối chiếu** — tự chấm
+| Phần | Nội dung |
+|---|---|
+| 📘 **Lý thuyết** | Mở bằng **một vấn đề có thật**, rồi mới tới khái niệm. Có bảng so sánh và ẩn dụ để nhớ lâu |
+| 🧪 **LAB** | **File đầy đủ, copy là chạy** — không cắt khúc, không "bạn tự điền phần còn lại" |
+| 🧭 **Hướng dẫn step by step** | Mỗi bước: gõ gì → **khối output mẫu bạn sẽ thấy** → ✅ Checkpoint → ⚠️ lỗi cụ thể và cách sửa → 💡 vì sao |
+| 💡 **Đi làm mới thấm** | Kiến thức production mà giáo trình cơ bản hay bỏ quên |
+| 🎯 **Đúc kết + Tự chấm** | 3 điều phải mang theo + checklist tự đánh giá |
 
-Mỗi giai đoạn kết thúc bằng **LAB tổng hợp (Milestone)** + **Phụ lục** (lỗi thường gặp, playbook xử lý sự cố, cheat sheet).
+### 🏁 Ngày Milestone = LAB Final
+
+**Ngày 12, 21, 30, 35, 40, 50** và **dự án tốt nghiệp (56–59)** theo khuôn khác hẳn — **không có hướng dẫn từng bước**:
+
+📋 Đề bài → ✅ Yêu cầu (bắt buộc + nâng cao) → 📐 **Tiêu chí chấm điểm 100 điểm** → 🔥 Phép thử khắc nghiệt → 🧪 Script tự chấm → ⚠️ Bẫy thường gặp → 💬 Gợi ý khi bí (giấu trong `<details>`)
+
+**Ngày 60** là **LAB FINAL toàn khoá**: bài kiểm tra 100 điểm (chẩn đoán sự cố / thiết kế / thực hành) + bảng tự đánh giá năng lực 48 điểm + 5 câu phỏng vấn kèm đáp án mẫu.
+
+### 💻 Mọi LAB chạy miễn phí trên máy bạn
+
+Không bắt buộc tài khoản cloud, không cần thẻ tín dụng:
+
+| Cần gì | Dùng gì |
+|---|---|
+| Máy chủ Linux | **Multipass** (dùng chính cloud-init như AWS/GCP) |
+| Dịch vụ AWS | **LocalStack** (cùng lệnh `aws` CLI, chỉ đổi endpoint) |
+| Kubernetes | **minikube** |
+| CI/CD | **GitHub Actions** (runner miễn phí) + self-hosted runner trên máy bạn |
+| Giám sát | **Docker Compose** (Prometheus, Grafana, Loki, Alertmanager) |
+| Kho lưu Terraform state | **MinIO** (tương thích S3) |
+
+Mỗi bài đều kèm cách làm **trên cloud thật** khi bạn đã sẵn sàng — cùng khái niệm, chỉ khác endpoint.
+
+Mỗi giai đoạn kết thúc bằng **LAB Final (Milestone)** + **Phụ lục** (lỗi thường gặp, playbook xử lý sự cố, cheat sheet).
 
 > 🖼️ **Sơ đồ:** các bài LAB/Milestone quan trọng có sơ đồ kiến trúc vẽ bằng **Mermaid** — GitHub tự render thành hình đồ họa (mở file `.md` trên GitHub để xem). Tổng cộng 18 sơ đồ: SSH bastion, Git states, Container vs VM, pipeline CI/CD, kiến trúc K8s, Service/Ingress, GitOps, observability, SLO/error budget, HA/DR, sidecar mesh, và sơ đồ dự án tốt nghiệp.
 

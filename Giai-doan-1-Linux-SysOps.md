@@ -13,6 +13,8 @@
 > - 📝 **Bài ôn tập + Demo đối chiếu** — tự kiểm tra
 > - 🎯 **Đúc kết** — 3 điều phải mang theo + tự chấm
 >
+> **Ngày 12 (Milestone) khác hẳn:** đó là **LAB Final** — bạn nhận 📋 đề bài + 📐 tiêu chí chấm điểm 100 điểm, tự làm không có hướng dẫn từng bước, rồi chạy bộ kiểm chứng để tự chấm.
+>
 > Chưa hiểu ngày nào thì học lại trước khi đi tiếp — DevOps là kiến thức tích lũy.
 
 ---
@@ -2980,178 +2982,286 @@ sha256sum -c b.sha256
 
 ## Ngày 12 — MILESTONE: LAB tổng hợp Giai đoạn 1
 
-> ⏱️ ~120 phút · Loại: Milestone (ghép toàn bộ kiến thức Ngày 1–11)
+> ⏱️ ~150 phút · Loại: LAB Final
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 1–11 (từng mảnh kỹ năng) → **Ngày 12 (ghép tất cả thành 1 sản phẩm thật)** → Giai đoạn 2 (Git & Docker). Đây là ngày bạn *chứng minh* mình làm được việc từ đầu đến cuối, không chỉ biết lệnh rời rạc.
+> 🧭 **Bạn đang ở đâu:** Ngày 1–11 (Linux, tiến trình, phân quyền, Bash, mạng, SSH, tường lửa, log, sao lưu) → **Ngày 12 (ghép tất cả thành một bài duy nhất)** → Giai đoạn 2 (Git & Docker).
 >
-> ✅ **Chuẩn bị:** một VM Ubuntu "trắng" (mới cài) để chạy `server-setup.sh` từ đầu; tài khoản GitHub để đẩy repo. Ôn nhanh: script an toàn (Ngày 5–6), user/quyền (Ngày 4), firewall (Ngày 9), backup (Ngày 11).
+> ✅ **Chuẩn bị:** một máy Linux "sạch" mà bạn được phép phá — máy ảo VirtualBox, Multipass, hoặc một VM bất kỳ. **Đừng làm trên máy chính của bạn.**
+>
+> 🎯 **Khác với 11 ngày trước:** không còn hướng dẫn từng bước. Bạn nhận **đề bài và tiêu chí chấm**, tự quyết cách làm. Bí thì mở phần gợi ý — nhưng hãy tự vật lộn trước, đó mới là lúc kiến thức đọng lại.
 
-### 📘 Lý thuyết — Tổng kết
+### 📋 Đề bài — "Tiếp quản một máy chủ"
 
-- **Mạch kiến thức:** Linux điều hướng → process → user/quyền → bash → mạng → SSH → bảo mật → log → backup.
-- **Tư duy SysOps:** **ổn định · bảo mật · tự động hóa · có thể khôi phục.**
-- **Checklist một server cơ bản đã sẵn sàng:** user không-root · SSH key · firewall · dịch vụ chạy · backup · monitoring log.
-- Chuẩn bị tinh thần cho Giai đoạn 2: Git & Docker — bước vào thế giới DevOps.
+> Bạn vừa được giao một máy chủ Linux mới tinh, sẽ dùng để chạy một trang web nội bộ. Không ai bàn giao gì cả — bạn tự làm từ đầu và phải bảo vệ được lựa chọn của mình.
 
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
+**Yêu cầu tổng thể:** biến máy trần thành một máy chủ **an toàn, có giám sát, có sao lưu**, và mọi thứ phải **kiểm chứng được bằng lệnh**.
 
-> Phần 📘 — Tổng kết đã điểm lại mạch kiến thức và checklist. Mục này cho bạn *góc nhìn* về ý nghĩa ngày Milestone — không nhắc lại tổng kết.
+### ✅ Yêu cầu
 
-**Milestone là bài kiểm tra "làm được việc", không phải "nhớ lệnh".** Suốt 11 ngày bạn học từng mảnh rời — điều hướng, tiến trình, quyền, script, mạng, SSH, bảo mật, log, backup. Hôm nay ghép tất cả để biến một server *trắng* thành server vận hành chuẩn, chỉ bằng script chạy tự động. Nhà tuyển dụng không hỏi "bạn nhớ bao nhiêu lệnh"; họ hỏi "đưa bạn một máy trắng, bạn dựng nổi một dịch vụ an toàn, tự phục hồi, có backup không?". Đó đúng là bài hôm nay.
+#### Bắt buộc
 
-**"Idempotent" — từ khóa sẽ theo bạn tới Terraform/Ansible.** Một script setup tốt phải chạy *lần thứ hai, thứ mười* vẫn an toàn: đã có user thì bỏ qua, đã cài nginx thì thôi, không báo lỗi, không phá thứ đang đúng. Tính chất đó gọi là *idempotent*, và mẹo thực hiện là luôn "kiểm tra trước khi tạo" (`id deploy || adduser ...`). Đây không phải chi tiết vụn vặt — nó chính là tư duy nền của Infrastructure as Code ở các giai đoạn sau, nơi bạn *mô tả trạng thái mong muốn* thay vì ra lệnh từng bước.
+| # | Yêu cầu | Kiến thức từ |
+|---|---|---|
+| 1 | Tạo user quản trị riêng có `sudo`, **vô hiệu hoá đăng nhập bằng root** | Ngày 4 |
+| 2 | SSH **chỉ dùng khoá**, cấm mật khẩu, đổi cổng mặc định | Ngày 8, 9 |
+| 3 | Tường lửa bật, chỉ mở đúng cổng cần (SSH + HTTP) | Ngày 9 |
+| 4 | Cài và chạy một web server, phục vụ được một trang | Ngày 3 |
+| 5 | Một user "ứng dụng" **không có quyền đăng nhập**, sở hữu thư mục web | Ngày 4 |
+| 6 | Script **kiểm tra sức khoẻ** máy: CPU, RAM, đĩa, dịch vụ | Ngày 5, 6, 10 |
+| 7 | Script **sao lưu tự động** thư mục web, chạy theo lịch, tự xoá bản cũ | Ngày 6, 11 |
+| 8 | Xoay vòng log để không đầy ổ đĩa | Ngày 10 |
+| 9 | Tài liệu bàn giao: máy có gì, chạy gì, xử lý sự cố ra sao | — |
 
-**Bước nhảy tư duy lớn nhất của cả giai đoạn.** Nếu chỉ mang một thứ ra khỏi Giai đoạn 1, hãy mang điều này: khoảng cách giữa "gõ lệnh thủ công trên một máy" và "mô tả cả server bằng một file script chạy lại được" chính là ranh giới giữa SysOps truyền thống và DevOps. Ngày bạn ngừng "sửa tay trên server" và bắt đầu "sửa file rồi chạy lại", bạn đã đặt chân vào thế giới tự động hóa — mọi công cụ ở Giai đoạn 2–4 (Git, Docker, Terraform, Ansible) chỉ là mở rộng của hạt giống này.
+#### Nâng cao
 
-### 🧪 Lab cơ bản (Milestone)
+| # | Yêu cầu |
+|---|---|
+| 10 | `fail2ban` chặn dò mật khẩu SSH |
+| 11 | Script sức khoẻ **tự gửi cảnh báo** khi vượt ngưỡng (ghi log hoặc gửi mail) |
+| 12 | Sao lưu có **kiểm chứng**: tự giải nén thử và đếm file |
+| 13 | Một script duy nhất dựng lại toàn bộ máy từ đầu |
 
-1. Viết `server-setup.sh` tự động: tạo user, cấu trúc thư mục, cài nginx + htop, bật UFW (allow 22, 80).
-2. Viết `health-check.sh` báo cáo CPU/RAM/disk + trạng thái nginx, ghi log có timestamp.
-3. Cấu hình cron: health-check mỗi giờ, backup mỗi ngày.
-4. Đẩy toàn bộ script lên GitHub repo `sysops-foundation` kèm README.
-5. Tự kiểm tra theo checklist server sẵn sàng ở trên.
+### 📐 Tiêu chí chấm (100 điểm)
 
-### 🚀 Lab nâng cao (best-practice) — Mô hình hoàn chỉnh
+| Hạng mục | Điểm | Đạt tối đa khi |
+|---|---:|---|
+| Người dùng & phân quyền | 15 | User riêng, root bị khoá, user ứng dụng không đăng nhập được, quyền thư mục đúng |
+| Bảo mật SSH | 20 | Chỉ khoá, cấm mật khẩu, cấm root, đổi cổng — và **tự kiểm chứng được** |
+| Tường lửa | 10 | Chặn mặc định, chỉ mở cổng cần, có ghi chú cho từng luật |
+| Web server | 10 | Chạy được, tự bật khi máy khởi động, phục vụ đúng thư mục |
+| Script sức khoẻ | 15 | Có xử lý lỗi, ngưỡng rõ ràng, kết quả đọc được |
+| Sao lưu | 20 | Tự động theo lịch, **đã khôi phục thử**, tự xoá bản cũ |
+| Quản lý log | 5 | Có xoay vòng, không để log phình vô hạn |
+| Tài liệu | 5 | Người khác đọc là tiếp quản được máy |
 
-> Đây là "mini dự án" tổng kết Giai đoạn 1: biến server trắng thành server vận hành chuẩn bằng 1 script idempotent.
+> 🎯 **Từ 75 điểm trở lên** là đủ vững để sang Giai đoạn 2. Dưới 55 thì nên ôn lại phần điểm thấp — Giai đoạn 2 xây chồng lên những thứ này.
 
-**Mô hình hệ thống mục tiêu:**
-```mermaid
-flowchart TD
-    Net(("🌐 Internet")) -->|"chỉ 22 (limit) + 80"| UFW["🔥 UFW · deny-by-default"]
-    UFW --> F2B["🚫 fail2ban · chặn brute-force SSH"]
-    F2B --> Login["🔑 User deploy + SSH key<br/>(không root · không password)"]
-    subgraph SRV["🖥️ Server/VM Ubuntu — vật lý / ảo hoá / cloud"]
-        direction TB
-        Login --> NGINX["🌍 nginx · enable --now"]
-        NGINX --> CRON["⏰ cron · health-check mỗi giờ"]
-        CRON --> BK["💾 backup mỗi ngày · tar+checksum · giữ 7 ngày"]
-        BK --> LOG["📜 logrotate · xoay log 14 ngày"]
-    end
-    classDef sec fill:#ffebee,stroke:#c62828,color:#b71c1c;
-    classDef svc fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20;
-    class UFW,F2B,Login sec;
-    class NGINX,CRON,BK,LOG svc;
+### 🧪 Bộ kiểm chứng — chấm điểm chính mình
+
+Chạy bộ này **trên máy chủ** sau khi làm xong. Mỗi dòng ✅ là một phần điểm.
+
+```bash
+#!/usr/bin/env bash
+# cham-diem.sh — tự chấm LAB Final Giai đoạn 1
+diem=0
+kiem() {
+  local mo_ta="$1" lenh="$2" diem_so="$3"
+  if eval "$lenh" &>/dev/null; then
+    echo "  ✅ $mo_ta (+$diem_so)"; diem=$((diem + diem_so))
+  else
+    echo "  ❌ $mo_ta"
+  fi
+}
+
+echo "▸ Người dùng & phân quyền"
+kiem "Có user quản trị riêng ngoài root" "getent passwd | awk -F: '\$3>=1000 && \$3<65534' | grep -qv '^nobody'" 5
+kiem "Root không đăng nhập SSH được"     "sshd -T | grep -q 'permitrootlogin no'" 5
+kiem "User ứng dụng không có shell"      "getent passwd | grep -qE 'nologin|/bin/false'" 5
+
+echo "▸ Bảo mật SSH"
+kiem "Cấm đăng nhập bằng mật khẩu"       "sshd -T | grep -q 'passwordauthentication no'" 8
+kiem "Xác thực bằng khoá công khai"      "sshd -T | grep -q 'pubkeyauthentication yes'" 6
+kiem "Đã đổi cổng SSH mặc định"          "! sshd -T | grep -q '^port 22$'" 6
+
+echo "▸ Tường lửa"
+kiem "Tường lửa đang bật"                "sudo ufw status | grep -q 'Status: active' || sudo firewall-cmd --state | grep -q running" 5
+kiem "Mặc định chặn chiều vào"           "sudo ufw status verbose | grep -q 'deny (incoming)'" 5
+
+echo "▸ Dịch vụ web"
+kiem "Web server đang chạy"              "systemctl is-active --quiet nginx || systemctl is-active --quiet apache2" 5
+kiem "Tự bật khi máy khởi động"          "systemctl is-enabled --quiet nginx || systemctl is-enabled --quiet apache2" 5
+
+echo "▸ Script tự động hoá"
+kiem "Có script kiểm tra sức khoẻ"       "ls ~/scripts/*suc-khoe* /opt/scripts/*suc-khoe* 2>/dev/null | grep -q ." 8
+kiem "Có script sao lưu"                 "ls ~/scripts/*sao-luu* /opt/scripts/*sao-luu* 2>/dev/null | grep -q ." 8
+kiem "Đã đặt lịch chạy tự động"          "crontab -l 2>/dev/null | grep -qE 'sao-luu|suc-khoe'" 8
+kiem "Có bản sao lưu thật"               "ls ~/sao-luu/*.tar.gz /var/sao-luu/*.tar.gz 2>/dev/null | grep -q ." 8
+
+echo "▸ Quản lý log"
+kiem "Có cấu hình xoay vòng log"         "ls /etc/logrotate.d/ | grep -q ." 5
+
+echo "▸ Tài liệu"
+kiem "Có tài liệu bàn giao"              "ls ~/README* ~/BAN-GIAO* /opt/README* 2>/dev/null | grep -q ." 5
+
+echo ""
+echo "═══════════════════════════════"
+echo "  ĐIỂM TỰ CHẤM: $diem / 92"
+echo "  (8 điểm còn lại: chất lượng script và tài liệu — tự đánh giá)"
+echo "═══════════════════════════════"
 ```
 
-**Yêu cầu best-practice cho `server-setup.sh`:**
-1. **Idempotent** — chạy nhiều lần không lỗi (kiểm tra trước khi tạo):
-   ```bash
-   id deploy &>/dev/null || sudo adduser --disabled-password --gecos "" deploy
-   command -v nginx &>/dev/null || sudo apt install -y nginx
-   ```
-2. `set -euo pipefail` + hàm `log()` ghi mọi bước.
-3. Tách cấu hình thành biến ở đầu file (user, cổng, mạng cho phép SSH).
-4. Kết thúc script in **báo cáo trạng thái** đối chiếu checklist (mỗi mục ✅/❌).
-5. Repo `sysops-foundation` có cấu trúc:
-   ```
-   sysops-foundation/
-   ├── README.md            # mô tả mô hình + cách chạy
-   ├── scripts/
-   │   ├── server-setup.sh
-   │   ├── health-check.sh
-   │   └── backup.sh
-   ├── configs/
-   │   ├── jail.local        # fail2ban
-   │   └── myapp.logrotate
-   └── docs/
-       └── kien-truc.md      # sơ đồ + checklist hardening
-   ```
+### 🔥 Ba phép thử khắc nghiệt
 
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+Điểm số chỉ nói lên một nửa. Ba phép thử này mới cho biết bạn làm thật hay làm hình thức:
 
-**Trình tự nên làm:** viết `server-setup.sh` (gom Ngày 1–11) → viết `health-check.sh` → hẹn giờ cron → đẩy lên GitHub → tự chấm theo checklist.
+**Phép thử 1 — Khôi phục thật.** Xoá sạch thư mục web rồi khôi phục từ bản sao lưu:
+```bash
+sudo rm -rf /var/www/html/*
+# ... khôi phục từ bản sao lưu của bạn ...
+curl localhost      # trang web phải trở lại đúng như cũ
+```
+> Không khôi phục được nghĩa là bạn **không có** bản sao lưu — bạn chỉ có một file nén.
 
-**Giải nghĩa & kết quả mong đợi:**
-- Mở đầu mọi script: `#!/usr/bin/env bash` + `set -euo pipefail` — dừng ngay khi lỗi, bắt biến chưa khai báo. *Kết quả:* script "an toàn", không chạy tiếp khi đã hỏng.
-- **Idempotent** (chạy lại không lỗi): `id deploy &>/dev/null || sudo adduser ... deploy` — chỉ tạo nếu chưa có. **Vì sao:** chạy lần 2 không được phá thứ đã đúng.
-- Gom các lệnh đã học: tạo user (Ngày 4) + cấu trúc thư mục (Ngày 2) + cài nginx/htop (Ngày 3) + bật UFW (Ngày 9) + cron backup/health (Ngày 6,10).
-- `curl localhost` — kiểm tra nginx phục vụ. *Kết quả:* trang `Welcome to nginx!`.
+**Phép thử 2 — Tự khoá mình ra ngoài.** Mở **một phiên SSH thứ hai** trước khi siết cấu hình, và **giữ nó mở**. Đây là thói quen cứu mạng của mọi người làm hệ thống: nếu phiên thứ nhất bị khoá do cấu hình sai, bạn vẫn còn đường vào để sửa.
 
-**🧪 Thử nghiệm:**
-- Chạy `server-setup.sh` **2 lần**. **Bài học:** lần 2 phải không lỗi (in "đã tồn tại, bỏ qua") — đó là idempotent thực sự.
-- Cho `health-check.sh` in cảnh báo khi đĩa > 85% (tạm hạ ngưỡng xuống thấp để test thấy cảnh báo bật).
+**Phép thử 3 — Người lạ tiếp quản.** Đưa tài liệu bàn giao cho một người khác (hoặc chính bạn sau một tuần). Họ có trả lời được ba câu này không?
+- Máy này chạy dịch vụ gì, ở cổng nào?
+- Sao lưu nằm ở đâu, khôi phục thế nào?
+- Dịch vụ chết thì kiểm tra gì trước?
 
-⚠️ **Dễ sai:** `rm -rf "$DIR/"` khi `$DIR` rỗng = `rm -rf /`. Trong script luôn `set -u` + `echo` đường dẫn trước khi xóa + quote `"$DIR"`.
+### ⚠️ Những cái bẫy hay gặp
 
-💡 **Hiểu sâu:** đây là bước nhảy tư duy: từ "gõ lệnh thủ công" → "mô tả cả server bằng 1 script lặp lại được". Chính là hạt giống của Infrastructure as Code (Terraform/Ansible) ở các giai đoạn sau.
+| Bẫy | Hậu quả | Cách tránh |
+|---|---|---|
+| Siết SSH mà không giữ phiên thứ hai | **Tự khoá mình khỏi máy** | Luôn mở sẵn một phiên dự phòng |
+| Đổi cổng SSH mà quên mở trên tường lửa | Mất kết nối ngay lập tức | Mở cổng mới **trước**, siết SSH sau |
+| Script sao lưu chưa từng khôi phục thử | Không có bản sao lưu thật | Phép thử 1 ở trên |
+| `chmod 777` cho nhanh | Ai cũng sửa được file web | Đúng chủ sở hữu + quyền 755/644 |
+| Cron chạy script nhưng đường dẫn sai | Sao lưu im lặng không chạy | Dùng đường dẫn tuyệt đối; ghi log của cron |
+| Chạy web server bằng root | Lỗ hổng nhỏ thành chiếm toàn máy | Dùng user ứng dụng riêng |
 
-### 📝 Bài ôn tập & Demo đối chiếu
-
-**✍️ Tự kiểm tra (tổng hợp cả Giai đoạn 1):**
+### 💬 Gợi ý khi bí
 
 <details>
-<summary>1. "Idempotent" nghĩa là gì và vì sao script setup cần nó?</summary>
+<summary><b>Script kiểm tra sức khoẻ nên có gì?</b></summary>
 
-> Chạy nhiều lần vẫn an toàn, ra cùng kết quả. Cần vì bạn sẽ chạy lại script khi bổ sung/khắc phục — nó phải không báo lỗi và không phá thứ đã đúng. Đây là nền tảng tư duy của IaC (Terraform/Ansible).
+Bốn câu hỏi, mỗi câu một mục, và **mỗi mục có ngưỡng rõ ràng**:
+
+```bash
+#!/usr/bin/env bash
+set -uo pipefail
+NGUONG_DIA=80
+NGUONG_RAM=85
+
+echo "=== Sức khoẻ máy chủ — $(date -Is) ==="
+
+# 1) Đĩa
+dia=$(df / --output=pcent | tail -1 | tr -dc '0-9')
+[ "$dia" -gt "$NGUONG_DIA" ] && echo "⚠️  Đĩa: ${dia}% (vượt ngưỡng)" || echo "✅ Đĩa: ${dia}%"
+
+# 2) RAM
+ram=$(free | awk '/Mem:/ {printf "%.0f", $3/$2*100}')
+[ "$ram" -gt "$NGUONG_RAM" ] && echo "⚠️  RAM: ${ram}%" || echo "✅ RAM: ${ram}%"
+
+# 3) Tải CPU so với số nhân
+tai=$(cut -d' ' -f1 /proc/loadavg)
+nhan=$(nproc)
+echo "ℹ️  Tải: $tai (máy có $nhan nhân)"
+
+# 4) Dịch vụ
+for dv in nginx ssh; do
+  systemctl is-active --quiet "$dv" && echo "✅ $dv đang chạy" || echo "❌ $dv ĐÃ CHẾT"
+done
+```
+
+Nâng cao: khi có mục ⚠️ hoặc ❌ thì ghi vào `/var/log/canh-bao.log` hoặc gửi mail.
 </details>
 
 <details>
-<summary>2. Kể quy trình hardening SSH cho một server mới.</summary>
+<summary><b>Script sao lưu nên làm gì?</b></summary>
 
-> Tạo user không-root + SSH key → tắt `PermitRootLogin` và `PasswordAuthentication` trong sshd_config → `sshd -t` test → reload → bật UFW (mở 22 trước) + fail2ban. Giữ 1 phiên SSH mở khi sửa.
+Bốn việc, theo thứ tự — và **việc thứ ba là việc hay bị bỏ qua nhất**:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+NGUON=/var/www/html
+DICH=/var/sao-luu
+GIU=7
+TEN="web-$(date +%Y%m%d-%H%M%S).tar.gz"
+
+mkdir -p "$DICH"
+
+# 1) Nén
+tar -czf "$DICH/$TEN" -C "$(dirname $NGUON)" "$(basename $NGUON)"
+
+# 2) Kiểm chứng đọc được (ĐỪNG BỎ BƯỚC NÀY)
+if tar -tzf "$DICH/$TEN" >/dev/null 2>&1; then
+  echo "✅ Bản sao lưu hợp lệ: $TEN ($(du -h "$DICH/$TEN" | cut -f1))"
+else
+  echo "❌ BẢN SAO LƯU HỎNG"; exit 1
+fi
+
+# 3) Xoá bản cũ, giữ N bản gần nhất
+ls -t "$DICH"/web-*.tar.gz | tail -n +$((GIU+1)) | xargs -r rm -v
+
+# 4) Ghi nhật ký
+echo "$(date -Is) sao lưu OK: $TEN" >> /var/log/sao-luu.log
+```
+
+Đặt lịch: `0 2 * * * /opt/scripts/sao-luu.sh >> /var/log/sao-luu-cron.log 2>&1`
 </details>
 
 <details>
-<summary>3. Checklist "một server đã sẵn sàng" gồm những gì?</summary>
+<summary><b>Làm sao siết SSH mà không tự khoá mình?</b></summary>
 
-> User không-root + SSH key; firewall deny-by-default; dịch vụ `enable --now`; fail2ban; cập nhật tự động; không secret trong git; backup + test restore; health-check + log.
+Quy trình an toàn, theo đúng thứ tự:
+
+1. **Mở một phiên SSH thứ hai và giữ nguyên** — đây là dây bảo hiểm
+2. Nạp khoá công khai vào `~/.ssh/authorized_keys`, đặt quyền `700` cho thư mục và `600` cho file
+3. **Thử đăng nhập bằng khoá từ một cửa sổ mới** — phải vào được thì mới đi tiếp
+4. Mở cổng SSH mới trên tường lửa **trước** khi đổi cổng trong cấu hình
+5. Sửa cấu hình, rồi **kiểm tra cú pháp**: `sudo sshd -t` (báo lỗi thì đừng restart)
+6. `sudo systemctl restart ssh`
+7. Thử đăng nhập từ cửa sổ mới. Vào được thì mới đóng phiên dự phòng.
+
+Bước 5 là bước cứu bạn nhiều nhất: `sshd -t` bắt lỗi cú pháp **trước khi** dịch vụ khởi động lại với cấu hình hỏng.
 </details>
 
 <details>
-<summary>4. Bước nhảy tư duy lớn nhất của Giai đoạn 1 là gì?</summary>
+<summary><b>Tài liệu bàn giao cần những gì?</b></summary>
 
-> Từ "gõ lệnh thủ công" → "mô tả cả server bằng 1 script chạy lại được". Đó chính là hạt giống của DevOps / Infrastructure as Code.
-</details>
+Ngắn thôi, nhưng đủ để người khác tiếp quản:
 
-**🔬 Demo đối chiếu:**
+```markdown
+# Máy chủ web nội bộ
 
-| Demo đối chiếu | Kết quả mong đợi |
+## Thông tin cơ bản
+- Hệ điều hành: Ubuntu 24.04
+- Truy cập: `ssh -p 2222 -i khoa quantri@<ip>`
+- Dịch vụ: nginx (cổng 80), thư mục web `/var/www/html`
+
+## Tài khoản
+| User | Dùng để làm gì | Đăng nhập được? |
+|---|---|---|
+| quantri | Quản trị | Có, chỉ bằng khoá |
+| www-app | Chạy web server | Không |
+
+## Sao lưu
+- Script: `/opt/scripts/sao-luu.sh`, chạy 2h sáng hằng ngày
+- Nơi lưu: `/var/sao-luu/`, giữ 7 bản gần nhất
+- Khôi phục: `tar -xzf /var/sao-luu/<ban>.tar.gz -C /var/www/`
+
+## Khi có sự cố
+| Triệu chứng | Kiểm tra |
 |---|---|
-| Chạy `server-setup.sh` trên VM mới | user, nginx, ufw cấu hình tự động, **không lỗi** |
-| `curl localhost` | Trang `Welcome to nginx!` |
-| Repo trên GitHub | `github.com/<user>/sysops-foundation` có script + README |
-| Chạy script **lần 2** | Không lỗi (idempotent), in "đã tồn tại, bỏ qua" |
-
-### 📚 Thuật ngữ Anh–Việt (tổng hợp Giai đoạn 1)
-
-| Thuật ngữ | Nghĩa |
-|---|---|
-| **Idempotent** | Chạy lại nhiều lần vẫn cho cùng kết quả, không lỗi |
-| **Provisioning** | Dựng & cấu hình server từ trạng thái trắng |
-| **Hardening** | Siết cấu hình cho an toàn |
-| **Automation** | Tự động hoá bằng script/cron |
-| **Infrastructure as Code** | Mô tả hạ tầng bằng file/code (hạt giống từ script hôm nay) |
-| **Least privilege** | Cấp quyền tối thiểu đủ dùng |
-| **Milestone** | Mốc tổng hợp, ghép nhiều kỹ năng thành sản phẩm |
+| Web không vào được | `systemctl status nginx`, `sudo ufw status` |
+| Đĩa đầy | `df -h`, `du -sh /var/log/*` |
+| SSH không vào được | Dùng console của nhà cung cấp; xem `sudo sshd -T` |
+```
+</details>
 
 ### 🎯 Đúc kết Ngày 12 — Tổng kết Giai đoạn 1
 
-**3 điều phải mang theo (cho cả GĐ1):**
-1. Tư duy SysOps gói trong 4 trụ: **ổn định · bảo mật · tự động hóa · khôi phục được** — mọi việc hằng ngày đều quy về 4 chữ này.
-2. **Idempotent** = chạy lại vẫn an toàn (kiểm tra trước khi tạo) — cầu nối từ script tay sang Infrastructure as Code.
-3. Bước nhảy DevOps: ngừng "sửa tay trên server", bắt đầu "mô tả server bằng 1 file chạy lại được".
+**3 điều phải mang theo:**
 
-> 🧠 **Một câu để nhớ:** bước nhảy lớn nhất ở đây là từ *"gõ lệnh thủ công"* → *"mô tả cả server bằng 1 file script chạy lại được"*. Đó chính là hạt giống của DevOps.
+1. **Đặc quyền tối thiểu là thói quen, không phải tính năng.** Người dùng riêng cho từng việc, tường lửa chặn mặc định, dịch vụ không chạy bằng root — bạn sẽ gặp lại nguyên tắc này ở mọi giai đoạn sau.
+2. **Việc lặp lại phải được viết thành script.** Đây là bước đầu tiên trên con đường tự động hoá: tay → script → cron → Ansible (Ngày 47) → pipeline (Ngày 31).
+3. **Bản sao lưu chưa khôi phục thử thì không phải bản sao lưu.** Ghi nhớ điều này ngay từ Giai đoạn 1 — Ngày 52 sẽ nhắc lại với quy mô lớn hơn nhiều.
 
-**✅ Tự chấm — năng lực chốt Giai đoạn 1** *(đánh dấu khi làm được mà không nhìn tài liệu):*
-- [ ] Dựng server trắng → vận hành chuẩn bằng 1 script **idempotent** (mở đầu `set -euo pipefail`)
-- [ ] Hardening: user không-root + SSH key, tắt root/password, UFW deny-by-default, fail2ban
-- [ ] Dịch vụ `enable --now`; health-check + backup theo cron; logrotate
-- [ ] Backup có **test restore** + checksum; không secret trong Git
-- [ ] Debug theo hệ thống: quan sát → khoanh vùng → đọc log → sửa → xác minh
+> 🧠 **Một câu để nhớ:** một máy chủ tốt không phải máy chạy nhanh — mà là máy **người khác tiếp quản được** khi bạn nghỉ phép.
 
-✅ **Kết quả đạt được — MỐC 1 HOÀN THÀNH:** Làm chủ nền tảng Linux/SysOps, có repo automation đầu tiên, biết biến server trắng thành server vận hành chuẩn.
+**✅ Tự chấm Milestone Giai đoạn 1:**
 
----
+- [ ] Đạt từ 75 điểm trở lên ở bộ kiểm chứng
+- [ ] Đã khôi phục thật từ bản sao lưu (Phép thử 1)
+- [ ] Siết SSH mà không tự khoá mình (Phép thử 2)
+- [ ] Tài liệu đủ để người khác tiếp quản (Phép thử 3)
+- [ ] Giải thích được **vì sao** chọn từng cấu hình, không chỉ chép lệnh
 
-> ➡️ **Tiếp theo — Giai đoạn 2 (Ngày 13–30):** Git, Docker & Container hóa. Bước vào thế giới DevOps thực thụ.
+✅ **Kết quả đạt được:** Một máy chủ an toàn, tự sao lưu, tự báo cáo sức khoẻ và bàn giao được — nền tảng vận hành mà mọi thứ ở Giai đoạn 2–4 sẽ xây chồng lên.
 
 ---
-
-# 📎 Phụ lục — Kiến thức sống còn khi đi làm thật
-
-> Phần này không có trong giáo trình gốc, nhưng là thứ phân biệt người **học vẹt** với người **làm được việc**. Đọc kỹ — đây là những gì bạn dùng vào ngày có sự cố lúc 2h sáng.
 
 ## Phụ lục A — Những lỗi người mới hay mắc (và cách tránh)
 

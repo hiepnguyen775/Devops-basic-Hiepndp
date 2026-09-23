@@ -2,9 +2,15 @@
 
 > **Ngày 31–50** · Trái tim của DevOps: pipeline tự động và điều phối container ở quy mô lớn.
 >
-> **Khuôn mỗi ngày:** 📘 Lý thuyết → 🧪 Lab cơ bản → 🚀 Lab nâng cao (best-practice) → 💡 Bổ sung thực tế → 📝 Bài ôn tập.
+> **Khuôn mỗi ngày:** 📘 Lý thuyết (mở bằng vấn đề có thật) → 🧪 LAB (file đầy đủ, copy là chạy) → 🧭 Hướng dẫn step by step (lệnh → output mẫu → ✅ checkpoint → ⚠️ lỗi cụ thể → 💡 vì sao) → 💡 Đi làm mới thấm → 🎯 Đúc kết + tự chấm.
 >
-> ✅ Trung lập nền tảng: ví dụ CI dùng GitHub Actions, K8s dùng Minikube/local, cloud dùng ví dụ chung — đều có ghi chú công cụ tương đương (GitLab CI, EKS/GKE/AKS...).
+> **Ngày Milestone (35, 40, 50):** 📋 Đề bài → ✅ Yêu cầu → 📐 Tiêu chí chấm điểm → 🔥 Phép thử → 💬 Gợi ý khi bí. **Không hướng dẫn từng bước.**
+>
+> 🧵 **Một dự án xuyên suốt:** repo `ci-demo` khởi tạo ở Ngày 31 được dùng lại và mở rộng qua Ngày 32–35; stack giám sát dựng ở Ngày 44 được cắm thêm Grafana (45), Loki (46) rồi SLO (51). Bạn xây **một** hệ thống lớn dần, không phải 20 bài rời rạc.
+>
+> 💻 **Mọi LAB chạy miễn phí trên máy bạn:** Docker + minikube + GitHub Actions (runner miễn phí). Ngày 34 dùng **self-hosted runner** để biến chính máy bạn thành "server" — không cần thuê VM.
+>
+> ✅ Trung lập nền tảng: ví dụ CI dùng GitHub Actions, K8s dùng Minikube — đều có ghi chú công cụ tương đương (GitLab CI, Jenkins, EKS/GKE/AKS...).
 
 ---
 
@@ -1817,141 +1823,203 @@ Tạo 3 secret trong **Settings → Secrets and variables → Actions**: `SSH_HO
 
 ## Ngày 35 — MILESTONE: Pipeline CI/CD hoàn chỉnh
 
-> ⏱️ ~120 phút · Loại: Milestone
+> ⏱️ ~150 phút · Loại: LAB Final
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 31–34 (từng mảnh CI/CD) → **Ngày 35 (ghép thành 1 dây chuyền hoàn chỉnh: push là app live)** → Ngày 36 (bước vào Kubernetes). Đây là kỹ năng "định danh" của DevOps Engineer.
+> 🧭 **Bạn đang ở đâu:** Ngày 31–34 (GitHub Actions, CI nhiều tầng, đóng gói image, deploy tự động) → **Ngày 35 (ghép thành một dây chuyền duy nhất và đo nó)** → Ngày 36 (Kubernetes).
 >
-> ✅ **Chuẩn bị:** app full-stack + Dockerfile, VM cloud SSH được, registry. Ghép lại kiến thức Ngày 31–34.
+> ✅ **Chuẩn bị:** repo `ci-demo` với CI, workflow đóng gói image và deploy từ Ngày 31–34.
+>
+> 🎯 **Đề bài + tiêu chí chấm.** Và hôm nay có một việc đặc biệt: **mở lại file `diem-dau.md` của Ngày 28** để so sánh.
 
-### 📘 Lý thuyết — Tổng kết
+### 📋 Đề bài — "Dây chuyền hoàn chỉnh, đo được"
 
-- **Mạch CI/CD:** lint/test → build image → push registry → deploy server → rollback.
-- **Đây là kỹ năng định danh của 1 DevOps Engineer.**
-- **Best practices:** pipeline nhanh, fail fast, secret an toàn, deploy có thể đảo ngược.
+> Từ `git push` tới ứng dụng đang phục vụ, không ai chạm tay vào server. Và bạn phải **chứng minh bằng số liệu** rằng nó tốt hơn cách làm tay ở Ngày 28.
 
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
-
-**Milestone này = ghép cả CI + CD thành 1 dây chuyền hoàn chỉnh.**
-`push code → lint → test → quét bảo mật → build image (tag SHA) → push registry → deploy → health check`. Một thay đổi nhỏ trong code, vài phút sau tự lên server — đó là "ma thuật" của DevOps.
-
-**Vì sao đây là kỹ năng "định danh" của DevOps Engineer?**
-Pipeline tự động giải đúng 5 điểm yếu của deploy tay (Ngày 28): lặp lại được, có dấu vết (mỗi lần chạy có log), không phụ thuộc 1 người, rollback bằng re-run, ít sai vì máy làm.
-
-**Mẹo phỏng vấn:** demo "tôi sửa 1 dòng → quay video pipeline tự chạy đến lúc app live" thuyết phục hơn mọi lời nói. Mỗi stage "kể" 1 năng lực của bạn (test=chất lượng, scan=bảo mật, build=Docker, deploy=orchestration).
-
-### 🧪 Lab cơ bản (Milestone)
-
-1. Xây pipeline hoàn chỉnh cho app full-stack — từ push code tới deploy tự động lên VM.
-2. Pipeline gồm: lint → test → build Docker → push → deploy qua SSH → health check.
-3. Thêm status badge vào README.
-4. Demo: thực hiện 1 thay đổi nhỏ và quay video/screenshot toàn bộ pipeline chạy thành công.
-5. Đẩy lên repo `cicd-pipeline-demo` với tài liệu đầy đủ.
-
-### 🚀 Lab nâng cao (best-practice) — Mô hình hoàn chỉnh
-
-**Mô hình pipeline CI/CD end-to-end:**
-```mermaid
-flowchart TD
-    Dev(("👤 Developer")) -->|push| GH["📁 GitHub"]
-    GH --> CI["🧪 CI · mỗi PR/push<br/>lint → test → scan (Trivy)"]
-    CI -->|"fail ❌ → chặn merge"| GH
-    CI -->|"pass ✅ → merge main"| CD["🚀 CD<br/>build image (tag=SHA) → push registry<br/>→ deploy → health check"]
-    CD -->|"❌ fail"| RB["↩️ rollback"]
-    CD -->|"✅ ok"| Live(("🌍 App live<br/>vài phút từ commit"))
-    classDef ci fill:#e3f2fd,stroke:#1976d2,color:#0d47a1;
-    classDef cd fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20;
-    class CI ci;
-    class CD cd;
+```text
+  git push
+     ↓
+  [CI]    lint → test (matrix) → build → artifact
+     ↓
+  [Quét]  bí mật · lỗ hổng · Dockerfile
+     ↓
+  [Đóng gói]  image tag = SHA → registry
+     ↓
+  [Duyệt]  environment có người xác nhận
+     ↓
+  [Deploy]  tự động + kiểm tra sức khoẻ
+     ↓
+  Quay lui được bằng một thao tác
 ```
 
-**Yêu cầu best-practice:**
-1. **CI và CD tách rõ:** CI chạy mọi PR; CD chỉ chạy khi merge main / tag.
-2. **Image tag theo SHA**, cache layer, quét Trivy.
-3. **Secret trong GitHub Secrets/Environments**, production có approval.
-4. **Health check + rollback tự động.**
-5. **Status badge** + README mô tả luồng + sơ đồ.
+### ✅ Yêu cầu
 
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+#### Bắt buộc
 
-**Trình tự nên làm:** ghép CI (lint→test→scan) + CD (build→push→deploy→health) cho app full-stack → thêm badge → demo end-to-end.
+| # | Yêu cầu | Kiến thức từ |
+|---|---|---|
+| 1 | CI nhiều tầng có `needs:`, matrix, cache | Ngày 32 |
+| 2 | Ba lớp quét bảo mật, **thực sự chặn được** | Ngày 49 (áp dụng sớm) |
+| 3 | Image tag theo SHA, đẩy lên registry | Ngày 33 |
+| 4 | Deploy tự động sau khi image sẵn sàng | Ngày 34 |
+| 5 | Kiểm tra sức khoẻ sau deploy, hỏng thì báo đỏ | Ngày 34 |
+| 6 | Quay lui bằng một thao tác, dưới 2 phút | Ngày 34 |
+| 7 | Branch protection: CI đỏ không merge được | Ngày 32 |
+| 8 | Không bí mật nào trong repo | Ngày 31 |
+| 9 | **Bảng so sánh với Ngày 28**, có số liệu thật | Ngày 28 |
 
-**Giải nghĩa & kết quả mong đợi:**
-- Pipeline đầy đủ: `lint → test → build Docker → push → deploy SSH → health check`. *Kết quả:* push code → vài phút sau app live, không thao tác tay.
-- Status badge trong README hiện trạng thái build (xanh/đỏ).
+#### Nâng cao
 
-**🧪 Thử nghiệm:**
-- Thực hiện 1 thay đổi nhỏ, quay màn hình toàn bộ pipeline chạy từ commit đến live. **Bài học:** đây là "demo ăn điểm" khi phỏng vấn.
-- Tách rõ: PR chỉ chạy CI; merge main mới chạy CD. **Bài học:** CI ≠ CD về điều kiện kích hoạt.
-
-⚠️ **Dễ sai:** gộp CI và CD chạy mọi push → deploy cả nhánh feature. CD chỉ nên chạy khi merge main / tag.
-
-💡 **Hiểu sâu:** mỗi stage "kể" một năng lực: test (chất lượng), scan (bảo mật), build SHA (truy vết), deploy (orchestration). 1 pipeline = trình diễn cả Giai đoạn 3.
-
-### 📝 Bài ôn tập & Demo đối chiếu
-
-**✍️ Tự kiểm tra:**
-
-<details>
-<summary>1. Kể thứ tự các stage của pipeline CI/CD hoàn chỉnh.</summary>
-
-> push → lint → test → scan bảo mật → build image (tag SHA) → push registry → deploy server → health check → (fail? rollback).
-</details>
-
-<details>
-<summary>2. Vì sao CI chạy mọi PR nhưng CD chỉ chạy khi merge main?</summary>
-
-> CI kiểm tra chất lượng mọi thay đổi (cả nhánh feature). CD đưa lên production — chỉ nên chạy với code đã được duyệt vào main/tag, không deploy mỗi push nhánh.
-</details>
-
-<details>
-<summary>3. Pipeline giải 5 điểm yếu của deploy tay thế nào?</summary>
-
-> Lặp lại được, có dấu vết (log mỗi run), không phụ thuộc 1 người, rollback bằng re-run tag cũ, ít sai vì máy làm.
-</details>
-
-<details>
-<summary>4. Vì sao đây là kỹ năng "định danh" của DevOps?</summary>
-
-> Nó gộp mọi năng lực: test (chất lượng), scan (bảo mật), build (Docker), deploy (orchestration) thành 1 dây chuyền tự động — thứ phân biệt DevOps với chỉ biết từng công cụ rời.
-</details>
-
-**🔬 Demo đối chiếu:**
-
-| Demo đối chiếu | Kết quả mong đợi |
+| # | Yêu cầu |
 |---|---|
-| Pipeline end-to-end | push → test → build → push → deploy tự động |
-| Thời gian commit → live | Đo được (vài phút), không thao tác tay |
-| Repo có workflow đầy đủ | `.github/workflows/*.yml` đủ các stage |
+| 10 | Pipeline chạy dưới 4 phút |
+| 11 | `concurrency` chống chạy chồng |
+| 12 | `permissions` khai tối thiểu cho từng job |
+| 13 | Thông báo kết quả deploy ra kênh chat |
+| 14 | Ghim action bằng SHA thay vì nhãn phiên bản |
 
-### 📚 Thuật ngữ Anh–Việt (tổng hợp CI/CD)
+### 📐 Tiêu chí chấm (100 điểm)
 
-| Thuật ngữ | Nghĩa |
-|---|---|
-| **Pipeline** | Dây chuyền tự động lint→test→build→deploy |
-| **Stage / Job** | Giai đoạn / nhóm việc trong pipeline |
-| **Registry** | Kho image |
-| **Immutable tag** | Tag bất biến (SHA) để truy vết |
-| **Health check** | Kiểm tra app khoẻ sau deploy |
-| **Rollback** | Quay về bản trước |
-| **Status badge** | Huy hiệu trạng thái build trên README |
+| Hạng mục | Điểm | Đạt tối đa khi |
+|---|---:|---|
+| Cấu trúc pipeline | 20 | Nhiều tầng hợp lý, song song đúng chỗ, có cache |
+| Bảo mật trong pipeline | 20 | 3 lớp quét, chặn thật, quyền tối thiểu |
+| Đóng gói & gắn tag | 15 | Tag bất biến, truy ngược ra commit được |
+| Tự động deploy | 15 | Không thao tác tay, có cổng duyệt |
+| Kiểm tra sau deploy | 10 | Có thử lại, chặn được bản hỏng |
+| Quay lui | 10 | Một thao tác, đã bấm giờ thật |
+| Đo đạc & so sánh | 10 | Bảng so sánh với Ngày 28, số liệu thật |
 
-### 🎯 Đúc kết Ngày 35 (Milestone CI/CD)
+### 🔥 Bốn phép thử bắt buộc
+
+**Phép thử 1 — Toàn bộ dây chuyền (bấm giờ).**
+```bash
+cd ~/ci-demo
+echo "// thay đổi $(date +%s)" >> app.js
+BAT_DAU=$(date +%s)
+git commit -am "Đo thời gian dây chuyền" && git push
+# ... chờ tới khi bản mới thật sự đang phục vụ ...
+echo "Thời gian từ commit tới chạy thật: $(( $(date +%s) - BAT_DAU )) giây"
+```
+
+**Phép thử 2 — CI chặn được code hỏng.** Mở PR có lỗi lint hoặc test hỏng → nút Merge phải bị khoá.
+
+**Phép thử 3 — Quét bảo mật chặn được.** Commit một chuỗi giống token → job quét bí mật phải đỏ.
+
+**Phép thử 4 — Quay lui (bấm giờ).** Deploy bản hỏng, rồi quay lui về bản trước bằng tag SHA cũ. Ghi lại thời gian.
+
+### 📊 Bảng so sánh — phần thưởng của cả Giai đoạn 3
+
+Mở lại `~/lab28-deploy/diem-dau.md` và điền cột bên phải:
+
+| # | Điểm đau | Ngày 28 (làm tay) | Hôm nay (tự động) |
+|---|---|---|---|
+| 1 | Số lệnh phải gõ đúng thứ tự | 6 lệnh | **0** — chỉ `git push` |
+| 2 | Dấu vết ai deploy, lúc nào, từ code nào | Không có | Lịch sử Actions, tag SHA |
+| 3 | Thời gian deploy | ___ giây | ___ giây |
+| 4 | Gián đoạn khi cập nhật | ___ giây | ___ giây |
+| 5 | Thời gian quay lui | ___ giây (phải build lại) | ___ giây (đổi tag) |
+| 6 | Nguy cơ quên bước | Cao | Không — máy không quên |
+| 7 | Deploy được khi bạn nghỉ phép | Không | Có |
+
+> 💡 **Hãy thật sự điền bảng này.** Nó là thứ bạn mang vào buổi phỏng vấn, và cũng là thứ chứng minh cho chính bạn rằng bốn ngày vừa rồi đáng giá. Con số thuyết phục hơn mọi lời giải thích.
+
+### 🧪 Bộ kiểm chứng
+
+```bash
+#!/usr/bin/env bash
+cd ~/ci-demo
+diem=0
+kiem() { if eval "$2" &>/dev/null; then echo "  ✅ $1 (+$3)"; diem=$((diem+$3)); else echo "  ❌ $1"; fi; }
+
+echo "▸ Cấu trúc pipeline"
+kiem "Có dùng needs (nhiều tầng)"    "grep -rq 'needs:' .github/workflows/" 7
+kiem "Có matrix"                     "grep -rq 'matrix:' .github/workflows/" 5
+kiem "Có cache"                      "grep -rq 'cache:' .github/workflows/" 4
+kiem "Có concurrency"                "grep -rq 'concurrency:' .github/workflows/" 4
+
+echo "▸ Bảo mật"
+for t in gitleaks trivy hadolint; do
+  kiem "Có quét bằng $t" "grep -rqi '$t' .github/workflows/" 5
+done
+kiem "Khai permissions tối thiểu"    "grep -rq 'permissions:' .github/workflows/" 5
+
+echo "▸ Đóng gói"
+kiem "Tag theo SHA"                  "grep -rq 'github.sha' .github/workflows/" 8
+kiem "Không deploy bằng latest"      "! grep -rq 'deploy.*:latest' .github/workflows/" 7
+
+echo "▸ Deploy"
+kiem "Có environment (cổng duyệt)"   "grep -rq 'environment:' .github/workflows/" 8
+kiem "Có kiểm tra sức khoẻ"          "grep -rqE 'health|curl -fs' .github/workflows/" 7
+
+echo "▸ Repo sạch"
+kiem "Không bí mật trong Git"        "! git ls-files | grep -qE '\.env$|\.pem$'" 5
+kiem "Có .gitignore"                 "[ -f .gitignore ]" 3
+kiem "Có ghim phiên bản action"      "! grep -rq 'uses:.*@main' .github/workflows/" 4
+
+echo ""
+echo "  ĐIỂM (tự động): $diem / 77"
+echo "  23 điểm còn lại: 4 phép thử + bảng so sánh"
+```
+
+### ⚠️ Những cái bẫy hay gặp
+
+| Bẫy | Hậu quả | Cách tránh |
+|---|---|---|
+| Deploy chạy trên mọi nhánh | Nhánh nháp cũng lên production | Giới hạn trigger: chỉ `main` |
+| Quét bảo mật để chế độ cảnh báo | Không ai đọc, không chặn gì | `exit-code: 1` cho HIGH/CRITICAL |
+| Không có cổng duyệt cho production | Push nhầm là lên thẳng | Environment có người xác nhận |
+| Pipeline 15 phút | Cả đội bắt đầu tìm cách lách | Cache + song song + xếp bước rẻ trước |
+| Chưa từng thử quay lui | Lúc cần thì luống cuống | Phép thử 4, làm ít nhất một lần |
+| Ghim action bằng `@main` | Tác giả sửa là pipeline gãy | Ghim phiên bản, lý tưởng là SHA |
+
+### 💬 Gợi ý khi bí
+
+<details>
+<summary><b>Pipeline nên chia thành mấy workflow?</b></summary>
+
+Ba workflow tách biệt, nối với nhau bằng `workflow_run` — đây là cấu trúc dùng phổ biến:
+
+| Workflow | Chạy khi | Việc |
+|---|---|---|
+| `ci.yml` | push + PR | lint, test, build |
+| `bao-mat.yml` | push + PR + theo lịch | 3 lớp quét |
+| `cd.yml` | chỉ sau khi CI xanh trên `main` | đóng gói image + deploy |
+
+Vì sao tách: CI và quét cần chạy trên **mọi PR** (kể cả từ người ngoài), còn deploy **chỉ** được chạy trên `main` và cần quyền cao hơn. Gộp chung một file dễ dẫn tới cấu hình quyền quá rộng.
+</details>
+
+<details>
+<summary><b>Làm sao rút pipeline xuống dưới 4 phút?</b></summary>
+
+Đo trước — mở từng job trong giao diện Actions xem bước nào lâu nhất. Bốn cách theo hiệu quả giảm dần:
+
+1. **Cache thư viện** (`cache: 'npm'`) — thường tiết kiệm nhiều nhất
+2. **Cache lớp Docker** (`cache-from: type=gha`)
+3. **Chạy song song** — lint và quét bảo mật không cần chờ nhau
+4. **`fail-fast` hợp lý** — lỗi sớm thì dừng sớm, khỏi chờ hết
+
+Một cách nữa hay bị bỏ qua: **đừng chạy lại mọi thứ cho mỗi commit trong PR**. `concurrency` với `cancel-in-progress: true` huỷ các lần chạy cũ khi bạn push liên tiếp.
+</details>
+
+### 🎯 Đúc kết Ngày 35 — Tổng kết phần CI/CD
 
 **3 điều phải mang theo:**
-1. **Cả Giai đoạn CI/CD gói vào 1 dây chuyền:** `push → lint → test → scan → build (tag SHA) → push registry → deploy → health check → (fail? rollback)`. Bạn không học rời từng công cụ — bạn ghép chúng thành một mạch.
-2. **CI ≠ CD ở điều kiện kích hoạt:** CI chạy mọi PR (gác chất lượng), CD chỉ chạy khi merge main/tag (đưa lên). Đừng để mỗi push nhánh feature cũng deploy production.
-3. **Mỗi stage là một bằng chứng năng lực:** test (chất lượng), scan (bảo mật), build SHA (truy vết), deploy (orchestration) — một pipeline hoàn chỉnh chính là portfolio sống của bạn.
 
-> 🧠 **Một câu để nhớ:** tách rõ — **CI chạy mọi PR** (kiểm tra), **CD chỉ chạy khi merge main** (deploy). Đừng để mỗi push nhánh feature cũng deploy lên production.
+1. **Dây chuyền được đo bằng thời gian từ commit tới chạy thật**, không bằng số công cụ nó dùng.
+2. **Quay lui dễ quan trọng hơn deploy nhanh.** Khi lui rẻ, người ta hết sợ phát hành — và phát hành thường xuyên hơn thì mỗi lần lại an toàn hơn.
+3. **Tự động hoá lấy quy trình ra khỏi đầu người và đặt vào file.** Bảng so sánh với Ngày 28 cho thấy chính xác bạn vừa thu được gì.
 
-**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
-- [ ] Dựng pipeline end-to-end cho app full-stack: push → tự lên server
-- [ ] Kể đúng thứ tự các stage và vai trò từng stage
-- [ ] Giải thích vì sao CI chạy mọi PR còn CD chỉ khi merge main
-- [ ] Có health check + rollback tự động và production có approval
-- [ ] Demo được "sửa 1 dòng → app live" (quay màn hình) + status badge trong README
+> 🧠 **Một câu để nhớ:** giá trị lớn nhất của CI/CD không phải tốc độ — mà là **hệ thống vẫn deploy được khi bạn đang đi nghỉ**.
 
-✅ **Kết quả đạt được — MỐC 4:** Làm chủ CI/CD end-to-end — năng lực cốt lõi nhất của DevOps.
+**✅ Tự chấm Milestone:**
+
+- [ ] Đạt từ 75 điểm
+- [ ] Bốn phép thử đều đạt, có ghi số liệu
+- [ ] Bảng so sánh với Ngày 28 đã điền đủ
+- [ ] Pipeline dưới 5 phút
+- [ ] Quay lui dưới 2 phút
+
+✅ **Kết quả đạt được:** Một dây chuyền tự động hoàn chỉnh, đo được, và có bằng chứng bằng số liệu cho thấy nó hơn hẳn cách làm tay.
 
 ---
 
@@ -3929,143 +3997,246 @@ minikube stop
 
 ## Ngày 40 — MILESTONE: Deploy Full-stack lên Kubernetes
 
-> ⏱️ ~120 phút · Loại: Milestone
+> ⏱️ ~150 phút · Loại: LAB Final
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 36–39 (từng mảnh K8s) → **Ngày 40 (ghép app 3 tầng lên K8s thật)** → Ngày 41 (health check & autoscaling). Cùng app CloudNote từng chạy Docker Compose (Ngày 21), giờ chạy trên K8s với self-healing + scale.
+> 🧭 **Bạn đang ở đâu:** Ngày 36–39 (kiến trúc K8s, Deployment, Service, Ingress, ConfigMap, Secret, PVC) → **Ngày 40 (ghép thành một hệ thống nhiều tầng chạy trên cluster)** → Ngày 41 (probe, HPA).
 >
-> ✅ **Chuẩn bị:** cluster local + Ingress addon bật. Đã nắm Deployment/Service/ConfigMap/Secret/PVC (Ngày 36–39).
+> ✅ **Chuẩn bị:** cluster đang chạy (`minikube start`), Ingress addon đã bật.
+>
+> 🎯 **Đề bài + tiêu chí chấm.** Đây là bài kiểm tra xem bạn đã thật sự nắm Kubernetes hay chỉ mới chép được YAML.
 
-### 📘 Lý thuyết — Tổng kết
+### 📋 Đề bài — "Hệ thống ba tầng trên cluster"
 
-- **Mạch K8s:** Pod → Deployment → Service → Ingress → ConfigMap/Secret → PVC → Namespace.
-- **Kiến trúc:** frontend Deployment + Service, backend Deployment + Service, database StatefulSet + PVC, Ingress định tuyến.
+> Đưa hệ thống ba tầng của Ngày 21 lên Kubernetes. Yêu cầu khắt khe nhất: **xoá toàn bộ namespace rồi dựng lại từ file YAML** — và mọi thứ phải trở lại y như cũ, kể cả dữ liệu.
 
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
-
-**Milestone này = đưa app 3 tầng lên K8s thật.**
-Ghép mọi mảnh Ngày 36–39 thành 1 hệ thống: `Internet → Ingress → [frontend] + [backend (3 bản sao)] → [database (StatefulSet+PVC)]`, với ConfigMap + Secret tiêm vào. Cùng app CloudNote bạn từng chạy bằng Docker Compose (Ngày 21), giờ chạy trên K8s — nhưng có thêm self-healing, scale, rolling update.
-
-**Cách tổ chức file YAML thực tế:**
-Đặt tên file có số thứ tự để `kubectl apply -f k8s/` chạy đúng thứ tự phụ thuộc: `00-namespace`, `10-database`, `20-backend`, `30-frontend`, `40-ingress`.
-
-**Thử nghiệm cho "ngấm" sức mạnh K8s:**
-- `kubectl scale ... --replicas=3` → tăng bản sao tức thì.
-- Xóa 1 pod giữa lúc đang dùng → K8s tự tạo lại, app không gián đoạn.
-
-### 🧪 Lab cơ bản (Milestone)
-
-1. Deploy app full-stack (web + backend + database) lên Minikube bằng manifest YAML.
-2. Dùng ConfigMap/Secret cho cấu hình, PVC cho database, Service kết nối các tầng.
-3. Cấu hình Ingress để truy cập app từ ngoài.
-4. Tổ chức tất cả YAML trong thư mục `k8s/` của repo, có README.
-5. Test: scale backend lên 3 replica và thực hiện rolling update.
-
-### 🚀 Lab nâng cao (best-practice) — Mô hình hoàn chỉnh
-
-**Mô hình full-stack trên K8s:**
-```mermaid
-flowchart TB
-    Net(("🌐 Internet")) --> ING["🚪 Ingress · nginx-ingress + cert-manager (TLS)"]
-    ING -->|"/"| FE["🖼️ frontend<br/>Deployment + Service ClusterIP"]
-    ING -->|"/api"| BE["⚙️ backend<br/>Deployment (3 replica) + Service"]
-    BE -->|"db-svc"| DB[("🗄️ database<br/>StatefulSet + PVC")]
-    CFG["⚙️ ConfigMap (cấu hình)"] -.-> BE
-    SEC["🔐 Secret (mật khẩu DB)"] -.-> DB
-    classDef pub fill:#e3f2fd,stroke:#1976d2;
-    classDef data fill:#fff3e0,stroke:#f57c00;
-    class ING,FE pub;
-    class DB data;
+```text
+   Trình duyệt → shop.local
+        │
+     [Ingress]
+        ├── /      → Service web  → 3 pod frontend
+        └── /api   → Service api  → 2 pod backend
+                                        │
+                                   Service db → 1 pod postgres (PVC)
 ```
-> Tất cả nằm trong 1 **Namespace** riêng; frontend/backend dùng ClusterIP + Ingress, database dùng StatefulSet + PVC.
 
-**Yêu cầu best-practice:**
-1. Frontend/backend dùng **Deployment + ClusterIP**, expose qua **Ingress**.
-2. Database dùng **StatefulSet + PVC**, mật khẩu qua **Secret**.
-3. Cấu hình qua **ConfigMap**, mọi thứ trong **namespace** riêng.
-4. Có **liveness/readiness probe** + **resource requests/limits** (chuẩn bị Ngày 41).
-5. Toàn bộ YAML trong `k8s/`, README có sơ đồ + lệnh `kubectl apply -k`.
+### ✅ Yêu cầu
 
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+#### Bắt buộc
 
-**Trình tự nên làm:** viết manifest frontend/backend (Deploy+Service) + database (StatefulSet+PVC) + ConfigMap/Secret + Ingress → apply → scale + rolling update.
+| # | Yêu cầu | Kiến thức từ |
+|---|---|---|
+| 1 | Namespace riêng cho hệ thống | Ngày 36 |
+| 2 | Frontend: Deployment 3 bản + Service | Ngày 37, 38 |
+| 3 | Backend: Deployment 2 bản + Service | Ngày 37, 38 |
+| 4 | Database: 1 bản + **PVC**, `strategy: Recreate` | Ngày 39 |
+| 5 | Ingress định tuyến `/` và `/api` về hai Service | Ngày 38 |
+| 6 | Cấu hình qua **ConfigMap**, mật khẩu qua **Secret** | Ngày 39 |
+| 7 | Mọi container khai `resources.requests` | Ngày 36 |
+| 8 | Chỉ Ingress ra ngoài; Service đều là ClusterIP | Ngày 38 |
+| 9 | Toàn bộ nằm trong file YAML, `kubectl apply -f` là dựng lại được | Ngày 36 |
+| 10 | Dữ liệu database sống sót khi xoá pod | Ngày 39 |
 
-**Giải nghĩa & kết quả mong đợi:**
-- Gom kiến thức Ngày 36–39: mỗi tầng 1 bộ manifest. `kubectl apply -f k8s/` (cả thư mục). *Kết quả:* `kubectl get all -n <ns>` thấy frontend/backend/db đều Running.
-- Ingress định tuyến `/` và `/api`. *Kết quả:* mở host thấy giao diện app.
+#### Nâng cao
 
-**🧪 Thử nghiệm:**
-- `kubectl scale deployment backend --replicas=3` rồi `get pods` → 3 pod backend. **Bài học:** scale ngang dễ dàng.
-- Xóa 1 pod backend giữa lúc đang truy cập → app không gián đoạn (Service sang pod còn sống + K8s tạo lại). **Bài học:** self-healing + load balancing.
-
-⚠️ **Dễ sai:** dùng Deployment cho database → mất dữ liệu/danh tính. Database = StatefulSet + PVC.
-
-💡 **Hiểu sâu:** đặt tên file có số thứ tự (`00-namespace`, `10-db`, `20-backend`...) để `apply` đúng thứ tự phụ thuộc. Đây là cách tổ chức manifest thực tế.
-
-### 📝 Bài ôn tập & Demo đối chiếu
-
-**✍️ Tự kiểm tra:**
-
-<details>
-<summary>1. Mỗi tầng của app 3 tầng dùng đối tượng K8s nào?</summary>
-
-> Frontend/backend: Deployment + Service (ClusterIP), expose qua Ingress. Database: StatefulSet + PVC. Cấu hình: ConfigMap. Mật khẩu: Secret. Gom trong 1 Namespace.
-</details>
-
-<details>
-<summary>2. Vì sao đặt tên file YAML có số thứ tự (00-, 10-, 20-)?</summary>
-
-> Để `kubectl apply -f k8s/` áp dụng đúng thứ tự phụ thuộc (namespace trước, rồi db, backend, frontend, ingress).
-</details>
-
-<details>
-<summary>3. Xoá 1 pod backend giữa lúc dùng thì sao?</summary>
-
-> App không gián đoạn: Service chuyển traffic sang pod còn sống, K8s tự tạo lại pod mới (self-healing + load balancing).
-</details>
-
-<details>
-<summary>4. Vì sao database dùng StatefulSet chứ không Deployment?</summary>
-
-> Database cần danh tính + storage ổn định cho mỗi pod. Deployment không đảm bảo điều đó → dễ mất dữ liệu.
-</details>
-
-**🔬 Demo đối chiếu:**
-
-| Demo đối chiếu | Kết quả mong đợi |
+| # | Yêu cầu |
 |---|---|
-| App full-stack trên K8s | frontend + backend + db đều Running |
-| Truy cập từ ngoài cụm | Mở qua Ingress thấy giao diện app |
-| Manifests trong repo | `k8s/` có deployment, service, configmap... |
+| 11 | Dùng Kustomize hoặc chia thư mục theo môi trường |
+| 12 | `NetworkPolicy` chỉ cho backend gọi được database |
+| 13 | `resources.limits` cho RAM ở mọi container |
+| 14 | Nhãn chuẩn `app.kubernetes.io/*` cho mọi tài nguyên |
+| 15 | Một lệnh duy nhất dựng toàn bộ (`make trien-khai`) |
 
-### 📚 Thuật ngữ Anh–Việt (tổng hợp K8s cơ bản)
+### 📐 Tiêu chí chấm (100 điểm)
 
-| Thuật ngữ | Nghĩa |
-|---|---|
-| **Manifest** | File YAML mô tả đối tượng K8s |
-| **Deployment / StatefulSet** | Chạy app stateless / stateful |
-| **Service / Ingress** | Địa chỉ ổn định / cửa vào định tuyến |
-| **ConfigMap / Secret** | Cấu hình / bí mật tách khỏi image |
-| **PVC** | Xin lưu trữ bền vững |
-| **Namespace** | Vùng logic cluster |
-| **Self-healing / Scale** | Tự tạo lại pod / tăng bản sao |
+| Hạng mục | Điểm | Đạt tối đa khi |
+|---|---:|---|
+| Cấu trúc tài nguyên | 15 | Namespace riêng, nhãn nhất quán, tên rõ nghĩa |
+| Deployment | 20 | Đủ số bản, selector khớp nhãn, khai requests |
+| Mạng | 20 | Service đúng loại, Ingress định tuyến đúng, không lộ thừa |
+| Cấu hình & bí mật | 15 | ConfigMap và Secret tách bạch, không viết cứng trong YAML |
+| Lưu trữ | 15 | PVC gắn đúng, dữ liệu bền, `Recreate` cho database |
+| Dựng lại được | 15 | Xoá namespace rồi `apply` lại ra đúng hệ thống cũ |
 
-### 🎯 Đúc kết Ngày 40 (Milestone K8s)
+### 🔥 Ba phép thử quyết định
+
+**Phép thử 1 — Tự phục hồi (15 điểm).**
+```bash
+kubectl -n cua-hang delete pod -l app=web --wait=false
+kubectl -n cua-hang get pods -w
+```
+> Pod mới phải lên trong vài giây, và trang web **không được** gián đoạn (còn 2 bản kia phục vụ).
+
+**Phép thử 2 — Dữ liệu bền (15 điểm).**
+```bash
+# Ghi dữ liệu
+kubectl -n cua-hang exec deploy/db -- psql -U postgres -c \
+  "CREATE TABLE thu(x int); INSERT INTO thu VALUES (42);"
+
+# Giết pod database
+kubectl -n cua-hang delete pod -l app=db
+kubectl -n cua-hang rollout status deploy/db
+
+# Dữ liệu phải còn
+kubectl -n cua-hang exec deploy/db -- psql -U postgres -c "SELECT * FROM thu;"
+```
+
+**Phép thử 3 — Dựng lại toàn bộ (15 điểm).**
+```bash
+kubectl delete namespace cua-hang
+kubectl apply -f k8s/            # hoặc: kubectl apply -k k8s/overlays/dev
+sleep 60
+curl -s http://shop.local/ | head -3
+curl -s http://shop.local/api/health
+```
+> Toàn bộ hệ thống phải trở lại. Nếu phải gõ thêm lệnh nào ngoài `apply` thì bạn còn thiếu file.
+
+### 🧪 Bộ kiểm chứng
+
+```bash
+#!/usr/bin/env bash
+NS=cua-hang
+diem=0
+kiem() { if eval "$2" &>/dev/null; then echo "  ✅ $1 (+$3)"; diem=$((diem+$3)); else echo "  ❌ $1"; fi; }
+
+echo "▸ Cấu trúc"
+kiem "Có namespace riêng"          "kubectl get ns $NS" 5
+kiem "Dùng nhãn chuẩn"             "kubectl -n $NS get deploy -o yaml | grep -q 'app.kubernetes.io/name'" 5
+kiem "Mọi pod đang Running"        "! kubectl -n $NS get pods --no-headers | grep -qvE 'Running|Completed'" 5
+
+echo "▸ Deployment"
+kiem "Frontend có 3 bản"           "[ \$(kubectl -n $NS get deploy web -o jsonpath='{.status.readyReplicas}') -eq 3 ]" 7
+kiem "Backend có 2 bản"            "[ \$(kubectl -n $NS get deploy api -o jsonpath='{.status.readyReplicas}') -eq 2 ]" 7
+kiem "Mọi container khai requests" "! kubectl -n $NS get pods -o json | grep -q '\"resources\":{}'" 6
+
+echo "▸ Mạng"
+kiem "Service web có endpoint"     "[ -n \"\$(kubectl -n $NS get endpoints web -o jsonpath='{.subsets}')\" ]" 6
+kiem "Service api có endpoint"     "[ -n \"\$(kubectl -n $NS get endpoints api -o jsonpath='{.subsets}')\" ]" 6
+kiem "Không Service nào NodePort"  "! kubectl -n $NS get svc -o yaml | grep -q 'type: NodePort'" 4
+kiem "Có Ingress với địa chỉ"      "[ -n \"\$(kubectl -n $NS get ingress -o jsonpath='{.items[0].status.loadBalancer.ingress}')\" ]" 4
+
+echo "▸ Cấu hình"
+kiem "Có ConfigMap"                "kubectl -n $NS get configmap | grep -qv NAME" 5
+kiem "Có Secret"                   "kubectl -n $NS get secret | grep -q Opaque" 5
+kiem "Không mật khẩu viết cứng"    "! grep -rqiE 'password:\s*[\"'\'']?[a-z0-9]{6,}' k8s/*.yaml" 5
+
+echo "▸ Lưu trữ"
+kiem "PVC đã Bound"                "kubectl -n $NS get pvc -o jsonpath='{.items[0].status.phase}' | grep -q Bound" 8
+kiem "Database dùng Recreate"      "kubectl -n $NS get deploy db -o jsonpath='{.spec.strategy.type}' | grep -q Recreate" 7
+
+echo ""
+echo "  ĐIỂM (tự động): $diem / 85"
+```
+
+### ⚠️ Những cái bẫy hay gặp
+
+| Bẫy | Hậu quả | Cách tránh |
+|---|---|---|
+| `selector` không khớp `labels` | Service không tìm thấy pod, gọi vào treo | `kubectl get endpoints` — thấy `<none>` là biết |
+| Database dùng `RollingUpdate` | Pod mới kẹt vì không gắn được ổ RWO | `strategy: Recreate` |
+| Database `replicas: 2` với ổ RWO | `Multi-Attach error`, pod kẹt mãi | Chỉ 1 bản, hoặc dùng StatefulSet |
+| Mật khẩu viết thẳng trong YAML | Lộ khi commit | ConfigMap cho cấu hình, Secret cho bí mật |
+| Không khai `requests` | Scheduler xếp nhầm, pod bị giết trước khi node cạn RAM | Luôn khai requests |
+| Khai Ingress mà chưa bật Controller | Không có gì xảy ra cả | `minikube addons enable ingress` |
+| Backend gọi database bằng IP pod | Hỏng ngay lần pod database restart đầu tiên | Gọi bằng tên Service |
+
+### 💬 Gợi ý khi bí
+
+<details>
+<summary><b>Nên tổ chức thư mục YAML thế nào?</b></summary>
+
+Cách đơn giản, dùng được ngay:
+
+```text
+k8s/
+├── 00-namespace.yaml
+├── 01-configmap.yaml
+├── 02-secret.yaml
+├── 10-db-pvc.yaml
+├── 11-db-deployment.yaml
+├── 12-db-service.yaml
+├── 20-api-deployment.yaml
+├── 21-api-service.yaml
+├── 30-web-deployment.yaml
+├── 31-web-service.yaml
+└── 40-ingress.yaml
+```
+
+Đánh số ở đầu tên file để `kubectl apply -f k8s/` áp theo đúng thứ tự (namespace trước, ingress sau cùng). Đơn giản mà hiệu quả.
+
+Khi cần nhiều môi trường, chuyển sang **Kustomize**: một thư mục `base/` chung và các `overlays/dev`, `overlays/prod` chỉ ghi phần khác biệt. Helm (Ngày 42) là bước tiếp theo nữa.
+</details>
+
+<details>
+<summary><b>Backend kết nối database thế nào cho đúng?</b></summary>
+
+Gọi bằng **tên Service**, và lấy mật khẩu từ Secret:
+
+```yaml
+        env:
+          - name: DB_HOST
+            value: "db"                      # tên Service, KHÔNG phải IP
+          - name: DB_PORT
+            value: "5432"
+          - name: DB_NAME
+            valueFrom:
+              configMapKeyRef:
+                name: cau-hinh-app
+                key: TEN_DATABASE
+          - name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: bi-mat-db
+                key: MAT_KHAU
+```
+
+Kiểm chứng từ bên trong cluster:
+```bash
+kubectl -n cua-hang exec deploy/api -- nslookup db
+kubectl -n cua-hang exec deploy/api -- nc -zv db 5432
+```
+</details>
+
+<details>
+<summary><b>Ingress trả 404, kiểm tra theo thứ tự nào?</b></summary>
+
+Bốn bước, dừng lại ở bước nào sai thì sửa ngay bước đó:
+
+```bash
+# 1) Controller có chạy không?
+kubectl get pods -n ingress-nginx
+
+# 2) Ingress có nhận được địa chỉ chưa?
+kubectl -n cua-hang get ingress
+
+# 3) Service phía sau có endpoint không? (nguyên nhân phổ biến nhất)
+kubectl -n cua-hang get endpoints
+
+# 4) Luật định tuyến có đúng không?
+kubectl -n cua-hang describe ingress | grep -A10 Rules
+```
+
+Hai lỗi hay gặp nhất: **thiếu `ingressClassName: nginx`**, và **đặt `/` trước `/api`** khiến `/` nuốt hết mọi đường dẫn.
+</details>
+
+### 🎯 Đúc kết Ngày 40 — Tổng kết phần Kubernetes cơ bản
 
 **3 điều phải mang theo:**
-1. **App 3 tầng lên K8s:** frontend/backend = Deployment + Service (ClusterIP) sau Ingress; database = StatefulSet + PVC; cấu hình qua ConfigMap/Secret; gom vào một Namespace.
-2. **Tổ chức manifest theo số thứ tự** (`00-namespace` → `10-db` → `20-backend` → `30-frontend` → `40-ingress`) để `apply` đúng thứ tự phụ thuộc.
-3. **Sức mạnh thấy tận mắt:** scale = đổi `replicas`; xoá pod = tự mọc lại (self-healing + load balancing) — thứ Docker Compose không cho.
 
-> 🧠 **Một câu để nhớ:** database dùng **StatefulSet + PVC** (không phải Deployment) — để giữ dữ liệu + danh tính ổn định; đây là lỗi nhầm phổ biến nhất khi mới deploy DB lên K8s.
+1. **Toàn bộ hệ thống phải nằm trong YAML.** Xoá namespace rồi `apply` lại ra đúng hệ thống cũ — đó là thước đo bạn đã làm đúng tinh thần khai báo hay chưa.
+2. **Không trạng thái thì nhân bản thoải mái; có trạng thái thì phải cẩn thận.** Frontend và backend chạy nhiều bản; database cần PVC, một bản, và `Recreate`.
+3. **Chỉ mở ra ngoài đúng một cửa.** Mọi Service là ClusterIP, Ingress là lối vào duy nhất.
 
-**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
-- [ ] Deploy app full-stack (fe + be + db) lên cluster, tất cả `Running`
-- [ ] Truy cập app từ ngoài qua Ingress
-- [ ] Scale backend lên 3 và làm rolling update
-- [ ] Xoá 1 pod và thấy self-healing giữ app không gián đoạn
-- [ ] Tổ chức toàn bộ YAML trong `k8s/` theo thứ tự phụ thuộc
+> 🧠 **Một câu để nhớ:** nếu bạn không dám xoá namespace vì sợ không dựng lại được, thì hệ thống của bạn **chưa nằm trong YAML** — nó vẫn nằm trong những lệnh bạn đã gõ.
 
-✅ **Kết quả đạt được — MỐC 5:** Triển khai ứng dụng full-stack lên Kubernetes — kỹ năng cao cấp.
+**✅ Tự chấm Milestone:**
+
+- [ ] Đạt từ 75 điểm
+- [ ] Phép thử 1: giết pod, dịch vụ không gián đoạn
+- [ ] Phép thử 2: dữ liệu database sống sót
+- [ ] Phép thử 3: xoá namespace rồi dựng lại hoàn chỉnh
+- [ ] Giải thích được vì sao database khác frontend về cách triển khai
+
+✅ **Kết quả đạt được:** Hệ thống ba tầng chạy trên Kubernetes, mô tả hoàn toàn bằng YAML, tự phục hồi và giữ được dữ liệu — nền để Ngày 41 thêm probe và tự co giãn.
 
 ---
 
@@ -8681,150 +8852,249 @@ Tổng số thành phần: 42
 
 ## Ngày 50 — MILESTONE: LAB tổng hợp Giai đoạn 3
 
-> ⏱️ ~150 phút · Loại: Milestone
+> ⏱️ ~180 phút · Loại: LAB Final
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 31–49 (CI/CD, K8s, Monitoring, IaC, Security) → **Ngày 50 (ghép thành 1 vòng DevOps khép kín)** → Giai đoạn 4 (SRE + dự án tốt nghiệp). Đây là lúc mọi mắt xích nối lại thành hệ thống hoàn chỉnh.
+> 🧭 **Bạn đang ở đâu:** Ngày 31–49 (CI/CD, Kubernetes, Helm, GitOps, giám sát, Ansible, Terraform, bảo mật) → **Ngày 50 (nối tất cả thành một vòng khép kín)** → Giai đoạn 4 (SRE & dự án tốt nghiệp).
 >
-> ✅ **Chuẩn bị:** app + CI/CD (Ngày 35), cluster K8s + Helm (Ngày 42), ArgoCD (Ngày 43), monitoring stack (Ngày 44–46). Ghép tất cả.
+> ✅ **Chuẩn bị:** cluster đang chạy, repo mã nguồn và repo cấu hình, stack giám sát.
+>
+> 🎯 **Đây là bài lớn nhất từ đầu khoá.** Nó ghép 19 ngày kiến thức vào một hệ thống duy nhất. Hãy chia thành 2–3 buổi nếu cần.
 
-### 📘 Lý thuyết — Tổng kết
+### 📋 Đề bài — "Vòng DevOps khép kín"
 
-- **Mạch kiến thức:** CI/CD → Kubernetes → Helm → GitOps → Monitoring (Prometheus/Grafana/Loki) → Ansible → Terraform nâng cao → DevSecOps.
-- **Bạn đã có toàn bộ kỹ năng của 1 DevOps Engineer hiện đại.**
-- **Kiến trúc hoàn chỉnh:** Code → CI (test+scan) → build image → push → GitOps deploy K8s → monitor → alert.
+> Xây một hệ thống mà từ lúc bạn `git push` tới lúc **nhìn thấy thay đổi đó trên dashboard giám sát**, không ai chạm tay vào bất cứ đâu.
 
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
-
-**Milestone lớn nhất: ghép TOÀN BỘ thành 1 vòng khép kín.**
-`push code → CI (test + quét bảo mật) → build image → đẩy config repo → ArgoCD tự deploy lên K8s (probe + HPA) → Prometheus/Grafana/Loki giám sát`. Đây là **chân dung một hệ thống DevOps hiện đại hoàn chỉnh**. Bạn đã có đủ kỹ năng của 1 DevOps Engineer.
-
-**Điều quan trọng nhất cần "ngấm":**
-Không phải nhớ từng công cụ, mà hiểu **chúng ghép vào nhau thế nào** thành 1 vòng tự động: code → kiểm tra → đóng gói → triển khai → giám sát → (phát hiện vấn đề) → cải tiến → lặp lại. Mỗi công cụ chỉ là 1 mắt xích.
-
-**So sánh để thấy sự trưởng thành:**
-- Giai đoạn 1: gõ lệnh tay trên 1 server.
-- Giai đoạn 2: đóng gói + đưa lên cloud bằng code.
-- Giai đoạn 3 (giờ): **toàn bộ tự động + tự phục hồi + tự giám sát** ở quy mô lớn.
-
-### 🧪 Lab cơ bản (Milestone)
-
-1. Ghép tất cả: pipeline CI build+scan image → push → ArgoCD deploy lên K8s → Prometheus/Grafana giám sát.
-2. Dùng Helm chart cho app, Terraform tạo cluster/hạ tầng, Ansible cấu hình node (nếu cần).
-3. Thiết lập dashboard giám sát và 1 alert hoạt động.
-4. Toàn bộ trong monorepo có cấu trúc rõ ràng + README + sơ đồ kiến trúc.
-5. Tự đánh giá theo checklist năng lực DevOps đầy đủ.
-
-### 🚀 Lab nâng cao (best-practice) — Mô hình DevOps hoàn chỉnh
-
-**Mô hình hệ thống DevOps end-to-end:**
-```mermaid
-flowchart TD
-    Dev(("👤 Dev")) -->|push| APPREPO["📁 app repo"]
-    APPREPO --> CI["🧪 CI · lint→test→scan (Trivy/tfsec)<br/>build image (SHA) → push registry → cập nhật tag"]
-    CI --> CFG["📁 config repo · Helm / manifests"]
-    CFG -->|"pull"| ARGO["🔄 ArgoCD · GitOps"]
-    ARGO --> K8S["☸️ Kubernetes<br/>Terraform tạo · Helm deploy<br/>app + ingress + HPA + probe"]
-    K8S -->|"metrics + logs"| OBS["📊 Prometheus + Grafana + Loki<br/>dashboard (golden signals) + alert"]
-    classDef ci fill:#e3f2fd,stroke:#1976d2;
-    classDef gitops fill:#e8f5e9,stroke:#2e7d32;
-    classDef obs fill:#fff3e0,stroke:#f57c00;
-    class CI ci;
-    class ARGO,K8S gitops;
-    class OBS obs;
+```text
+   git push
+      ↓
+   [CI]  lint → test → quét bảo mật
+      ↓
+   [Image]  build → tag SHA → registry
+      ↓
+   [Repo cấu hình]  CI tự cập nhật tag
+      ↓
+   [ArgoCD]  phát hiện Git đổi → tự đồng bộ
+      ↓
+   [Kubernetes]  rolling update · probe · HPA · nhiều bản
+      ↓
+   [Giám sát]  Prometheus + Grafana + Loki → dashboard đổi theo
+      ↓
+   [Cảnh báo]  có vấn đề → báo ngay
+      ↓
+   quay lại đầu: sửa code → push
 ```
 
-**Yêu cầu best-practice:**
-1. **CI có quét bảo mật** (shift-left), image tag bất biến.
-2. **GitOps (ArgoCD)** — Git là nguồn sự thật, không CI nào có credential cluster.
-3. **K8s có probe + resource limits + HPA.**
-4. **Monitoring đủ 3 trụ cột** (metric/log + alert đến kênh thật).
-5. **Hạ tầng bằng Terraform** (module + remote state), README có sơ đồ.
+### ✅ Yêu cầu
 
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+#### Bắt buộc
 
-**Trình tự nên làm:** ghép CI (test+scan→build→push) → ArgoCD deploy K8s → Prometheus/Grafana/Loki giám sát → 1 alert hoạt động → monorepo + README.
+| # | Yêu cầu | Kiến thức từ |
+|---|---|---|
+| 1 | CI đủ tầng + 3 lớp quét bảo mật, chặn được | Ngày 32, 49 |
+| 2 | Image tag SHA trên registry | Ngày 33 |
+| 3 | **Helm chart** cho ứng dụng, values tách theo môi trường | Ngày 42 |
+| 4 | **GitOps**: ArgoCD tự đồng bộ từ repo cấu hình | Ngày 43 |
+| 5 | Ứng dụng có probe, nhiều bản, HPA | Ngày 41 |
+| 6 | **Prometheus + Grafana** với dashboard provisioning từ file | Ngày 44, 45 |
+| 7 | **Loki** gom log toàn hệ thống | Ngày 46 |
+| 8 | Ít nhất 3 cảnh báo có ý nghĩa | Ngày 44, 45 |
+| 9 | Hạ tầng/namespace bằng **Terraform** | Ngày 48 |
+| 10 | Quay lui bằng `git revert`, dưới 3 phút | Ngày 43 |
+| 11 | Monorepo có cấu trúc rõ + README có sơ đồ | — |
 
-**Giải nghĩa & kết quả mong đợi:**
-- Liên hoàn: `push → CI (scan) → image → config repo → ArgoCD sync → K8s (probe/HPA) → metrics/log lên Grafana`. *Kết quả:* deploy mới phản ánh trên dashboard real-time.
-- Helm chart cho app, Terraform tạo cluster, alert gửi tới kênh thật.
+#### Nâng cao
 
-**🧪 Thử nghiệm:**
-- Sửa code → push → theo dõi đi qua từng chặng (CI xanh → ArgoCD Synced → pod mới → dashboard cập nhật). **Bài học:** thấy cả vòng đời DevOps chạy.
-- Làm backend lỗi → xem alert kích hoạt + dashboard đổi màu. **Bài học:** observability phát hiện sự cố.
-
-⚠️ **Dễ sai:** CI có credential trực tiếp vào cluster (push-based). Chuẩn hiện đại: GitOps (ArgoCD pull) — không lộ credential cluster.
-
-💡 **Hiểu sâu:** điểm mấu chốt không phải biết từng công cụ, mà hiểu **chúng ghép vào nhau** thành vòng khép kín: code → test → build → deploy → giám sát → cải tiến. Đây là năng lực của 1 DevOps Engineer hiện đại.
-
-### 📝 Bài ôn tập & Demo đối chiếu
-
-**✍️ Tự kiểm tra:**
-
-<details>
-<summary>1. Mô tả vòng DevOps khép kín từ code đến giám sát.</summary>
-
-> push → CI (lint/test/scan) → build image (SHA) → cập nhật config repo → ArgoCD sync → K8s (probe/HPA) → Prometheus/Grafana/Loki giám sát → phát hiện vấn đề → cải tiến → lặp lại.
-</details>
-
-<details>
-<summary>2. Vì sao GitOps an toàn hơn CI push thẳng vào cluster?</summary>
-
-> Không CI nào giữ credential cluster; ArgoCD trong cluster tự kéo từ Git → không lộ chìa khoá, có dấu vết, rollback bằng git revert.
-</details>
-
-<details>
-<summary>3. Điều quan trọng nhất cần "ngấm" ở Giai đoạn 3 là gì?</summary>
-
-> Không phải nhớ từng công cụ, mà hiểu **chúng ghép vào nhau** thành 1 vòng tự động khép kín. Mỗi công cụ là 1 mắt xích.
-</details>
-
-<details>
-<summary>4. So sánh mức trưởng thành qua 3 giai đoạn.</summary>
-
-> GĐ1: gõ tay 1 server. GĐ2: đóng gói + lên cloud bằng code. GĐ3: tự động + tự phục hồi + tự giám sát ở quy mô lớn.
-</details>
-
-**🔬 Demo đối chiếu:**
-
-| Demo đối chiếu | Kết quả mong đợi |
+| # | Yêu cầu |
 |---|---|
-| Pipeline + K8s + Monitoring liên hoàn | push → CI/CD → deploy K8s → metric/log lên Grafana |
-| Thấy sức khoẻ hệ thống | Dashboard phản ánh deploy mới real-time |
-| Toàn bộ khai báo trong Git | Hạ tầng + app + pipeline đều version-controlled |
+| 12 | CI **tự cập nhật tag** vào repo cấu hình (khép kín hoàn toàn) |
+| 13 | Ansible cấu hình node hoặc máy chủ phụ trợ |
+| 14 | `NetworkPolicy` giới hạn luồng mạng giữa các tầng |
+| 15 | Cảnh báo gửi tới kênh chat thật |
+| 16 | Triển khai canary hoặc blue-green |
 
-### 📚 Thuật ngữ Anh–Việt (tổng hợp Giai đoạn 3)
+### 📐 Tiêu chí chấm (100 điểm)
 
-| Thuật ngữ | Nghĩa |
-|---|---|
-| **CI/CD** | Tự build-test-deploy |
-| **Kubernetes** | Điều phối container |
-| **GitOps** | Git là nguồn chân lý, tự đồng bộ |
-| **Helm** | Đóng gói app K8s |
-| **Observability** | Metric + Log + Trace |
-| **DevSecOps** | Bảo mật xuyên suốt pipeline |
-| **IaC** | Hạ tầng dưới dạng code |
+| Hạng mục | Điểm | Đạt tối đa khi |
+|---|---:|---|
+| CI & bảo mật | 15 | Nhiều tầng, 3 lớp quét chặn thật, dưới 5 phút |
+| Đóng gói & registry | 10 | Tag bất biến, truy ngược được |
+| Helm | 10 | Tham số hoá tốt, nhiều môi trường, `lint` sạch |
+| GitOps | 15 | Tự đồng bộ, selfHeal hoạt động, quay lui bằng Git |
+| Kubernetes | 15 | Probe, HPA, nhiều bản, requests đầy đủ |
+| Giám sát | 20 | Metric + log + dashboard từ file + cảnh báo tới nơi thật |
+| Hạ tầng bằng code | 10 | Terraform dựng được, có remote state |
+| Tài liệu | 5 | README có sơ đồ, người lạ hiểu được |
 
-### 🎯 Đúc kết Ngày 50 (Tổng kết Giai đoạn 3)
+> 🎯 **Từ 80 điểm** là đủ năng lực của một DevOps Engineer. Đây cũng chính là bộ khung cho dự án tốt nghiệp ở Ngày 56–59.
+
+### 🔥 Phép thử lớn — "Một vòng trọn vẹn"
+
+Đây là bài kiểm tra duy nhất thật sự quan trọng hôm nay. Làm liền mạch, ghi lại thời gian từng chặng.
+
+```bash
+# ── CHẶNG 1: Thay đổi code ─────────────────────
+cd ~/cloudnote
+sed -i 's/phiên bản cũ/PHIÊN BẢN MỚI/' app/backend/app.js
+T0=$(date +%s)
+git commit -am "Đo một vòng khép kín" && git push
+
+# ── CHẶNG 2: theo dõi từng chặng ───────────────
+# (mở song song các cửa sổ này)
+#  a) tab Actions trên GitHub        → CI xanh lúc nào?
+#  b) kubectl get application -n argocd -w  → Synced lúc nào?
+#  c) kubectl get pods -w            → pod mới lên lúc nào?
+#  d) dashboard Grafana              → đồ thị phản ánh lúc nào?
+
+# ── CHẶNG 3: xác nhận ──────────────────────────
+curl -s http://<dia-chi>/api/version
+echo "Tổng thời gian một vòng: $(( $(date +%s) - T0 )) giây"
+```
+
+Ghi lại **bảng thời gian từng chặng** — nó cho bạn biết chỗ nghẽn nằm ở đâu:
+
+| Chặng | Thời gian của bạn | Mốc tham khảo |
+|---|---|---|
+| push → CI xanh | ___ | dưới 3 phút |
+| CI xanh → image trên registry | ___ | dưới 2 phút |
+| image → ArgoCD phát hiện | ___ | dưới 3 phút (có webhook thì vài giây) |
+| ArgoCD → pod mới chạy | ___ | dưới 1 phút |
+| pod mới → dashboard phản ánh | ___ | dưới 1 phút |
+| **Tổng** | ___ | **dưới 10 phút** |
+
+### 🔥 Bốn phép thử phụ
+
+**1. Tự phục hồi.** `kubectl delete pod -l app=api` → dịch vụ không gián đoạn, pod mới lên trong vài giây.
+
+**2. Chống trôi cấu hình.** `kubectl scale deploy/api --replicas=9` → ArgoCD đưa về đúng số trong Git sau khoảng 30 giây.
+
+**3. Quay lui.** `git revert` trên repo cấu hình → hệ thống về bản cũ. Bấm giờ.
+
+**4. Phát hiện sự cố.** Dừng database → cảnh báo phải bắn **và** bạn phải tìm ra nguyên nhân bằng log trong vòng 5 phút.
+
+### 🧪 Bộ kiểm chứng
+
+```bash
+#!/usr/bin/env bash
+NS=cua-hang
+diem=0
+kiem() { if eval "$2" &>/dev/null; then echo "  ✅ $1 (+$3)"; diem=$((diem+$3)); else echo "  ❌ $1"; fi; }
+
+echo "▸ CI & bảo mật"
+for t in gitleaks trivy hadolint; do
+  kiem "Quét bằng $t" "grep -rqi '$t' .github/workflows/" 4
+done
+kiem "CI nhiều tầng"              "grep -rq 'needs:' .github/workflows/" 3
+
+echo "▸ Đóng gói"
+kiem "Tag theo SHA"               "grep -rq 'github.sha' .github/workflows/" 5
+kiem "Không deploy latest"        "! grep -rq 'tag:.*latest' ../cloudnote-config/ 2>/dev/null" 5
+
+echo "▸ Helm"
+kiem "Chart hợp lệ"               "helm lint ./helm/* 2>/dev/null | grep -q '0 chart(s) failed'" 5
+kiem "Values theo môi trường"     "ls helm/*/values-*.yaml 2>/dev/null | grep -q ." 5
+
+echo "▸ GitOps"
+kiem "ArgoCD có Application"      "kubectl get application -n argocd | grep -qv NAME" 5
+kiem "Trạng thái Synced"          "kubectl get application -n argocd -o jsonpath='{.items[0].status.sync.status}' | grep -q Synced" 5
+kiem "Bật tự đồng bộ + selfHeal"  "kubectl get application -n argocd -o yaml | grep -q selfHeal" 5
+
+echo "▸ Kubernetes"
+kiem "Có readinessProbe"          "kubectl -n $NS get deploy -o yaml | grep -q readinessProbe" 5
+kiem "Có livenessProbe"           "kubectl -n $NS get deploy -o yaml | grep -q livenessProbe" 4
+kiem "Có HPA"                     "kubectl -n $NS get hpa | grep -qv NAME" 3
+kiem "Nhiều bản cho app không trạng thái" "[ \$(kubectl -n $NS get deploy api -o jsonpath='{.spec.replicas}') -ge 2 ]" 3
+
+echo "▸ Giám sát"
+kiem "Prometheus đang chạy"       "kubectl get pods -A | grep -q prometheus" 5
+kiem "Grafana đang chạy"          "kubectl get pods -A | grep -q grafana" 5
+kiem "Loki đang chạy"             "kubectl get pods -A | grep -q loki" 5
+kiem "Dashboard trong Git"        "ls **/dashboards/*.json 2>/dev/null | grep -q ." 5
+
+echo "▸ Hạ tầng bằng code"
+kiem "Terraform hợp lệ"           "terraform -chdir=terraform validate" 5
+kiem "Không commit state"         "! git ls-files | grep -q tfstate" 5
+
+echo "▸ Tài liệu"
+kiem "README có sơ đồ"            "grep -qE 'mermaid|!\[' README.md" 5
+
+echo ""
+echo "  ĐIỂM (tự động): $diem / 92"
+```
+
+### ⚠️ Những cái bẫy hay gặp
+
+| Bẫy | Hậu quả | Cách tránh |
+|---|---|---|
+| CI có kubeconfig của cluster | Lộ CI là lộ cluster | GitOps — CI chỉ ghi vào repo cấu hình |
+| Gộp mã nguồn và cấu hình một repo | Lịch sử code ngập commit "đổi tag" | Tách hai repo |
+| Dashboard bấm tay | Mất khi Grafana dựng lại | Provisioning từ file |
+| Bật `selfHeal` khi chưa quen | Sửa tay bị hoàn tác, gây bực bội | Hiểu rõ trước khi bật (Ngày 43) |
+| Alert ngưỡng CPU | Đánh thức người vô ích | Alert theo triệu chứng người dùng thấy |
+| Không đo từng chặng | Không biết nghẽn ở đâu | Bảng thời gian ở phép thử lớn |
+
+### 💬 Gợi ý khi bí
+
+<details>
+<summary><b>Monorepo hay nhiều repo? Tổ chức thế nào?</b></summary>
+
+Cấu trúc dùng phổ biến — **hai repo**:
+
+```text
+cloudnote/                    ← repo mã nguồn (lập trình viên sửa)
+├── app/{backend,frontend}/
+├── helm/cloudnote/           ← chart (khuôn)
+├── terraform/
+├── .github/workflows/
+└── docs/
+
+cloudnote-config/             ← repo cấu hình (CI và người vận hành sửa)
+└── ung-dung/
+    ├── dev/values.yaml       ← tag image nằm ở đây
+    └── prod/values.yaml
+```
+
+Vì sao tách: mỗi lần deploy là một commit vào repo cấu hình. Gộp chung thì lịch sử code ngập commit "cập nhật tag", và mỗi lần đổi cấu hình lại kích hoạt chạy lại toàn bộ CI một cách vô nghĩa.
+</details>
+
+<details>
+<summary><b>Làm sao khép kín vòng mà không sửa tag bằng tay?</b></summary>
+
+Thêm một job cuối vào workflow build image: clone repo cấu hình, sửa tag, commit ngược lại (xem chi tiết ở gợi ý Ngày 57). Cần một PAT có quyền ghi repo cấu hình, cất trong Secrets.
+
+Sau đó ArgoCD thấy Git đổi và tự đồng bộ — **vòng khép kín hoàn toàn**: bạn chỉ push code, không chạm vào cluster, và mọi thay đổi đều có commit ghi lại.
+</details>
+
+<details>
+<summary><b>Ba cảnh báo nào nên đặt cho hệ thống này?</b></summary>
+
+1. **Dịch vụ không phản hồi** — `up == 0` hoặc probe thất bại, `for: 2m`
+2. **Tỉ lệ lỗi 5xx vượt 5%** trong 5 phút
+3. **Pod liên tục restart** — `rate(kube_pod_container_status_restarts_total[15m]) > 0`
+
+Ba cái này bắt được phần lớn sự cố thật. Đừng đặt cảnh báo CPU/RAM trừ khi bạn có lý do cụ thể — chúng gây nhiễu nhiều hơn giúp ích. Ngày 51 sẽ cho bạn cách tốt hơn nữa: cảnh báo theo tốc độ đốt ngân sách lỗi.
+</details>
+
+### 🎯 Đúc kết Ngày 50 — Tổng kết Giai đoạn 3
 
 **3 điều phải mang theo:**
-1. **Cả Giai đoạn 3 là MỘT vòng khép kín:** code → CI (test + scan) → build image (SHA) → GitOps deploy K8s (probe/HPA) → observability (metric/log + alert) → phát hiện → cải tiến → lặp. Giá trị nằm ở cách các mắt xích *ghép vào nhau*, không phải ở từng công cụ rời.
-2. **Ba trụ tư duy xuyên suốt:** *declarative* (khai đích, để máy giữ — K8s/Terraform/Ansible/GitOps), *bất biến* (image/tag SHA → rollback nhẹ nhàng), và *shift-left* (chất lượng + bảo mật đẩy về sớm).
-3. **GitOps là chuẩn hiện đại:** Git là nguồn chân lý, không ai cầm chìa khoá cluster push tay — an toàn, có dấu vết, rollback = `git revert`.
 
-> 🧠 **Một câu để nhớ:** chuẩn hiện đại là **GitOps** — không ai có chìa khóa cluster để push tay; mọi thay đổi qua Git, ArgoCD tự kéo. An toàn + có dấu vết + rollback dễ.
+1. **Giá trị nằm ở chỗ các công cụ nối vào nhau**, không ở từng công cụ riêng lẻ. Mỗi cái chỉ là một mắt xích; điều đáng học là **cách chúng ghép thành một vòng**.
+2. **Không ai bên ngoài cần giữ chìa khoá cluster.** CI ghi vào Git, tác nhân trong cluster tự kéo về. Đây là khác biệt lớn nhất về bảo mật so với cách deploy ở Ngày 34.
+3. **Vòng chỉ khép kín khi có giám sát.** Không có phần đo lường và cảnh báo, bạn chỉ có một dây chuyền đẩy code — không phải một hệ thống vận hành được.
 
-**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
-- [ ] Dựng vòng khép kín push → CI/CD → GitOps deploy K8s → monitoring và demo end-to-end
-- [ ] Giải thích vì sao GitOps (pull) an toàn hơn CI push thẳng vào cluster
-- [ ] App K8s có probe + resource limits + HPA + Ingress
-- [ ] Monitoring đủ metric + log, có ít nhất 1 alert gửi tới kênh thật
-- [ ] Hạ tầng bằng Terraform (module + remote state), mọi thứ khai báo trong Git
+> 🧠 **Một câu để nhớ:** hết Giai đoạn 3, thứ bạn xây không phải "một hệ thống chạy trên Kubernetes" — mà là **một vòng tự động: code đổi → hệ thống đổi → bạn nhìn thấy nó đổi**.
 
-✅ **Kết quả đạt được — MỐC 6:** Làm chủ toàn bộ stack DevOps hiện đại — sẵn sàng cho dự án tốt nghiệp.
+**✅ Tự chấm Milestone Giai đoạn 3:**
+
+- [ ] Đạt từ 80 điểm
+- [ ] Phép thử lớn: một vòng trọn vẹn dưới 10 phút, có bảng thời gian từng chặng
+- [ ] Bốn phép thử phụ đều đạt
+- [ ] Không hệ thống nào bên ngoài giữ kubeconfig của cluster
+- [ ] README có sơ đồ toàn bộ vòng
+
+✅ **Kết quả đạt được:** Một vòng DevOps khép kín và đo được — cũng chính là bộ khung bạn sẽ dùng lại cho dự án tốt nghiệp ở Ngày 56–59.
 
 ---
-
-# 📎 Phụ lục Giai đoạn 3 — Kiến thức sống còn
 
 ## Phụ lục A — Lỗi thường gặp (CI/CD · K8s · Monitoring)
 
