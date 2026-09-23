@@ -2,7 +2,13 @@
 
 > **Ngày 51–60** · Độ tin cậy, tối ưu, dự án thực chiến và chuẩn bị sự nghiệp.
 >
-> **Khuôn mỗi ngày:** 📘 Lý thuyết → 🧪 Lab cơ bản → 🚀 Lab nâng cao (best-practice) → 💡 Bổ sung thực tế → 📝 Bài ôn tập.
+> **Khuôn mỗi ngày (51–55):** 📘 Lý thuyết → 🧪 LAB (file đầy đủ, copy là chạy) → 🧭 Hướng dẫn step by step (lệnh → output mẫu → ✅ checkpoint → ⚠️ lỗi) → 💡 Đi làm mới thấm → 🎯 Đúc kết.
+>
+> **Khuôn dự án tốt nghiệp (56–59):** 📋 Đề bài → ✅ Yêu cầu → 📐 Tiêu chí chấm điểm → 🗺️ Gợi ý trình tự → 🧪 Tự kiểm chứng → 💬 Gợi ý khi bí. **Không còn hướng dẫn từng bước** — bạn tự quyết cách làm.
+>
+> **Ngày 60:** LAB FINAL — bài kiểm tra năng lực cuối khoá (tự chấm 100 điểm) + bảng tự đánh giá 48 điểm + kế hoạch 90 ngày.
+>
+> 🖥️ **Mọi LAB chạy miễn phí trên máy bạn** (Docker + minikube). Không bắt buộc tài khoản cloud.
 >
 > ✅ Trung lập nền tảng — kiến thức SRE/FinOps/Platform áp dụng cho mọi hệ thống và nhà cung cấp.
 
@@ -1948,988 +1954,256 @@ print('  -> giãn dần, và jitter khiến các client KHÔNG thử lại cùng
 **Bạn sẽ thấy:**
 ```text
 Thử lại NGAY LẬP TỨC (sai):
-  lần 1: 0ms | lần 2: 0ms | lần 3: 0ms
-  -> 3 lần gọi dồn trong vài mili giây, đúng lúc dịch vụ đang yếu
-
-Chờ tăng dần + ngẫu nhiên (đúng):
-  lần 1: chờ 118ms
-  lần 2: chờ 243ms
-  lần 3: chờ 497ms
-  lần 4: chờ 906ms
-  -> giãn dần, và jitter khiến các client KHÔNG thử lại cùng lúc
-```
-
-✅ **Checkpoint:** hiểu vì sao cần cả *tăng dần* lẫn *ngẫu nhiên*.
-
-💡 **Phần "ngẫu nhiên" quan trọng hơn bạn tưởng.** Không có nó, 1000 client cùng gặp lỗi sẽ cùng thử lại sau đúng 100ms, rồi đúng 200ms — tạo ra từng đợt sóng đập vào dịch vụ đang ốm. Jitter làm các đợt sóng đó tãi ra.
-
-#### Bước 5 — Dọn dẹp Phần A
-
-```bash
-cd ~/lab54-mesh && docker compose down
-```
-
-### 🧪 LAB Phần B — Service mesh thật (tuỳ chọn, cần RAM)
-
-> Phần A đã dạy bạn **vấn đề**. Phần B cho thấy mesh giải nó thế nào mà **không phải sửa một dòng code nào**.
-
-#### Bước 6 — Cài Linkerd
-
-```bash
-minikube start --memory=4096 --cpus=2
-curl --proto '=https' --tlsv1.2 -sSfL https://run.linkerd.io/install-edge | sh
-export PATH=$HOME/.linkerd2/bin:$PATH
-linkerd version --client
-linkerd check --pre
-```
-
-**Bạn sẽ thấy:**
-```text
-Status check results are √
-```
-
-✅ **Checkpoint:** mọi mục kiểm tra trước cài đặt đều đạt.
-
-> 📌 Bản `edge` là bản miễn phí, cập nhật thường xuyên. Nếu lệnh cài đổi khác, xem [linkerd.io/getting-started](https://linkerd.io/getting-started). Không cài được cũng không sao — Phần A mới là phần cốt lõi.
-
-```bash
-linkerd install --crds | kubectl apply -f -
-linkerd install | kubectl apply -f -
-linkerd check
-```
-
-**Bạn sẽ thấy** (mất 1–2 phút): `Status check results are √`.
-
-#### Bước 7 — Đưa ứng dụng vào mesh mà không sửa code
-
-```bash
-kubectl create ns cua-hang
-
-# Triển khai 2 dịch vụ bình thường, KHÔNG biết gì về mesh
-kubectl -n cua-hang create deployment web --image=nginx:1.27-alpine
-kubectl -n cua-hang expose deployment web --port=80
-kubectl -n cua-hang create deployment api --image=hashicorp/http-echo:1.0 \
-  -- /http-echo -text="xin chào từ api" -listen=:5678
-kubectl -n cua-hang expose deployment api --port=5678
-
-kubectl -n cua-hang get pods
-```
-
-**Bạn sẽ thấy:** mỗi pod có `READY 1/1` — một container.
-
-Giờ tiêm mesh vào:
-
-```bash
-kubectl -n cua-hang get deploy -o yaml | linkerd inject - | kubectl apply -f -
-kubectl -n cua-hang rollout status deploy/web deploy/api
-kubectl -n cua-hang get pods
-```
-
-**Bạn sẽ thấy:**
-```text
-NAME                   READY   STATUS    RESTARTS   AGE
-api-7d9c8b5f4-x2mkp    2/2     Running   0          25s
-web-6b8f7d9c5-k4nqt    2/2     Running   0          25s
-```
-
-✅ **Checkpoint:** cột `READY` chuyển từ **1/1** thành **2/2** — container thứ hai chính là proxy.
-
-💡 **Bạn không sửa một dòng code nào, không build lại image nào.** Mesh chèn proxy vào cạnh ứng dụng và chiếm lấy toàn bộ lưu lượng mạng của nó. Đây là điều khiến mesh hấp dẫn — và cũng là lý do nó "ma thuật" đến mức khó debug khi có chuyện.
-
-#### Bước 8 — Thấy mTLS tự động
-
-```bash
-linkerd viz install | kubectl apply -f -
-linkerd check
-```
-
-Tạo lưu lượng rồi quan sát:
-
-```bash
-kubectl -n cua-hang run tao-tai --image=curlimages/curl:8.11.0 --restart=Never -- \
-  sh -c "while true; do curl -s http://web; curl -s http://api:5678; sleep 1; done"
-
-sleep 30
-linkerd viz -n cua-hang stat deploy
-linkerd viz -n cua-hang edges deploy
-```
-
-**Bạn sẽ thấy:**
-```text
-NAME   MESHED   SUCCESS      RPS   LATENCY_P95   LATENCY_P99
-api       1/1   100.00%   1.0rps           3ms           4ms
-web       1/1   100.00%   1.0rps           2ms           3ms
-
-SRC       DST   SRC_NS     DST_NS     SECURED
-tao-tai   web   cua-hang   cua-hang   √
-tao-tai   api   cua-hang   cua-hang   √
-```
-
-✅ **Checkpoint:** cột `SECURED` có dấu **√** — mọi kết nối đã được **mã hoá mTLS tự động**.
-
-💡 **Hãy để ý hai thứ bạn vừa nhận miễn phí:**
-1. **mTLS toàn bộ** — không tạo chứng chỉ, không sửa cấu hình, không đụng vào code. Ngày 39 bạn thấy bí mật trong cluster mong manh thế nào; mesh vá đúng chỗ đó ở tầng mạng.
-2. **Tỉ lệ thành công, RPS và p95** cho **mọi dịch vụ**, kể cả những cái không hề có metric. So với Ngày 45 — ở đó app phải tự expose `/metrics`.
-
-Mở dashboard xem trực quan:
-```bash
-linkerd viz dashboard &
-```
-
-#### Bước 9 — Dọn dẹp
-
-```bash
-kubectl delete ns cua-hang
-linkerd viz uninstall | kubectl delete -f - 2>/dev/null
-linkerd uninstall | kubectl delete -f - 2>/dev/null
-minikube stop
-```
-
-### 💡 Đi làm mới thấm (sách cơ bản hay bỏ quên)
-
-- **Timeout là tấm khiên quan trọng nhất, và rẻ nhất.** Nếu chỉ làm được một việc duy nhất hôm nay, hãy đặt timeout cho **mọi** lời gọi ra ngoài. Phần lớn thư viện HTTP mặc định **không có timeout** hoặc để rất dài — đó là quả bom hẹn giờ nằm sẵn trong code của bạn.
-- **Timeout phải giảm dần theo chiều sâu lời gọi.** Nếu A gọi B gọi C mà cả ba đều đặt 30 giây thì A có thể chờ tới 90 giây. Quy tắc: mỗi tầng sâu hơn phải có timeout **nhỏ hơn** tầng gọi nó.
-- **Chỉ thử lại những thao tác an toàn khi lặp.** Thử lại `GET` thì vô hại. Thử lại "tạo đơn hàng" có thể tạo **hai đơn**. Thao tác thay đổi dữ liệu cần **khoá chống trùng** (idempotency key) trước khi cho phép retry.
-- **Mesh làm debug khó hơn.** Khi có lỗi mạng, giờ bạn phải hỏi thêm: lỗi ở app, ở proxy, hay ở cấu hình mesh? Hãy học cách đọc log của proxy **trước khi** đưa mesh vào production, đừng học lúc đang có sự cố.
-- **Đừng dùng mesh chỉ để lấy mã hoá.** Nếu nhu cầu duy nhất là mTLS, có những cách nhẹ hơn nhiều (mTLS ở tầng ingress, hoặc lớp mạng như Cilium). Mesh xứng đáng khi bạn cần **nhiều thứ cùng lúc**: mã hoá + đo lường + định tuyến + khả năng chịu lỗi.
-- **Suy giảm có kiểm soát phải được thiết kế trước.** Câu hỏi cần trả lời khi thiết kế, không phải khi sự cố: *"nếu dịch vụ gợi ý sản phẩm chết, trang chủ vẫn hiện được chứ?"* Câu trả lời đúng gần như luôn là: hiện trang chủ không có phần gợi ý, **không phải** hiện trang lỗi.
-
-### 🎯 Đúc kết Ngày 54
-
-**3 điều phải mang theo:**
-
-1. **Chậm nguy hiểm hơn chết.** Dịch vụ chết trả lỗi ngay; dịch vụ chậm giữ tài nguyên của mọi người gọi nó cho tới khi cả hệ thống sập.
-2. **Timeout → retry có giới hạn → ngắt mạch → phương án dự phòng.** Bốn tấm khiên, theo đúng thứ tự quan trọng. Không có timeout thì ba cái sau vô nghĩa.
-3. **Service mesh chuyển những việc đó ra khỏi code**, đổi lấy một tầng phức tạp mới. Đáng giá khi nhiều dịch vụ, nhiều ngôn ngữ — không đáng khi hệ thống còn nhỏ.
-
-> 🧠 **Một câu để nhớ:** hệ thống của bạn chỉ đáng tin bằng **cách nó xử lý lúc thứ khác hỏng** — chứ không phải bằng lúc mọi thứ đều chạy tốt.
-
-**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
-
-- [ ] Mô tả sập dây chuyền và giải thích vì sao chậm nguy hiểm hơn chết
-- [ ] Kể 4 tấm khiên và nói rõ cái nào quan trọng nhất, vì sao
-- [ ] Giải thích retry storm và ba yếu tố khiến retry an toàn
-- [ ] Vẽ 3 trạng thái của circuit breaker
-- [ ] Tự gây sự cố và đo chênh lệch giữa có và không có timeout
-- [ ] Nói được mesh làm gì thay ứng dụng và cái giá phải trả
-- [ ] Nêu tiêu chí quyết định khi nào nên dùng mesh, khi nào chưa nên
-- [ ] Cho ví dụ về suy giảm có kiểm soát trong một hệ thống thật
-
-✅ **Kết quả đạt được:** Bạn đã tự tay tạo ra và chặn đứng một vụ sập dây chuyền, và hiểu chính xác service mesh làm gì thay mình — đủ cơ sở để quyết định có nên dùng nó hay không.
-
----
-
-## Ngày 55 — Platform Engineering & Developer Experience
-
-> ⏱️ ~90 phút · Loại: Nền tảng
->
-> 🧭 **Bạn đang ở đâu:** Ngày 54 (kiến trúc nhiều dịch vụ) → **Ngày 55 (biến tất cả những gì đã học thành thứ người khác dùng được)** → Ngày 56 (bắt đầu dự án tốt nghiệp). Đây là ngày lý thuyết cuối cùng, và nó trả lời câu hỏi: *sau khi bạn dựng xong mọi thứ, làm sao để cả đội dùng được mà không cần hỏi bạn?*
->
-> ✅ **Chuẩn bị:** Git, Docker, Python 3. Nên có sẵn repo `ci-demo` (Ngày 31–34) để đo số liệu thật.
->
-> 🎁 **Cuối ngày bạn có gì:** một **bộ khởi tạo dịch vụ** sinh ra project hoàn chỉnh chuẩn chỉnh trong 10 giây, và một script **đo 4 chỉ số DORA** từ chính lịch sử Git của bạn.
-
-### 📘 Lý thuyết
-
-#### 1. Vấn đề: bạn trở thành nút thắt cổ chai
-
-Bạn đã dựng CI/CD, Kubernetes, giám sát, IaC. Giờ một lập trình viên mới muốn đưa dịch vụ của họ lên. Chuyện gì xảy ra?
-
-- *"Anh ơi, viết Dockerfile thế nào?"*
-- *"Chị ơi, copy workflow CI ở đâu?"*
-- *"Sao pod em không lên?"*
-- *"Cho em xin quyền vào namespace..."*
-
-Mỗi câu hỏi là một lần bạn bị gián đoạn. Nhân với 30 lập trình viên: **bạn không còn làm được gì khác ngoài trả lời câu hỏi**. Và mỗi người tự xoay xở một kiểu, nên hệ thống dần trở thành 30 cách làm khác nhau.
-
-**Platform Engineering** là câu trả lời: thay vì phục vụ từng yêu cầu, bạn **xây một sản phẩm nội bộ** để họ tự phục vụ.
-
-> 🔑 Đổi cách nghĩ: **nền tảng của bạn là một sản phẩm, và lập trình viên là khách hàng.** Sản phẩm có tài liệu, có trải nghiệm sử dụng, có phản hồi từ người dùng và có phiên bản. Nếu khách hàng thấy khó dùng, họ sẽ đi đường vòng — và bạn mất kiểm soát.
-
-#### 2. Golden Path — con đường lát sẵn
-
-**Golden path** là *"cách làm mặc định đã được lát sẵn, đúng chuẩn, và dễ đi hơn mọi cách khác"*.
-
-| | Không có golden path | Có golden path |
-|---|---|---|
-| Tạo dịch vụ mới | Copy từ repo cũ nào đó, sửa lung tung | Một lệnh, ra project chuẩn |
-| Dockerfile | Mỗi người một kiểu | Đã tối ưu, đã quét bảo mật |
-| CI/CD | Người có, người không | Có sẵn, chạy được ngay |
-| Giám sát | Nhớ thì thêm | Mặc định đã có |
-| Thời gian tới lần deploy đầu | Vài ngày | **Dưới một giờ** |
-
-> ⚠️ **Lát sẵn, không phải bắt buộc.** Nếu một đội có lý do chính đáng để làm khác, họ phải được phép — nhưng khi đó họ tự chịu trách nhiệm phần đó. Nền tảng ép buộc sẽ bị người ta tìm cách lách; nền tảng *dễ dùng hơn cách tự làm* thì người ta tự nguyện dùng.
-
-#### 3. Bốn chỉ số DORA — thước đo hiệu quả đã được kiểm chứng
-
-Nghiên cứu DORA (DevOps Research and Assessment) qua nhiều năm và hàng chục nghìn đội đã chỉ ra **4 chỉ số** dự đoán được hiệu quả của một tổ chức phần mềm:
-
-| Chỉ số | Đo cái gì | Nhóm dẫn đầu | Nhóm chậm |
-|---|---|---|---|
-| **Tần suất triển khai** | Bao lâu deploy một lần | Nhiều lần mỗi ngày | Ít hơn 1 lần/tháng |
-| **Thời gian từ commit tới production** | Code viết xong bao lâu thì tới người dùng | Dưới 1 giờ | 1–6 tháng |
-| **Tỉ lệ thay đổi gây lỗi** | Bao nhiêu % lần deploy gây sự cố | Dưới 5% | 46–60% |
-| **Thời gian khôi phục** | Hỏng rồi bao lâu thì chữa xong | Dưới 1 giờ | Hơn 1 tuần |
-
-> 🔑 **Phát hiện phản trực giác và quan trọng nhất của DORA:** hai chỉ số đầu (tốc độ) và hai chỉ số sau (ổn định) **không đánh đổi nhau**. Đội đi nhanh cũng chính là đội ổn định nhất. Lý do: deploy thường xuyên nghĩa là mỗi lần thay đổi **nhỏ**, mà thay đổi nhỏ thì dễ kiểm tra, dễ hiểu, và dễ quay lui.
->
-> Điều này phá bỏ niềm tin *"muốn an toàn thì phải deploy ít lại"*. Thực tế ngược lại: deploy ít khiến mỗi lần deploy trở thành một sự kiện to, rủi ro và đáng sợ.
-
-#### 4. Trải nghiệm lập trình viên — đo bằng ma sát
-
-Ba câu hỏi để đánh giá một nền tảng:
-
-1. **Người mới mất bao lâu để deploy được lần đầu?** (Nhóm tốt: dưới một ngày)
-2. **Từ lúc sửa code tới lúc thấy kết quả mất bao lâu?** (Vòng phản hồi càng ngắn càng tốt)
-3. **Bao nhiêu việc phải đi hỏi người khác?** (Càng ít càng tốt — mỗi lần hỏi là một lần chờ)
-
-Mỗi điểm ma sát nhỏ, nhân với số lập trình viên, nhân với số lần mỗi ngày — thành một khoản thời gian rất lớn bị đốt mà không ai ghi vào đâu cả.
-
-#### 5. Ba tầng của một nền tảng nội bộ
-
-```text
-   ┌─────────────────────────────────────────┐
-   │  Giao diện: CLI / cổng web / template   │  ← lập trình viên chạm vào đây
-   ├─────────────────────────────────────────┤
-   │  Tự động hoá: CI/CD, GitOps, scaffold   │  ← Giai đoạn 3 của bạn
-   ├─────────────────────────────────────────┤
-   │  Hạ tầng: K8s, mạng, lưu trữ, giám sát  │  ← Giai đoạn 2–3
-   └─────────────────────────────────────────┘
-```
-
-Bạn đã xây xong hai tầng dưới trong suốt khoá học. **Tầng trên cùng chính là thứ còn thiếu** — và cũng là thứ quyết định người ta có dùng được hai tầng kia hay không.
-
-### 🧪 LAB — Xây nền tảng nội bộ thu nhỏ
-
-**Thư mục:**
-
-```text
-lab55-platform/
-├── tao-dich-vu.sh      # bộ khởi tạo: 1 lệnh ra project chuẩn
-├── mau/                # khuôn mẫu golden path
-│   ├── Makefile
-│   ├── Dockerfile
-│   └── ci.yml
-└── do-dora.py          # đo 4 chỉ số DORA từ lịch sử Git
-```
-
-#### File 1 — `mau/Dockerfile`
-
-```dockerfile
-# Golden path: đã áp dụng mọi bài học từ Ngày 18, 33, 49
-FROM node:20-alpine AS deps
-WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev 2>/dev/null || npm install --omit=dev
-
-FROM node:20-alpine
-WORKDIR /app
-ENV NODE_ENV=production
-
-RUN addgroup -S nhom && adduser -S ungdung -G nhom
-
-COPY --from=deps /app/node_modules ./node_modules
-COPY --chown=ungdung:nhom . .
-
-USER ungdung
-EXPOSE 3000
-
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:3000/health || exit 1
-
-CMD ["node", "app.js"]
-```
-
-#### File 2 — `mau/Makefile`
-
-```makefile
-# Bộ lệnh CHUẨN cho mọi dịch vụ — người mới chỉ cần nhớ `make help`
-.PHONY: help cai dev test lint build chay quet sach
-
-TEN_DICH_VU ?= $(shell basename $(CURDIR))
-TAG ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "local")
-IMAGE = $(TEN_DICH_VU):$(TAG)
-
-help:            ## Hiện danh sách lệnh
-	@grep -E '^[a-z-]+:.*?##' $(MAKEFILE_LIST) | \
-	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
-
-cai:             ## Cài thư viện
-	npm install
-
-dev:             ## Chạy ở chế độ phát triển
-	npm start
-
-test:            ## Chạy test
-	npm test
-
-lint:            ## Kiểm tra chất lượng code
-	npm run lint --if-present
-
-build:           ## Build Docker image
-	docker build -t $(IMAGE) .
-	@echo "✅ Đã build: $(IMAGE)"
-
-chay: build      ## Build rồi chạy container
-	docker run --rm -p 3000:3000 --name $(TEN_DICH_VU) $(IMAGE)
-
-quet: build      ## Quét bảo mật image (Ngày 49)
-	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-	  aquasec/trivy:latest image --severity HIGH,CRITICAL --ignore-unfixed $(IMAGE)
-
-sach:            ## Dọn dẹp
-	docker rmi $(IMAGE) 2>/dev/null || true
-	rm -rf node_modules
-```
-
-#### File 3 — `mau/ci.yml`
-
-```yaml
-name: CI
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: read
-
-jobs:
-  kiem-tra:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      - run: npm ci || npm install
-      - run: npm run lint --if-present
-      - run: npm test --if-present
-
-  bao-mat:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Quét bí mật
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
-
-#### File 4 — `tao-dich-vu.sh`
-
-```bash
-#!/usr/bin/env bash
-# Bộ khởi tạo dịch vụ — golden path của tổ chức
-set -euo pipefail
-
-TEN="${1:-}"
-CHU_SO_HUU="${2:-chua-ro}"
-
-if [ -z "$TEN" ]; then
-  echo "Dùng: $0 <ten-dich-vu> [doi-so-huu]"
-  echo "Ví dụ: $0 dich-vu-thanh-toan doi-backend"
-  exit 1
-fi
-
-if ! echo "$TEN" | grep -qE '^[a-z][a-z0-9-]{2,29}$'; then
-  echo "❌ Tên phải viết thường, chỉ gồm chữ/số/gạch ngang, dài 3-30 ký tự."
-  exit 1
-fi
-
-if [ -d "$TEN" ]; then
-  echo "❌ Thư mục '$TEN' đã tồn tại."
-  exit 1
-fi
-
-MAU="$(cd "$(dirname "$0")" && pwd)/mau"
-
-echo "🚀 Đang tạo dịch vụ '$TEN' (chủ sở hữu: $CHU_SO_HUU)..."
-
-mkdir -p "$TEN"/{src,test,.github/workflows}
-cd "$TEN"
-
-# ---- Mã nguồn khởi đầu ----
-cat > app.js <<'EOF'
-const http = require('node:http');
-const PORT = process.env.PORT || 3000;
-
-const server = http.createServer((req, res) => {
-  if (req.url === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ trangThai: 'ok' }));
-  }
-  res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ dichVu: process.env.TEN_DICH_VU || 'chua-dat-ten' }));
-});
-
-server.listen(PORT, () => console.log(`Đang nghe cổng ${PORT}`));
-EOF
-
-cat > test/app.test.js <<'EOF'
-const test = require('node:test');
-const assert = require('node:assert');
-
-test('ví dụ: thay bằng test thật của bạn', () => {
-  assert.strictEqual(1 + 1, 2);
-});
-EOF
-
-cat > package.json <<EOF
-{
-  "name": "$TEN",
-  "version": "0.1.0",
-  "main": "app.js",
-  "scripts": {
-    "start": "node app.js",
-    "test": "node --test test/"
-  },
-  "license": "UNLICENSED"
-}
-EOF
-
-# ---- Golden path: copy khuôn đã chuẩn hoá ----
-cp "$MAU/Dockerfile" .
-cp "$MAU/Makefile" .
-cp "$MAU/ci.yml" .github/workflows/ci.yml
-
-printf 'node_modules/\n.env\ndist/\n' > .gitignore
-printf 'node_modules\n.git\n.github\ntest\n*.md\n' > .dockerignore
-
-# ---- Tài liệu sinh sẵn ----
-cat > README.md <<EOF
-# $TEN
-
-> Chủ sở hữu: **$CHU_SO_HUU**
-> Sinh bởi bộ khởi tạo dịch vụ (golden path)
-
-## Bắt đầu nhanh
-
-\`\`\`bash
-make cai      # cài thư viện
-make test     # chạy test
-make chay     # build và chạy bằng Docker
-make help     # xem tất cả lệnh
-\`\`\`
-
-## Dịch vụ đã có sẵn những gì
-
-- ✅ Dockerfile nhiều tầng, chạy bằng user thường, có HEALTHCHECK
-- ✅ CI: lint + test + quét bí mật
-- ✅ Điểm kiểm tra sức khoẻ tại \`/health\`
-- ✅ Makefile với bộ lệnh chuẩn dùng chung toàn tổ chức
-
-## Điểm truy cập
-
-| Đường dẫn | Mô tả |
-|---|---|
-| \`/\` | Thông tin dịch vụ |
-| \`/health\` | Kiểm tra sức khoẻ (dùng cho probe) |
-EOF
-
-# ---- Siêu dữ liệu để quy trách nhiệm (Ngày 53) ----
-cat > dich-vu.yaml <<EOF
-ten: $TEN
-chu_so_huu: $CHU_SO_HUU
-tang: 3
-kenh_lien_he: "#$CHU_SO_HUU"
-slo:
-  kha_dung: 99.5
-  p95_do_tre_ms: 300
-EOF
-
-git init -q -b main
-git add .
-git commit -q -m "Khởi tạo $TEN từ golden path"
-
-echo ""
-echo "✅ Xong! Dịch vụ '$TEN' đã sẵn sàng."
-echo ""
-echo "   cd $TEN && make help"
-echo ""
-echo "Đã có sẵn: Dockerfile · CI · quét bảo mật · health check · README · Makefile"
-```
-
-#### File 5 — `do-dora.py`
-
-```python
-#!/usr/bin/env python3
-"""Ước lượng 4 chỉ số DORA từ lịch sử Git của một repo."""
-
-import subprocess
-import sys
-import datetime
-import statistics
-
-REPO = sys.argv[1] if len(sys.argv) > 1 else "."
-SO_NGAY = int(sys.argv[2]) if len(sys.argv) > 2 else 90
-
-
-def git(*args):
-    r = subprocess.run(["git", "-C", REPO, *args],
-                       capture_output=True, text=True)
-    return r.stdout.strip()
-
-
-tu_ngay = (datetime.date.today() - datetime.timedelta(days=SO_NGAY)).isoformat()
-
-# --- 1. Tần suất triển khai: đếm commit vào main (xấp xỉ số lần deploy) ---
-commits = [l for l in git("log", "--oneline", f"--since={tu_ngay}", "main").split("\n") if l]
-so_lan = len(commits)
-moi_tuan = so_lan / (SO_NGAY / 7) if SO_NGAY else 0
-
-# --- 2. Thời gian từ commit tới main: đo qua khoảng cách giữa các commit ---
-raw = git("log", f"--since={tu_ngay}", "--format=%ct", "main")
-moc = sorted(int(x) for x in raw.split("\n") if x.strip())
-khoang = [(b - a) / 3600 for a, b in zip(moc, moc[1:])] if len(moc) > 1 else []
-trung_vi_gio = statistics.median(khoang) if khoang else 0
-
-# --- 3. Tỉ lệ thay đổi gây lỗi: đếm commit sửa lỗi / revert ---
-tu_khoa = ["fix", "sửa", "hotfix", "revert", "khắc phục", "bug"]
-loi = [c for c in commits if any(k in c.lower() for k in tu_khoa)]
-ty_le_loi = len(loi) / so_lan * 100 if so_lan else 0
-
-print("═" * 58)
-print(f"  CHỈ SỐ DORA — {SO_NGAY} ngày gần nhất")
-print("═" * 58)
-
-
-def xep_hang(ten, gia_tri, don_vi, moc_tot, moc_kha, nho_hon_tot=False):
-    if nho_hon_tot:
-        hang = "🟢 Dẫn đầu" if gia_tri <= moc_tot else ("🟡 Khá" if gia_tri <= moc_kha else "🔴 Cần cải thiện")
-    else:
-        hang = "🟢 Dẫn đầu" if gia_tri >= moc_tot else ("🟡 Khá" if gia_tri >= moc_kha else "🔴 Cần cải thiện")
-    print(f"\n{ten}")
-    print(f"  Giá trị: {gia_tri:.1f} {don_vi}")
-    print(f"  Xếp hạng: {hang}")
-
-
-xep_hang("1. Tần suất triển khai", moi_tuan, "lần/tuần", 7, 1)
-xep_hang("2. Khoảng cách giữa các thay đổi", trung_vi_gio, "giờ (trung vị)", 24, 168, nho_hon_tot=True)
-xep_hang("3. Tỉ lệ thay đổi gây lỗi (ước lượng)", ty_le_loi, "%", 5, 15, nho_hon_tot=True)
-
-print("\n4. Thời gian khôi phục")
-print("  Không suy ra được từ Git — cần dữ liệu sự cố")
-print("  (lấy từ hệ thống cảnh báo, hoặc thống kê postmortem — Ngày 51)")
-
-print("\n" + "═" * 58)
-print(f"Tổng: {so_lan} thay đổi, trong đó {len(loi)} là sửa lỗi")
-print("\n📌 Lưu ý: đây là ƯỚC LƯỢNG từ Git. Số liệu chính xác cần lấy")
-print("   từ hệ thống CI/CD (thời điểm deploy) và hệ thống sự cố.")
-```
-
-### 🧭 Hướng dẫn làm LAB — step by step
-
-#### Bước 1 — Tạo bộ khởi tạo
-
-```bash
-mkdir -p ~/lab55-platform/mau && cd ~/lab55-platform
-# tạo 5 file theo phần LAB
-chmod +x tao-dich-vu.sh do-dora.py
-ls -R
-```
-
-✅ **Checkpoint:** có `tao-dich-vu.sh`, `do-dora.py` và thư mục `mau/` với 3 file.
-
-#### Bước 2 — Tạo dịch vụ mới trong 10 giây
-
-```bash
-cd ~/lab55-platform
-./tao-dich-vu.sh dich-vu-thanh-toan doi-backend
-```
-
-**Bạn sẽ thấy:**
-```text
-🚀 Đang tạo dịch vụ 'dich-vu-thanh-toan' (chủ sở hữu: doi-backend)...
-
-✅ Xong! Dịch vụ 'dich-vu-thanh-toan' đã sẵn sàng.
-
-   cd dich-vu-thanh-toan && make help
-
-Đã có sẵn: Dockerfile · CI · quét bảo mật · health check · README · Makefile
-```
-
-```bash
-cd dich-vu-thanh-toan
-find . -type f -not -path './.git/*' | sort
-```
-
-**Bạn sẽ thấy:**
-```text
-./.dockerignore
-./.github/workflows/ci.yml
-./.gitignore
-./Dockerfile
-./Makefile
-./README.md
-./app.js
-./dich-vu.yaml
-./package.json
-./test/app.test.js
-```
-
-✅ **Checkpoint:** project đầy đủ, **đã commit sẵn**, sẵn sàng push.
-
-💡 **Hãy đối chiếu với Ngày 31–33:** hôm đó bạn mất cả buổi để dựng từng thứ — viết Dockerfile, sửa đi sửa lại, thêm CI, thêm quét bảo mật. Giờ tất cả gói trong **một lệnh 10 giây**. Đó chính là ý nghĩa của golden path: **kinh nghiệm đã được đóng gói thành mặc định**.
-
-#### Bước 3 — Kiểm chứng project sinh ra thực sự dùng được
-
-```bash
-make help
-```
-
-**Bạn sẽ thấy:**
-```text
-  help       Hiện danh sách lệnh
-  cai        Cài thư viện
-  dev        Chạy ở chế độ phát triển
-  test       Chạy test
-  lint       Kiểm tra chất lượng code
-  build      Build Docker image
-  chay       Build rồi chạy container
-  quet       Quét bảo mật image (Ngày 49)
-  sach       Dọn dẹp
-```
-
-```bash
-make test
-make build
-```
-
-**Bạn sẽ thấy:**
-```text
-# pass 1
-# fail 0
-...
-✅ Đã build: dich-vu-thanh-toan:a3f2c9d
-```
-
-Chạy thử:
-```bash
-docker run -d --rm -p 3000:3000 --name thu dich-vu-thanh-toan:$(git rev-parse --short HEAD)
-sleep 2
-curl -s localhost:3000/health; echo
-curl -s localhost:3000; echo
-docker rm -f thu
-```
-
-**Bạn sẽ thấy:**
-```text
-{"trangThai":"ok"}
-{"dichVu":"chua-dat-ten"}
-```
-
-✅ **Checkpoint:** dịch vụ vừa sinh ra **build được, test được, chạy được** mà bạn chưa viết dòng code nào.
-
-💡 **`make help` là chi tiết nhỏ nhưng quan trọng.** Bộ lệnh giống nhau cho **mọi** dịch vụ trong tổ chức, nên người mới chuyển từ dự án này sang dự án khác không phải học lại. Giảm ma sát đúng chỗ người ta chạm vào hằng ngày.
-
-#### Bước 4 — Đo ma sát: bao lâu tới lần deploy đầu tiên?
-
-```bash
-cd ~/lab55-platform
-python3 -c "
-khong_nen_tang = [
-    ('Đọc tài liệu, hỏi han cách làm', 120),
-    ('Viết Dockerfile (thử sai vài lần)', 90),
-    ('Viết workflow CI', 60),
-    ('Sửa lỗi CI', 45),
-    ('Thêm health check, sửa probe', 30),
-    ('Thêm quét bảo mật', 30),
-    ('Viết README', 20),
-]
-co_nen_tang = [
-    ('Chạy ./tao-dich-vu.sh', 1),
-    ('Viết code nghiệp vụ của mình', 60),
-    ('Push lên', 2),
-]
-
-def bang(ten, cac_buoc):
-    tong = sum(p for _, p in cac_buoc)
-    print(f'\n{ten}')
-    for viec, p in cac_buoc:
-        print(f'   {viec:<40} {p:>4} phút')
-    print(f'   {\"TỔNG\":<40} {tong:>4} phút ({tong/60:.1f} giờ)')
-    return tong
-
-a = bang('❌ KHÔNG có nền tảng', khong_nen_tang)
-b = bang('✅ CÓ nền tảng', co_nen_tang)
-print(f'\n⏱️  Tiết kiệm: {a-b} phút/dịch vụ ({(a-b)/60:.1f} giờ)')
-print(f'📊 Với 30 dịch vụ mới mỗi năm: {(a-b)*30/60:.0f} giờ = {(a-b)*30/60/8:.1f} ngày công')
-"
-```
-
-**Bạn sẽ thấy:**
-```text
-❌ KHÔNG có nền tảng
-   ...
-   TỔNG                                      395 phút (6.6 giờ)
-
-✅ CÓ nền tảng
-   ...
-   TỔNG                                       63 phút (1.1 giờ)
-
-⏱️  Tiết kiệm: 332 phút/dịch vụ (5.5 giờ)
-📊 Với 30 dịch vụ mới mỗi năm: 166 giờ = 20.8 ngày công
-```
-
-✅ **Checkpoint:** thấy được giá trị của nền tảng bằng con số.
-
-💡 **Và đó mới chỉ là phần đo được.** Phần không đo được còn lớn hơn: **tính nhất quán**. Không có golden path, 30 dịch vụ sẽ có 30 Dockerfile khác nhau — vá một lỗ hổng bảo mật phải sửa 30 chỗ. Có golden path, bạn sửa khuôn mẫu một lần.
-
-#### Bước 5 — Đo chỉ số DORA trên repo thật của bạn
-
-```bash
-cd ~/lab55-platform
-python3 do-dora.py ~/ci-demo 90
-```
-
-**Bạn sẽ thấy:**
-```text
-══════════════════════════════════════════════════════════
-  CHỈ SỐ DORA — 90 ngày gần nhất
-══════════════════════════════════════════════════════════
-
-1. Tần suất triển khai
-  Giá trị: 1.6 lần/tuần
-  Xếp hạng: 🟡 Khá
-
-2. Khoảng cách giữa các thay đổi
-  Giá trị: 0.3 giờ (trung vị)
-  Xếp hạng: 🟢 Dẫn đầu
-
-3. Tỉ lệ thay đổi gây lỗi (ước lượng)
-  Giá trị: 23.8 %
-  Xếp hạng: 🔴 Cần cải thiện
-...
-```
-
-✅ **Checkpoint:** có số liệu từ chính lịch sử Git của bạn.
-
-💡 Con số của repo học tập sẽ méo mó (bạn cố tình tạo lỗi ở Ngày 31–34 nên tỉ lệ "gây lỗi" cao). Nhưng **cách làm** thì đúng: DORA phải được **đo tự động và theo dõi theo thời gian**, không phải hỏi cảm nhận.
-
-💡 **Cách dùng DORA cho đúng:** dùng nó để **theo dõi xu hướng của chính đội mình** (tháng này so tháng trước), **không** dùng để so sánh đội này với đội khác, và **tuyệt đối không** dùng để đánh giá cá nhân. Biến chỉ số thành thước đo thành tích thì người ta sẽ tối ưu con số thay vì tối ưu công việc — và bạn mất luôn một công cụ tốt.
-
-#### Bước 6 — Kiểm chứng tính nhất quán của nền tảng
-
-Tạo thêm hai dịch vụ và so sánh:
-
-```bash
-cd ~/lab55-platform
-./tao-dich-vu.sh dich-vu-don-hang doi-backend > /dev/null
-./tao-dich-vu.sh dich-vu-thong-bao doi-nen-tang > /dev/null
-
-for d in dich-vu-thanh-toan dich-vu-don-hang dich-vu-thong-bao; do
-  echo "── $d"
-  echo "   chủ sở hữu: $(grep chu_so_huu $d/dich-vu.yaml | cut -d' ' -f2)"
-  echo "   Dockerfile giống khuôn: $(diff -q mau/Dockerfile $d/Dockerfile > /dev/null && echo '✅ có' || echo '❌ đã lệch')"
-  echo "   có CI: $([ -f $d/.github/workflows/ci.yml ] && echo '✅' || echo '❌')"
-  echo "   có health check: $(grep -q '/health' $d/app.js && echo '✅' || echo '❌')"
-done
-```
-
-**Bạn sẽ thấy:**
-```text
-── dich-vu-thanh-toan
-   chủ sở hữu: doi-backend
-   Dockerfile giống khuôn: ✅ có
-   có CI: ✅
-   có health check: ✅
-── dich-vu-don-hang
-   ...
-```
-
-✅ **Checkpoint:** cả ba dịch vụ **giống hệt nhau về chuẩn**, khác nhau chỉ ở phần nghiệp vụ.
-
-💡 **Đây là thứ giúp bạn ngủ ngon:** khi mai kia phát hiện một lỗ hổng trong image nền, bạn biết chắc **mọi** dịch vụ đều dùng cùng một Dockerfile. Sửa khuôn, thông báo cho các đội cập nhật, xong. Không có golden path thì đó là một cuộc điều tra kéo dài nhiều ngày.
-
-#### Bước 7 — Dọn dẹp
-
-```bash
-cd ~/lab55-platform
-rm -rf dich-vu-thanh-toan dich-vu-don-hang dich-vu-thong-bao
-```
-
-💡 **Giữ lại `tao-dich-vu.sh` và thư mục `mau/`** — bạn sẽ dùng chính nó để khởi tạo dự án tốt nghiệp ở Ngày 56.
-
-### 💡 Đi làm mới thấm (sách cơ bản hay bỏ quên)
-
-- **Nền tảng là sản phẩm, không phải dự án.** Dự án có ngày kết thúc; sản phẩm thì có người dùng, có phản hồi, có phiên bản và có lộ trình. Nền tảng làm xong rồi bỏ đó sẽ lỗi thời trong sáu tháng và mọi người quay lại tự làm.
-- **Hỏi người dùng của bạn trước khi xây.** Rất nhiều nền tảng nội bộ thất bại vì đội hạ tầng xây thứ *họ* nghĩ là hay, không phải thứ lập trình viên *cần*. Hãy đi hỏi: *"tuần này việc gì làm bạn mất thời gian nhất?"* — câu trả lời thường bất ngờ và rất cụ thể.
-- **Lát đường, đừng dựng rào.** Nền tảng ép buộc sẽ bị lách bằng những cách sáng tạo và tệ hơn nhiều so với việc cho phép đi chệch có kiểm soát. Hãy làm con đường mặc định **dễ đi hơn** mọi lựa chọn khác — đó là cách duy nhất bền vững.
-- **Tài liệu là một phần của nền tảng, không phải phụ lục.** Script sinh sẵn README (như lab hôm nay) tốt hơn một wiki đồ sộ không ai đọc. Tài liệu tốt nhất là tài liệu **nằm ngay chỗ người ta cần nó**.
-- **Cẩn thận với "cổng thông tin nội bộ" quá sớm.** Backstage và các công cụ tương tự rất mạnh, nhưng chúng là **tầng giao diện**. Xây cổng đẹp trên nền tự động hoá chưa xong thì chỉ có vỏ. Thứ tự đúng: tự động hoá trước, giao diện sau.
-- **Đo DORA để cải thiện, đừng đo để chấm điểm.** Khoảnh khắc chỉ số trở thành thước đo thành tích cá nhân, nó ngừng phản ánh sự thật — người ta sẽ chia nhỏ commit để tăng tần suất, hoặc tránh ghi nhận sự cố để giảm tỉ lệ lỗi.
-
-### 🎯 Đúc kết Ngày 55
-
-**3 điều phải mang theo:**
-
-1. **Nền tảng là sản phẩm, lập trình viên là khách hàng.** Khó dùng thì họ đi đường vòng, và bạn mất kiểm soát.
-2. **Golden path là con đường lát sẵn, không phải rào chắn.** Đóng gói kinh nghiệm thành mặc định để không ai phải tự mò lại từ đầu.
-3. **Tốc độ và ổn định đi cùng nhau, không đánh đổi.** Deploy thường xuyên khiến mỗi lần thay đổi nhỏ hơn — mà nhỏ hơn thì an toàn hơn.
-
-> 🧠 **Một câu để nhớ:** nếu lập trình viên phải hỏi bạn mới deploy được, thì bạn chưa xây nền tảng — **bạn đang làm một dịch vụ trả lời câu hỏi**.
-
-**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
-
-- [ ] Giải thích Platform Engineering giải quyết vấn đề gì
-- [ ] Nói rõ golden path là gì và vì sao phải lát đường chứ không dựng rào
-- [ ] Kể đủ 4 chỉ số DORA và phát hiện quan trọng nhất của nghiên cứu này
-- [ ] Viết script khởi tạo dịch vụ chuẩn từ khuôn mẫu
-- [ ] Giải thích vì sao Makefile chuẩn hoá lệnh lại giảm ma sát
-- [ ] Đo DORA từ lịch sử Git và nói rõ giới hạn của phép ước lượng đó
-- [ ] Nêu 3 câu hỏi để đánh giá trải nghiệm lập trình viên
-- [ ] Giải thích vì sao không nên dùng DORA để chấm điểm cá nhân
-
-✅ **Kết quả đạt được:** Một nền tảng nội bộ thu nhỏ — sinh dịch vụ chuẩn trong một lệnh, bộ lệnh thống nhất toàn tổ chức, và số liệu DORA đo được. Đây cũng là bộ công cụ bạn dùng để khởi động dự án tốt nghiệp ngày mai.
-
----
-
 ## Ngày 56 — Dự án tốt nghiệp — Phần 1: Thiết kế & Hạ tầng
 
 > ⏱️ ~150 phút · Loại: Capstone
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 51–55 (SRE + xu hướng) → **Ngày 56 (bắt đầu dự án tốt nghiệp: thiết kế + hạ tầng)** → Ngày 57 (Container & CI/CD). 4 ngày tới bạn ghép TẤT CẢ đã học thành 1 sản phẩm portfolio.
+> 🧭 **Bạn đang ở đâu:** Ngày 51–55 (SRE, HA/DR, FinOps, mesh, nền tảng) → **Ngày 56 (bắt đầu dự án tốt nghiệp: thiết kế + hạ tầng)** → Ngày 57 (container & CI/CD). Bốn ngày tới bạn ghép **tất cả** đã học thành một sản phẩm duy nhất để đưa vào portfolio.
 >
-> ✅ **Chuẩn bị:** Terraform + tài khoản cloud (hoặc VM cho k3s / Minikube local). Có thể dùng bộ khung [`capstone-cloudnote/`](../capstone-cloudnote/) làm điểm khởi đầu.
+> ✅ **Chuẩn bị:** Docker, minikube (hoặc k3s), Terraform, Git. Có thể dùng bộ khung [`capstone-cloudnote/`](../capstone-cloudnote/) làm điểm khởi đầu, hoặc tự sinh bằng `tao-dich-vu.sh` của Ngày 55.
+>
+> 🎯 **Khác với các ngày trước:** từ đây **không còn hướng dẫn từng bước**. Bạn nhận **đề bài + tiêu chí chấm**, tự quyết cách làm. Bí thì mở phần gợi ý ở cuối — nhưng hãy tự vật lộn trước đã, đó mới là lúc kiến thức đọng lại.
 
-### 📘 Lý thuyết
+### 📋 Đề bài — Hệ thống "CloudNote"
 
-- **Mục tiêu dự án:** xây dựng 1 hệ thống DevOps hoàn chỉnh **end-to-end** để đưa vào portfolio.
-- **Phạm vi:** app web nhiều tầng (frontend + backend API + database) chạy trên K8s với CI/CD, IaC, monitoring đầy đủ.
-- **Hôm nay tập trung:** thiết kế kiến trúc và dựng hạ tầng bằng IaC.
-- **Tài liệu hóa:** mỗi quyết định kiến trúc nên được ghi lại (ADR — Architecture Decision Records).
+Xây một hệ thống ghi chú trực tuyến, vận hành **hoàn toàn bằng code**, đủ để đem đi phỏng vấn.
 
-> 📌 **Đề bài chi tiết "CloudNote"** + tiêu chí hoàn thành nằm ở [Phụ lục B](#phụ-lục-b--đề-bài-dự-án-tốt-nghiệp-cloudnote). Đọc trước khi bắt đầu Phần 1.
+#### Phạm vi toàn dự án (4 ngày)
 
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
+```text
+   Người dùng
+       │
+       ▼
+   [Ingress] ──> [Frontend] ──> [API backend] ──> [PostgreSQL]
+                                      │
+                                      ▼
+                          [Prometheus + Grafana + Loki]
+   Mọi thứ được tạo bởi: Terraform (hạ tầng) + Helm (ứng dụng)
+   Mọi thay đổi đi qua: Git → CI → registry → GitOps → cluster
+```
 
-**Dự án tốt nghiệp — vì sao quan trọng nhất cả khóa?**
-Đây là sản phẩm "đinh" trong portfolio. Nhà tuyển dụng DevOps tin **1 dự án end-to-end bạn tự làm** hơn mọi dòng "biết Docker, K8s" trong CV. Bạn xây 1 hệ thống hoàn chỉnh: app → CI/CD → K8s → monitoring, tất cả bằng code.
+| Ngày | Phần việc | Sản phẩm bàn giao |
+|---|---|---|
+| **56** | **Thiết kế & hạ tầng** | Sơ đồ kiến trúc, ADR, Terraform dựng được cluster |
+| 57 | Container & CI/CD | Image có tag bất biến, pipeline đầy đủ, deploy tự động |
+| 58 | Giám sát & độ tin cậy | Dashboard, SLO, alert, probe, HA |
+| 59 | Tài liệu & bàn giao | README, runbook, demo, portfolio |
 
-**Hôm nay: thiết kế + dựng hạ tầng (đừng vội code).**
-Bắt đầu từ **sơ đồ kiến trúc** (vẽ trước khi làm — biết cần dựng gì), rồi dùng **Terraform** dựng hạ tầng (cluster K8s / VM). Sơ đồ rõ → đỡ làm đi làm lại.
+> 📌 **Chọn phạm vi vừa sức.** Người phỏng vấn quan tâm **pipeline + hạ tầng + giám sát**, không quan tâm ứng dụng của bạn có bao nhiêu tính năng. Một app 3 tầng đơn giản làm chỉn chu **giá trị hơn nhiều** một app phức tạp mà hạ tầng cẩu thả.
 
-**ADR — "ghi lại vì sao chọn":**
-Mỗi quyết định lớn ("vì sao chọn k3s thay vì EKS?", "vì sao Postgres?") ghi vào `/docs/adr/`. **Đây là điểm cộng phỏng vấn lớn** — câu "vì sao bạn chọn cái này?" là kinh điển; có ADR sẵn = bạn đã suy nghĩ thấu đáo.
+### ✅ Yêu cầu của Phần 1
 
-### 🧪 Lab cơ bản
+#### Bắt buộc
 
-1. Vẽ sơ đồ kiến trúc tổng thể (draw.io/excalidraw): luồng code → CI → registry → K8s → monitoring.
-2. Khởi tạo monorepo: `/app`, `/docker`, `/terraform`, `/k8s` (hoặc `/helm`), `/.github/workflows`, `/docs`.
-3. Viết Terraform tạo hạ tầng: cluster K8s (hoặc VM + k3s), networking, registry.
-4. Cấu hình remote state cho Terraform.
-5. Viết README tổng quan dự án và sơ đồ kiến trúc.
+| # | Yêu cầu | Cách tự kiểm chứng |
+|---|---|---|
+| 1.1 | **Sơ đồ kiến trúc** thể hiện đủ: luồng người dùng, luồng CI/CD, luồng giám sát | Người lạ nhìn 30 giây hiểu hệ thống gồm những gì |
+| 1.2 | **Kho mã có cấu trúc rõ ràng**, tách repo mã nguồn và repo cấu hình | `tree -L 2` đọc là hiểu |
+| 1.3 | **Terraform dựng được hạ tầng** (cluster/VM + mạng + namespace) | `terraform apply` từ số 0 ra hệ thống chạy |
+| 1.4 | **Remote state + khoá** (Ngày 48) | `terraform init` ở máy khác thấy đúng state |
+| 1.5 | **Ít nhất 3 ADR** ghi lại quyết định lớn | Có thư mục `docs/adr/` với 3 file |
+| 1.6 | **Gắn thẻ đầy đủ** mọi tài nguyên (Ngày 53) | Mọi tài nguyên có `moi_truong`, `du_an`, `chu_so_huu` |
+| 1.7 | **`terraform destroy` xoá sạch**, không để lại tài nguyên mồ côi | Sau destroy, kiểm tra không còn gì sót |
 
-### 🚀 Lab nâng cao (best-practice)
+#### Nâng cao (làm được thì rất nổi bật)
 
-> Mục tiêu: khởi đầu dự án đúng chuẩn — kiến trúc rõ, hạ tầng bằng code, có ghi chép quyết định.
-
-1. **ADR (Architecture Decision Records)** — ghi mỗi quyết định lớn (vì sao chọn k3s thay EKS? vì sao Postgres?) vào `/docs/adr/`. Người phỏng vấn rất thích thấy điều này.
-2. **Terraform module + remote state** ngay từ đầu (Ngày 48) — không để "làm sau".
-3. **Cấu trúc monorepo rõ ràng** — người lạ nhìn vào hiểu ngay đâu là gì.
-4. **README có sơ đồ kiến trúc** — bộ mặt dự án, quyết định ấn tượng đầu tiên.
-
-### 💡 Bổ sung thực tế: chọn phạm vi vừa sức + tiết kiệm chi phí
-
-- **Đừng ôm đồm:** app 3 tầng đơn giản (CloudNote/todo/URL shortener) là **đủ** để thể hiện toàn bộ kỹ năng DevOps. Người phỏng vấn quan tâm **pipeline + hạ tầng + monitoring**, không phải app phức tạp.
-- **Tiết kiệm chi phí học:** dùng **k3s trên 1 VM** (hoặc Minikube local) thay vì EKS/GKE (tốn tiền). Vẫn thể hiện đủ kỹ năng K8s. Nếu dùng cloud: nhớ `terraform destroy` sau mỗi buổi.
-- **ADR = điểm cộng phỏng vấn:** "vì sao bạn chọn cái này?" là câu hỏi phỏng vấn kinh điển. Có ADR sẵn = bạn đã suy nghĩ thấu đáo, không chọn bừa.
-- **Bắt đầu từ sơ đồ:** vẽ kiến trúc trước khi code. Sơ đồ rõ → biết cần dựng gì → đỡ làm lại.
-
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
-
-**Trình tự nên làm:** vẽ sơ đồ kiến trúc → khởi tạo monorepo → viết Terraform dựng cluster/VM → remote state → README + ADR.
-
-**Giải nghĩa & cách làm:**
-- Vẽ sơ đồ trước (draw.io): luồng code → CI → registry → K8s → monitoring. *Kết quả:* biết cần dựng gì.
-- `terraform init && terraform apply` dựng cluster (hoặc k3s trên VM). *Kết quả:* `kubectl get nodes` → Ready.
-- Cấu hình `backend "s3"` cho remote state ngay từ đầu.
-
-**🧪 Thử nghiệm:**
-- `terraform destroy` rồi `apply` lại → dựng lại toàn bộ hạ tầng trong 1 lệnh. **Bài học:** hạ tầng tái tạo được = IaC thực sự.
-- Viết 1 ADR ("vì sao chọn k3s thay EKS?") → tập giải thích quyết định. **Bài học:** đây là câu hỏi phỏng vấn kinh điển.
-
-⚠️ **Dễ sai:** ôm đồm app phức tạp. App 3 tầng đơn giản (CloudNote) là đủ — người phỏng vấn quan tâm pipeline + hạ tầng + monitoring.
-
-💡 **Hiểu sâu:** dùng bộ khung [`capstone-cloudnote/`](../capstone-cloudnote/) làm điểm khởi đầu. ADR (`/docs/adr/`) ghi mỗi quyết định lớn — thể hiện bạn suy nghĩ thấu đáo, không chọn bừa.
-
-### 📝 Bài ôn tập & Demo đối chiếu
-
-**✅ Checklist tự chấm Phần 1:**
-
-<details>
-<summary>1. Hạ tầng có được tạo HOÀN TOÀN bằng code (IaC) không?</summary>
-
-> Có: `terraform apply` dựng cluster/VM + networking + registry, không click tay. `destroy` rồi `apply` lại dựng lại được.
-</details>
-
-<details>
-<summary>2. Sơ đồ kiến trúc đã rõ chưa?</summary>
-
-> Có diagram thể hiện luồng: code → CI → registry → K8s → monitoring; các tầng app + hạ tầng + dữ liệu.
-</details>
-
-<details>
-<summary>3. ADR đã ghi các quyết định lớn chưa?</summary>
-
-> `/docs/adr/` ghi "vì sao chọn k3s/EKS", "vì sao Postgres"... — chuẩn bị cho câu hỏi phỏng vấn.
-</details>
-
-<details>
-<summary>4. Vì sao chọn app 3 tầng đơn giản là đủ?</summary>
-
-> Người phỏng vấn quan tâm pipeline + hạ tầng + monitoring, không phải app cầu kỳ. App đơn giản để tập trung thể hiện kỹ năng DevOps.
-</details>
-
-**🔬 Demo đối chiếu:**
-
-| Demo đối chiếu | Kết quả mong đợi |
+| # | Yêu cầu |
 |---|---|
-| Sơ đồ kiến trúc | Diagram thể hiện app, hạ tầng, luồng dữ liệu |
-| Hạ tầng bằng IaC | `terraform apply` tạo nền tảng, không tay |
-| Repo khởi tạo | Cấu trúc rõ ràng + README + ADR |
+| 1.8 | Terraform tách thành **module tái sử dụng**, không viết phẳng một file |
+| 1.9 | Hai môi trường **dev/prod** khác quy mô từ cùng bộ code |
+| 1.10 | Quét Terraform bằng **Checkov** trong CI (Ngày 49) |
+| 1.11 | Ước tính chi phí hạ tầng bằng bảng tính hoặc `infracost` |
 
-### 📚 Thuật ngữ Anh–Việt (ngày này)
+### 📐 Tiêu chí chấm Phần 1 (25 điểm)
 
-| Thuật ngữ | Nghĩa |
-|---|---|
-| **Capstone** | Dự án tốt nghiệp tổng hợp |
-| **ADR** | Architecture Decision Record — ghi quyết định kiến trúc |
-| **Monorepo** | 1 repo chứa toàn bộ dự án |
-| **Remote state** | State Terraform trên backend chung |
-| **k3s** | Bản K8s nhẹ (chạy trên VM nhỏ) |
-| **Portfolio** | Bộ sản phẩm để xin việc |
-| **End-to-end** | Trọn quy trình từ đầu đến cuối |
+| Hạng mục | Điểm | Đạt điểm tối đa khi |
+|---|---:|---|
+| Sơ đồ kiến trúc | 5 | Đủ 3 luồng (người dùng / CI-CD / giám sát), ký hiệu rõ, người lạ hiểu được |
+| Terraform chạy được | 7 | `apply` từ số 0 ra hạ tầng hoạt động, `destroy` sạch sẽ |
+| Chất lượng code hạ tầng | 5 | Có module, biến có mô tả và validation, output hữu ích, không giá trị viết cứng |
+| Remote state | 3 | Có backend từ xa, có khoá, **không** commit state vào Git |
+| ADR | 3 | Ít nhất 3 quyết định, mỗi cái nêu rõ bối cảnh – lựa chọn – đánh đổi |
+| Gắn thẻ & chi phí | 2 | Mọi tài nguyên có thẻ; có ước tính chi phí |
+
+> 🎯 **Mốc tự đánh giá:** 20/25 trở lên là đủ đem đi phỏng vấn. Dưới 15 thì nên làm lại phần yếu trước khi sang Ngày 57 — bốn ngày này xây chồng lên nhau.
+
+### 🗺️ Gợi ý trình tự (không bắt buộc theo)
+
+**1. Vẽ trước, code sau (30 phút).** Mở [excalidraw.com](https://excalidraw.com) hoặc viết Mermaid thẳng vào README. Vẽ xong hãy tự hỏi: *"nhìn hình này, tôi biết phải dựng những gì?"* Nếu chưa rõ thì hình còn thiếu.
+
+**2. Dựng khung thư mục (15 phút).**
+
+```text
+cloudnote/                      ← repo mã nguồn
+├── app/
+│   ├── backend/
+│   └── frontend/
+├── terraform/
+│   ├── modules/
+│   ├── envs/{dev,prod}/
+│   └── backend.tf
+├── .github/workflows/
+└── docs/
+    ├── adr/
+    └── kien-truc.md
+
+cloudnote-config/               ← repo cấu hình (cho GitOps ngày 57)
+└── ung-dung/{dev,prod}/
+```
+
+**3. Viết Terraform (60 phút).** Bắt đầu nhỏ: dựng được cluster và một namespace là đủ cho hôm nay. Đừng cố làm hết mọi thứ trong lần đầu.
+
+**4. Viết ADR (30 phút).** Mỗi file chừng nửa trang. Khuôn mẫu:
+
+```markdown
+# ADR-001: Chọn k3s thay vì cụm K8s do cloud quản lý
+
+## Bối cảnh
+Dự án học tập, ngân sách bằng không, cần thể hiện được kỹ năng Kubernetes.
+
+## Quyết định
+Dùng k3s trên một VM (hoặc minikube ở máy cá nhân).
+
+## Lý do
+- Chi phí bằng không, trong khi EKS/GKE tốn khoảng 70–100 USD mỗi tháng
+- Toàn bộ khái niệm K8s giống hệt nhau
+- Dựng lại trong vài phút nếu hỏng
+
+## Đánh đổi (phần quan trọng nhất — đừng bỏ qua)
+- Không có control plane nhiều bản → không thể hiện được HA ở tầng cluster
+- Không có bộ cân bằng tải do cloud cấp → phải dùng NodePort hoặc MetalLB
+- Không kiểm chứng được cấu hình đa vùng
+
+## Nếu làm lại ở môi trường có ngân sách
+Sẽ chọn cụm do cloud quản lý để có HA ở control plane và tích hợp sẵn
+bộ cân bằng tải, khoá bí mật, sao lưu tự động.
+```
+
+> 💡 **Mục "Đánh đổi" là thứ người phỏng vấn đọc kỹ nhất.** Ai cũng biết chọn công cụ; ít người nói rõ được *mình đã đánh đổi cái gì*. Đó là dấu hiệu của người suy nghĩ thấu đáo.
+
+**5. Kiểm chứng và dọn (15 phút).** `destroy` rồi `apply` lại một lần. Nếu lần thứ hai không ra được kết quả y hệt, hạ tầng của bạn **chưa thật sự là code**.
+
+### 🧪 Tự kiểm chứng trước khi sang Ngày 57
+
+Chạy bộ kiểm tra này. Mọi dòng phải ✅:
+
+```bash
+cd ~/cloudnote
+
+echo "▸ 1.2 Cấu trúc kho mã"
+[ -d terraform ] && [ -d docs/adr ] && [ -d app ] && echo "  ✅" || echo "  ❌ thiếu thư mục"
+
+echo "▸ 1.3 Terraform hợp lệ"
+terraform -chdir=terraform/envs/dev validate && echo "  ✅" || echo "  ❌"
+
+echo "▸ 1.4 Remote state (không có state trong Git)"
+git ls-files | grep -q "tfstate" && echo "  ❌ ĐANG COMMIT STATE — sửa ngay" || echo "  ✅"
+
+echo "▸ 1.5 Có ít nhất 3 ADR"
+n=$(ls docs/adr/*.md 2>/dev/null | wc -l)
+[ "$n" -ge 3 ] && echo "  ✅ ($n bản)" || echo "  ❌ mới có $n"
+
+echo "▸ 1.6 Gắn thẻ"
+grep -rq "chu_so_huu\|owner" terraform/ && echo "  ✅" || echo "  ❌ chưa gắn thẻ"
+
+echo "▸ 1.7 Dựng lại được từ số 0"
+echo "  (chạy tay: terraform destroy && terraform apply — kết quả phải giống hệt)"
+
+echo "▸ Bảo mật: không có bí mật trong Git"
+docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+  detect --source=/repo --no-banner 2>&1 | tail -1
+```
+
+### ⚠️ Những cái bẫy hay gặp ở Phần 1
+
+| Bẫy | Hậu quả | Cách tránh |
+|---|---|---|
+| Ôm đồm quá nhiều tính năng ứng dụng | Hết thời gian, hạ tầng dở dang | App tối giản, hạ tầng chỉn chu |
+| Viết Terraform phẳng một file `main.tf` | Không thể hiện được năng lực (Ngày 48) | Tách module ngay từ đầu |
+| Lỡ commit `terraform.tfstate` | **Lộ bí mật** + nhìn rất nghiệp dư | `.gitignore` từ commit đầu tiên |
+| Để cloud chạy qua đêm | Hoá đơn bất ngờ | `destroy` sau mỗi buổi; hoặc dùng minikube |
+| Bỏ qua ADR ("làm sau") | Không bao giờ làm | Viết ngay lúc còn nhớ lý do |
+| Vẽ sơ đồ sau khi code xong | Sơ đồ chỉ mô tả lại, không định hướng | Vẽ trước — nó là bản thiết kế |
+
+### 💬 Gợi ý khi bí
+
+<details>
+<summary><b>Tôi không biết nên vẽ sơ đồ kiến trúc thế nào</b></summary>
+
+Bắt đầu từ ba câu hỏi, mỗi câu là một luồng mũi tên:
+
+1. **Người dùng gõ địa chỉ web → chuyện gì xảy ra?** → Ingress → Frontend → API → Database
+2. **Tôi push code → chuyện gì xảy ra?** → CI → build image → registry → GitOps → cluster
+3. **Hệ thống có chuyện → tôi biết bằng cách nào?** → metric/log → Prometheus/Loki → Grafana → cảnh báo
+
+Ba luồng đó chính là sơ đồ. Viết bằng Mermaid để nó nằm luôn trong README và hiện hình trên GitHub:
+
+```text
+flowchart LR
+    ND(("Người dùng")) --> ING["Ingress"]
+    ING --> FE["Frontend"]
+    FE --> API["API"]
+    API --> DB[("PostgreSQL")]
+    API -.metric.-> PROM["Prometheus"]
+    PROM --> GRAF["Grafana"]
+```
+</details>
+
+<details>
+<summary><b>Terraform của tôi nên tạo cái gì nếu dùng minikube?</b></summary>
+
+Minikube không tạo bằng Terraform được, nhưng **mọi thứ bên trong cluster thì có** — dùng provider `kubernetes` và `helm`:
+
+- `kubernetes_namespace` cho dev và prod
+- `kubernetes_resource_quota` giới hạn tài nguyên mỗi namespace
+- `kubernetes_secret` cho thông tin database
+- `helm_release` cài ingress-nginx và bộ giám sát
+
+Như vậy bạn vẫn thể hiện đủ: module, biến, output, remote state, quản lý vòng đời. Và nhớ viết một ADR giải thích lựa chọn này — đó chính là nội dung tốt cho ADR-001.
+</details>
+
+<details>
+<summary><b>Remote state mà không có tài khoản cloud thì làm sao?</b></summary>
+
+Dùng MinIO như Ngày 48 — nó là S3 chạy local. Cách làm y hệt: dựng MinIO bằng Docker Compose, tạo bucket, khai `backend "s3"` với `endpoints` trỏ vào `http://127.0.0.1:9000`.
+
+Trong README hãy ghi rõ: *"dùng MinIO thay S3 để chạy được không tốn chi phí; chuyển sang S3 thật chỉ cần đổi endpoint"*. Người đọc sẽ hiểu bạn nắm được bản chất.
+</details>
+
+<details>
+<summary><b>Ba ADR nên viết về cái gì?</b></summary>
+
+Chọn những quyết định mà **có thể chọn khác đi được**:
+
+1. **ADR-001:** k3s/minikube hay cụm do cloud quản lý — đánh đổi giữa chi phí và tính thực tế
+2. **ADR-002:** GitOps (ArgoCD) hay CI đẩy thẳng — đánh đổi giữa độ phức tạp và bảo mật
+3. **ADR-003:** PostgreSQL trong cluster hay database do cloud quản lý — đánh đổi giữa chi phí và công vận hành
+
+Những quyết định không có lựa chọn thay thế (kiểu "dùng Git") thì không đáng viết ADR.
+</details>
 
 ### 🎯 Đúc kết Ngày 56
 
 **3 điều phải mang theo:**
-1. **Vẽ sơ đồ trước khi code:** kiến trúc rõ (code → CI → registry → K8s → monitoring) thì biết cần dựng gì, đỡ làm đi làm lại.
-2. **Hạ tầng phải sinh ra hoàn toàn bằng IaC:** `terraform apply` dựng cluster/VM + network + registry, `destroy` rồi `apply` lại dựng lại y nguyên — đó mới là "tái tạo được".
-3. **ADR ghi mọi quyết định lớn:** "vì sao k3s thay EKS?", "vì sao Postgres?" — chuẩn bị sẵn cho câu hỏi phỏng vấn kinh điển "vì sao bạn chọn cái này?".
 
-> 🧠 **Một câu để nhớ:** đừng ôm đồm app phức tạp. App 3 tầng đơn giản (CloudNote/todo) là **đủ** — người ta quan tâm pipeline + hạ tầng + monitoring, không phải app cầu kỳ. Có thể dùng sẵn bộ khung [`capstone-cloudnote/`](../capstone-cloudnote/).
+1. **Vẽ trước, code sau.** Sơ đồ kiến trúc là bản thiết kế, không phải tài liệu mô tả lại thứ đã làm.
+2. **Hạ tầng phải dựng lại được từ số 0.** Nếu `destroy` rồi `apply` không ra kết quả y hệt thì đó chưa phải Infrastructure as Code.
+3. **ADR ghi lại đánh đổi, không chỉ ghi lựa chọn.** Đây là thứ phân biệt người chọn có suy nghĩ với người chọn theo thói quen.
 
-**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
-- [ ] Vẽ được sơ đồ kiến trúc end-to-end của dự án
-- [ ] `terraform apply/destroy/apply` dựng lại toàn bộ hạ tầng không thao tác tay
-- [ ] Cấu hình được remote state cho Terraform
-- [ ] Viết được ≥1 ADR giải thích một quyết định lớn
-- [ ] Khởi tạo monorepo cấu trúc rõ ràng + README có sơ đồ
+> 🧠 **Một câu để nhớ:** người phỏng vấn không hỏi *"bạn dùng gì?"* — họ hỏi **"vì sao bạn chọn cái đó, và bạn đã đánh đổi gì?"**. ADR là câu trả lời viết sẵn.
 
-✅ **Kết quả đạt được:** Khởi động dự án tốt nghiệp — kiến trúc rõ ràng + hạ tầng bằng IaC + ADR.
+**✅ Tự chấm Phần 1:**
+
+- [ ] Sơ đồ kiến trúc thể hiện đủ 3 luồng
+- [ ] Cấu trúc kho mã rõ ràng, tách repo mã nguồn và repo cấu hình
+- [ ] `terraform apply` dựng được hạ tầng từ số 0
+- [ ] `terraform destroy` xoá sạch, không sót tài nguyên
+- [ ] Remote state có khoá, state **không** nằm trong Git
+- [ ] Ít nhất 3 ADR có mục đánh đổi
+- [ ] Mọi tài nguyên đều được gắn thẻ
+- [ ] Đã quét và xác nhận không có bí mật trong Git
+
+✅ **Kết quả đạt được:** Nền móng của dự án tốt nghiệp — kiến trúc đã thiết kế, hạ tầng dựng được bằng một lệnh, và các quyết định đã được ghi lại kèm lý do.
 
 ---
 
@@ -2937,136 +2211,240 @@ Mỗi quyết định lớn ("vì sao chọn k3s thay vì EKS?", "vì sao Postgr
 
 > ⏱️ ~150 phút · Loại: Capstone
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 56 (thiết kế + hạ tầng) → **Ngày 57 (đóng gói app + pipeline CI/CD hoàn chỉnh)** → Ngày 58 (Monitoring & Reliability). Đây là phần "ăn điểm" nhất khi phỏng vấn.
+> 🧭 **Bạn đang ở đâu:** Ngày 56 (hạ tầng đã dựng bằng code) → **Ngày 57 (đóng gói ứng dụng và nối dây chuyền tự động)** → Ngày 58 (giám sát & độ tin cậy). Hôm nay là phần chiếm nhiều thời gian nhất, và cũng là phần người phỏng vấn soi kỹ nhất.
 >
-> ✅ **Chuẩn bị:** hạ tầng từ Ngày 56 chạy được. Ôn Docker multi-stage (Ngày 18) + CI/CD (Ngày 31–35) + DevSecOps (Ngày 49).
+> ✅ **Chuẩn bị:** hạ tầng Phần 1 đang chạy (`kubectl get nodes` ra `Ready`), repo mã nguồn và repo cấu hình đã tạo.
+>
+> 🎯 Vẫn là **đề bài + tiêu chí chấm**. Mọi kỹ thuật cần dùng bạn đã học ở Ngày 17–18, 31–34, 42–43, 49.
 
-### 📘 Lý thuyết
+### 📋 Mục tiêu Phần 2
 
-- **Hôm nay:** đóng gói ứng dụng và xây pipeline CI/CD hoàn chỉnh.
-- **Yêu cầu CI:** lint → test → quét bảo mật (Trivy) → build image multi-stage → push registry.
-- **Yêu cầu CD:** deploy tự động lên K8s (qua kubectl/Helm hoặc GitOps ArgoCD).
-- **Bảo mật:** secret qua GitHub Secrets, image scanning, image nhỏ gọn không chạy root.
+Từ `git push` tới ứng dụng đang chạy trên cluster — **không ai chạm tay vào server**.
 
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
+```text
+  git push
+     │
+     ▼
+  [CI] lint → test → quét bí mật → quét lỗ hổng
+     │
+     ▼
+  [Build] image đa tầng, tag = SHA commit
+     │
+     ▼
+  [Registry] ghcr.io/ban/cloudnote-api:a3f2c9d
+     │
+     ▼
+  [Cập nhật repo cấu hình] sửa tag trong Helm values
+     │
+     ▼
+  [ArgoCD] phát hiện Git đổi → tự đồng bộ vào cluster
+     │
+     ▼
+  Ứng dụng chạy bản mới, có thể quay lui bằng git revert
+```
 
-**Hôm nay: đóng gói app + dựng pipeline CI/CD hoàn chỉnh.**
-Gom kiến thức Giai đoạn 2 (Docker multi-stage) + Giai đoạn 3 (CI/CD, quét bảo mật, GitOps). Mục tiêu: `sửa code → push → tự test → quét → build → deploy lên K8s` mà không động tay.
+### ✅ Yêu cầu của Phần 2
 
-**Vì sao đây là phần "ăn điểm" nhất khi phỏng vấn:**
-Một pipeline chạy được là *bằng chứng sống* bạn hiểu DevOps thực sự. Mỗi stage "kể" 1 năng lực:
-- lint/test → bạn quan tâm chất lượng.
-- Trivy scan → bạn có tư duy bảo mật (DevSecOps) — thứ nhiều junior thiếu.
-- multi-stage build → bạn thạo Docker.
-- deploy K8s/ArgoCD → bạn làm được orchestration.
+#### Bắt buộc
 
-**Mẹo:** test pipeline thật kỹ *trước khi* quay demo — nó phải chạy mượt, không lỗi giữa chừng khi bạn trình bày.
+| # | Yêu cầu | Cách tự kiểm chứng |
+|---|---|---|
+| 2.1 | **Dockerfile đa tầng** cho mỗi thành phần, chạy bằng user thường, có `HEALTHCHECK` | `docker exec <c> whoami` không ra `root`; image dưới 300 MB |
+| 2.2 | **CI đầy đủ**: lint → test → build, dùng cache, có artifact | Pipeline xanh dưới 5 phút |
+| 2.3 | **Quét bảo mật trong CI**: bí mật + lỗ hổng + Dockerfile | 3 job quét đều chạy, chặn được khi có vấn đề |
+| 2.4 | **Image tag bất biến theo SHA commit**, không dùng `latest` để deploy | Trên registry thấy tag là mã commit |
+| 2.5 | **Helm chart** cho ứng dụng, có `values` riêng cho dev và prod | `helm template` ra YAML đúng cho từng môi trường |
+| 2.6 | **Triển khai tự động** (GitOps hoặc pipeline có duyệt) | Push code → vài phút sau bản mới đang chạy |
+| 2.7 | **Quay lui được trong dưới 5 phút** | Thực hiện thật một lần và bấm giờ |
+| 2.8 | **Branch protection**: `main` không merge được khi CI đỏ | Mở PR hỏng và xác nhận nút Merge bị khoá |
 
-### 🧪 Lab cơ bản
+#### Nâng cao
 
-1. Viết Dockerfile multi-stage tối ưu cho từng service.
-2. Viết Helm chart (hoặc manifest K8s) cho toàn bộ ứng dụng.
-3. Xây pipeline CI: lint, test, Trivy scan, build, push image (tag theo SHA).
-4. Xây pipeline CD: tự động deploy lên K8s khi merge vào main (hoặc qua ArgoCD).
-5. Test end-to-end: sửa code → push → pipeline tự build → deploy → app cập nhật.
-
-### 🚀 Lab nâng cao (best-practice)
-
-> Mục tiêu: pipeline production-grade — an toàn, truy vết, tự động hoàn toàn.
-
-1. **CI đầy đủ tầng bảo mật** (gộp kiến thức Ngày 49): lint + test + Trivy (image + dependency) + tfsec.
-2. **Image chuẩn** (Ngày 18): multi-stage, base nhỏ, `USER` thường, HEALTHCHECK, tag SHA.
-3. **CD qua GitOps (ArgoCD)** nếu có thể — đẹp hơn push-based, thể hiện trình độ.
-4. **Secret qua Secrets/Environments**, production có approval.
-
-### 💡 Bổ sung thực tế: đây là phần "ăn điểm" nhất của dự án
-
-- **Pipeline tự động là điểm nhấn phỏng vấn:** demo "tôi sửa 1 dòng code → vài phút sau tự lên production" gây ấn tượng mạnh hơn mọi lời nói. Đây là bằng chứng bạn hiểu DevOps thực sự.
-- **Mỗi stage kể một năng lực:** lint/test (chất lượng) · scan (bảo mật) · multi-stage build (Docker) · push tag SHA (truy vết) · deploy K8s/GitOps (orchestration). 1 pipeline = trình diễn cả khóa học.
-- **Đừng bỏ qua bảo mật trong pipeline** — Trivy scan + secret qua Secrets cho thấy tư duy DevSecOps, thứ nhiều ứng viên junior thiếu.
-- **Test end-to-end thật** trước khi quay demo — pipeline phải chạy mượt, không lỗi giữa chừng khi trình bày.
-
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
-
-**Trình tự nên làm:** viết Dockerfile multi-stage từng service → Helm chart/manifest → pipeline CI (lint→test→Trivy→build→push SHA) → pipeline CD (deploy K8s/ArgoCD) → test end-to-end.
-
-**Giải nghĩa & cách làm:**
-- Gom kiến thức GĐ2 (Docker multi-stage) + GĐ3 (CI/CD, Trivy, GitOps).
-- CI: `lint → test → trivy image --exit-code 1 → build (tag=SHA) → push GHCR`. CD: ArgoCD pull hoặc `kubectl set image`.
-
-**🧪 Thử nghiệm:**
-- Sửa 1 dòng code → push → bấm giờ đến lúc app live trên K8s. **Bài học:** đo "lead time" thật của pipeline mình.
-- Cố đẩy image có lỗ hổng nghiêm trọng → Trivy chặn pipeline (`--exit-code 1`). **Bài học:** shift-left security hoạt động.
-
-⚠️ **Dễ sai:** bỏ qua quét bảo mật để "cho nhanh". Trivy + secret qua Secrets là thứ phân biệt ứng viên có tư duy DevSecOps.
-
-💡 **Hiểu sâu:** đây là phần **ăn điểm nhất** khi phỏng vấn — demo "sửa code → tự lên production" thuyết phục hơn mọi lời nói. Mỗi stage kể 1 năng lực.
-
-### 📝 Bài ôn tập & Demo đối chiếu
-
-**✅ Checklist tự chấm Phần 2:**
-
-<details>
-<summary>1. Pipeline chạy hoàn toàn tự động từ commit đến deploy chưa?</summary>
-
-> Sửa code → push → CI (lint/test/scan) → build image (SHA) → CD deploy lên K8s → app cập nhật, không thao tác tay.
-</details>
-
-<details>
-<summary>2. Image đã quét bảo mật và tối ưu chưa?</summary>
-
-> Multi-stage, base nhỏ, `USER` thường, HEALTHCHECK, tag SHA; có bước Trivy scan chặn CVE nghiêm trọng.
-</details>
-
-<details>
-<summary>3. Secret được quản lý an toàn chưa?</summary>
-
-> Qua GitHub Secrets/Environments (không hard-code); production có approval.
-</details>
-
-<details>
-<summary>4. Mỗi stage của pipeline "kể" năng lực gì?</summary>
-
-> lint/test (chất lượng), scan (bảo mật/DevSecOps), multi-stage build (Docker), tag SHA (truy vết), deploy K8s/GitOps (orchestration).
-</details>
-
-**🔬 Demo đối chiếu:**
-
-| Demo đối chiếu | Kết quả mong đợi |
+| # | Yêu cầu |
 |---|---|
-| App container hoá | `docker build` + chạy local OK |
-| Pipeline CI/CD | push → build/test/deploy, badge xanh |
-| App chạy trên K8s | Truy cập URL công khai của dự án |
+| 2.9 | CI tự **cập nhật tag vào repo cấu hình** (nối trọn dây chuyền, không sửa tay) |
+| 2.10 | Triển khai kiểu **canary** hoặc **blue-green** |
+| 2.11 | Xuất **SBOM** và lưu kèm mỗi bản phát hành |
+| 2.12 | Image **đa kiến trúc** (amd64 + arm64) |
+| 2.13 | Ký image bằng **cosign** và kiểm chữ ký trước khi deploy |
 
-### 📚 Thuật ngữ Anh–Việt (ngày này)
+### 📐 Tiêu chí chấm Phần 2 (30 điểm)
 
-| Thuật ngữ | Nghĩa |
-|---|---|
-| **Multi-stage build** | Build image nhiều tầng, tầng cuối nhẹ |
-| **Trivy** | Quét lỗ hổng image/dependency |
-| **Helm chart** | Gói app K8s |
-| **GitOps / ArgoCD** | Deploy pull-based từ Git |
-| **Immutable tag (SHA)** | Tag bất biến truy vết |
-| **Approval** | Bước duyệt trước khi deploy production |
-| **Status badge** | Huy hiệu trạng thái CI |
+| Hạng mục | Điểm | Đạt điểm tối đa khi |
+|---|---:|---|
+| Chất lượng Dockerfile | 5 | Đa tầng, user thường, healthcheck, `.dockerignore`, image gọn |
+| Pipeline CI | 6 | Đủ tầng, chạy song song hợp lý, có cache, dưới 5 phút |
+| Bảo mật trong pipeline | 5 | Đủ 3 lớp quét, thực sự chặn được, có ngưỡng hợp lý |
+| Chiến lược gắn tag | 4 | Tag bất biến, truy ngược được ra commit, không deploy bằng `latest` |
+| Helm chart | 5 | Tham số hoá tốt, tách values theo môi trường, `helm lint` sạch |
+| Triển khai tự động | 5 | Không thao tác tay; có duyệt hoặc GitOps; quay lui được |
+
+> 🎯 Cộng dồn với Phần 1: **55 điểm**. Đạt từ 44 trở lên là hồ sơ tốt.
+
+### 🗺️ Gợi ý trình tự
+
+**1. Container hoá trước, đừng vội CI (40 phút).** Build và chạy được ở máy đã, rồi mới nghĩ tới tự động hoá. Thứ tự ngược lại sẽ khiến bạn debug hai thứ cùng lúc.
+
+```bash
+docker build -t cloudnote-api:thu ./app/backend
+docker run --rm -p 3000:3000 cloudnote-api:thu
+curl localhost:3000/health
+```
+
+**2. Helm chart trước khi làm CD (40 phút).** Deploy tay bằng `helm install` cho chạy đã. Khi nó đã chạy tay được, việc tự động hoá chỉ là gọi đúng lệnh đó từ pipeline.
+
+**3. CI trước, CD sau (30 phút).** Làm xanh phần kiểm tra trước, rồi mới nối tới phần triển khai.
+
+**4. Nối dây chuyền (40 phút).** Đây là phần thú vị nhất: CI build image → tự cập nhật tag vào repo cấu hình → ArgoCD tự đồng bộ.
+
+### 🧪 Tự kiểm chứng trước khi sang Ngày 58
+
+```bash
+cd ~/cloudnote
+
+echo "▸ 2.1 Dockerfile không chạy bằng root"
+grep -q "^USER " app/backend/Dockerfile && echo "  ✅" || echo "  ❌ thiếu USER"
+
+echo "▸ 2.1 Có HEALTHCHECK"
+grep -q "HEALTHCHECK" app/backend/Dockerfile && echo "  ✅" || echo "  ❌"
+
+echo "▸ 2.1 Kích thước image"
+docker images cloudnote-api --format "  {{.Tag}}: {{.Size}}" | head -3
+
+echo "▸ 2.3 CI có đủ 3 lớp quét"
+for t in gitleaks trivy hadolint; do
+  grep -rqi "$t" .github/workflows/ && echo "  ✅ $t" || echo "  ❌ thiếu $t"
+done
+
+echo "▸ 2.4 Không deploy bằng latest"
+grep -rn "tag:.*latest\|:latest" ../cloudnote-config/ 2>/dev/null \
+  && echo "  ❌ CÒN dùng latest" || echo "  ✅"
+
+echo "▸ 2.5 Helm chart hợp lệ"
+helm lint ./helm/cloudnote && echo "  ✅" || echo "  ❌"
+
+echo "▸ 2.5 Values tách theo môi trường"
+ls helm/cloudnote/values-*.yaml 2>/dev/null | wc -l | xargs echo "  số file values riêng:"
+
+echo "▸ 2.7 Bấm giờ quay lui — làm tay và ghi lại con số"
+```
+
+**Phép thử cuối cùng của Phần 2** — làm thật, đừng chỉ đọc:
+
+```text
+1. Sửa một dòng hiển thị trong ứng dụng
+2. git commit && git push
+3. BẤM GIỜ
+4. Chờ tới khi thấy thay đổi đó trên hệ thống đang chạy
+5. Ghi lại: ______ phút
+
+Dưới 10 phút  → 🟢 rất tốt
+10–20 phút    → 🟡 chấp nhận được
+Trên 20 phút  → 🔴 tìm chỗ nghẽn (thường là thiếu cache, hoặc test chạy quá lâu)
+```
+
+Đây chính là chỉ số DORA số 2 (**thời gian từ commit tới production**) của Ngày 55 — giờ đo trên hệ thống của chính bạn.
+
+### ⚠️ Những cái bẫy hay gặp ở Phần 2
+
+| Bẫy | Hậu quả | Cách tránh |
+|---|---|---|
+| Deploy bằng tag `latest` | Không biết đang chạy gì, không quay lui được | Tag theo SHA (Ngày 33) |
+| CI có kubeconfig của production | Lộ CI là lộ cluster | GitOps (Ngày 43), hoặc ít nhất là tách khoá và giới hạn quyền |
+| Pipeline chạy 15 phút | Không ai buồn chờ, người ta bắt đầu lách | Cache, chạy song song, xếp bước rẻ lên trước |
+| Quét bảo mật đặt ở chế độ chỉ cảnh báo | Cảnh báo bị bỏ qua hoàn toàn | `exit-code: 1` cho HIGH/CRITICAL |
+| Hai chart riêng cho dev và prod | Lệch nhau lúc nào không hay | Một chart + hai file values (Ngày 42) |
+| Chưa từng thử quay lui | Lúc cần thì luống cuống | Tập ít nhất một lần, có bấm giờ |
+
+### 💬 Gợi ý khi bí
+
+<details>
+<summary><b>Làm sao để CI tự cập nhật tag vào repo cấu hình?</b></summary>
+
+Thêm một job cuối trong workflow build image. Ý tưởng: clone repo cấu hình, sửa một dòng tag bằng `yq` hoặc `sed`, rồi commit ngược lại.
+
+```yaml
+  cap-nhat-cau-hinh:
+    needs: build-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lấy repo cấu hình
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/cloudnote-config
+          token: ${{ secrets.TOKEN_REPO_CAU_HINH }}   # PAT có quyền ghi repo kia
+
+      - name: Cập nhật tag image
+        run: |
+          sed -i "s|tag:.*|tag: \"${{ github.sha }}\"|" ung-dung/prod/values.yaml
+          git config user.name  "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          git commit -am "Cập nhật image lên ${{ github.sha }}"
+          git push
+```
+
+Lưu ý: cần một **Personal Access Token** có quyền ghi vào repo cấu hình, cất trong Secrets. `GITHUB_TOKEN` mặc định chỉ có quyền trên repo hiện tại.
+
+Sau đó ArgoCD thấy repo cấu hình đổi và tự đồng bộ. Dây chuyền khép kín: bạn chỉ push code, không chạm vào cluster.
+</details>
+
+<details>
+<summary><b>Pipeline của tôi chạy quá lâu, làm sao rút ngắn?</b></summary>
+
+Đo trước, tối ưu sau — mở từng job trong giao diện Actions xem bước nào tốn thời gian nhất. Ba nguyên nhân phổ biến:
+
+1. **Không cache thư viện** → thêm `cache: 'npm'` vào `setup-node` (Ngày 32)
+2. **Không cache lớp Docker** → thêm `cache-from: type=gha` vào `build-push-action` (Ngày 33)
+3. **Mọi thứ chạy tuần tự** → tách thành job song song, chỉ dùng `needs:` khi thật sự phụ thuộc
+
+Một mẹo nữa: job quét bảo mật không cần chờ job test. Cho chúng chạy song song, và chỉ bước build mới cần chờ cả hai.
+</details>
+
+<details>
+<summary><b>ArgoCD báo OutOfSync mãi không tự sửa</b></summary>
+
+Kiểm tra theo thứ tự này:
+
+1. `syncPolicy.automated` đã bật chưa? Không có thì ArgoCD chỉ *báo*, không *sửa*.
+2. Có gì đó đang sửa tài nguyên ngoài Git không? HPA thay đổi `replicas` là trường hợp kinh điển — khi đó phải thêm `ignoreDifferences` cho trường `replicas`.
+3. Xem chi tiết khác biệt: `argocd app diff <ten-app>` hoặc bấm **APP DIFF** trên giao diện. Thường sẽ lộ ra một trường mặc định do K8s tự thêm vào.
+</details>
+
+<details>
+<summary><b>Nên làm canary thế nào cho đơn giản?</b></summary>
+
+Cách đơn giản nhất không cần thêm công cụ: chạy hai Deployment (`app-on-dinh` và `app-canary`) cùng dùng chung nhãn mà Service chọn. Tỉ lệ lưu lượng xấp xỉ bằng tỉ lệ số pod:
+
+- 9 pod ổn định + 1 pod canary ≈ 10% lưu lượng vào bản mới
+
+Theo dõi tỉ lệ lỗi của riêng bản canary (tách bằng nhãn trong Prometheus). Ổn thì tăng dần số pod canary; có vấn đề thì `replicas: 0`.
+
+Muốn chính xác hơn về tỉ lệ thì cần Ingress hỗ trợ chia tải theo trọng số, hoặc Argo Rollouts / Flagger. Nhưng với dự án tốt nghiệp, cách thủ công ở trên là **đủ để thể hiện bạn hiểu vấn đề** — và nhớ viết một ADR giải thích vì sao chọn cách đơn giản.
+</details>
 
 ### 🎯 Đúc kết Ngày 57
 
 **3 điều phải mang theo:**
-1. **Pipeline tự động hoàn toàn từ commit đến deploy:** sửa code → push → lint/test/scan → build image (tag SHA) → CD lên K8s, không một thao tác tay nào.
-2. **Mỗi stage "kể" một năng lực:** lint/test (chất lượng), Trivy scan + secret an toàn (DevSecOps), multi-stage build (Docker), tag SHA (truy vết), deploy K8s/GitOps (orchestration).
-3. **Đừng bỏ bảo mật để "cho nhanh":** quét image + quản secret qua Secrets là thứ phân biệt ứng viên có tư duy DevSecOps với phần còn lại.
 
-> 🧠 **Một câu để nhớ:** demo "tôi sửa 1 dòng code → vài phút sau tự lên production + tự quét bảo mật" gây ấn tượng mạnh hơn mọi lời nói. Đây là phần "ăn điểm" nhất của cả dự án — hãy test thật kỹ trước khi quay.
+1. **Tag bất biến là điều kiện của mọi thứ khác** — không có nó thì không truy ngược được, không quay lui được, không biết đang chạy gì.
+2. **Chạy tay được trước, rồi mới tự động hoá.** Tự động hoá một quy trình bạn chưa làm thành công bằng tay là cách nhanh nhất để debug hai vấn đề cùng lúc.
+3. **Thời gian từ commit tới production là chỉ số sống còn.** Nó quyết định đội bạn đi nhanh hay chậm — và nó đo được.
 
-**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
-- [ ] Pipeline chạy end-to-end từ commit đến app cập nhật trên K8s, không tay
-- [ ] Image multi-stage, base nhỏ, chạy `USER` thường, tag theo SHA
-- [ ] Có bước Trivy chặn được CVE nghiêm trọng (`--exit-code 1`)
-- [ ] Secret quản qua GitHub Secrets/Environments, production có approval
-- [ ] Nói được mỗi stage của pipeline thể hiện năng lực gì
+> 🧠 **Một câu để nhớ:** một dây chuyền CI/CD tốt không được đo bằng số công cụ nó dùng, mà bằng **khoảng thời gian từ lúc bạn gõ `git push` tới lúc người dùng thấy thay đổi** — và bằng việc bạn có dám quay lui lúc 2 giờ sáng hay không.
 
-✅ **Kết quả đạt được:** Dự án có CI/CD đầy đủ — code tự động lên K8s qua pipeline an toàn, có quét bảo mật.
+**✅ Tự chấm Phần 2:**
+
+- [ ] Dockerfile đa tầng, user thường, có healthcheck, image gọn
+- [ ] CI đủ tầng lint/test/build, có cache, dưới 5 phút
+- [ ] Ba lớp quét bảo mật chạy và thực sự chặn được
+- [ ] Image gắn tag theo SHA, không deploy bằng `latest`
+- [ ] Helm chart một bộ, values tách theo môi trường
+- [ ] Triển khai tự động, không thao tác tay
+- [ ] Đã thực hiện quay lui thật và bấm giờ dưới 5 phút
+- [ ] Branch protection chặn được PR hỏng
+- [ ] Đã đo thời gian từ commit tới chạy thật
+
+✅ **Kết quả đạt được:** Dây chuyền hoàn chỉnh từ `git push` tới ứng dụng đang phục vụ — có kiểm tra, có quét bảo mật, có tag truy ngược được và có đường lui.
 
 ---
 
@@ -3074,424 +2452,851 @@ Một pipeline chạy được là *bằng chứng sống* bạn hiểu DevOps t
 
 > ⏱️ ~150 phút · Loại: Capstone
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 57 (Container & CI/CD) → **Ngày 58 (thêm "giác quan" + tự lành: monitoring & reliability)** → Ngày 59 (Tài liệu & Portfolio). Đây là thứ phân biệt dự án "chạy được" với "production-ready".
+> 🧭 **Bạn đang ở đâu:** Ngày 57 (dây chuyền triển khai đã chạy) → **Ngày 58 (làm cho hệ thống tự báo cáo sức khoẻ và chịu được hỏng hóc)** → Ngày 59 (tài liệu & bàn giao). Đây là phần **phân biệt một dự án học tập với một hệ thống thật**.
 >
-> ✅ **Chuẩn bị:** app đã deploy trên K8s (Ngày 57). Ôn Prometheus/Grafana/Loki (Ngày 44–46), probe/HPA (Ngày 41), SLO (Ngày 51).
+> ✅ **Chuẩn bị:** ứng dụng đã chạy trên cluster từ Phần 2.
+>
+> 🎯 Kỹ thuật cần dùng: Ngày 41 (probe, HPA), 44–46 (Prometheus, Grafana, Loki), 51 (SLO), 52 (HA, sao lưu).
 
-### 📘 Lý thuyết
+### 📋 Mục tiêu Phần 3
 
-- **Hôm nay:** hoàn thiện observability và độ tin cậy cho hệ thống.
-- **Monitoring:** Prometheus thu metric, Grafana dashboard, Loki cho log tập trung.
-- **Reliability:** health probe, resource limits, HPA, định nghĩa SLO và alert.
-- **Tài liệu vận hành:** runbook xử lý sự cố, hướng dẫn rollback.
+Hệ thống phải trả lời được bốn câu hỏi **mà không cần bạn SSH vào đâu cả**:
 
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
-
-**Hôm nay: thêm "giác quan" + "khả năng tự lành" cho hệ thống.**
-Đây chính là thứ **phân biệt dự án "chạy được" với dự án "production-ready"**. Nhiều ứng viên dừng ở "app deploy được" — bạn đi xa hơn:
-- **Monitoring** (Prometheus + Grafana + Loki): dashboard 4 golden signals + alert.
-- **Reliability**: probe (Ngày 41) + resource limits + HPA + định nghĩa SLO (Ngày 51).
-- **Runbook**: tài liệu "khi sự cố X thì làm các bước Y" + cách rollback.
-
-**Demo gây ấn tượng mạnh khi phỏng vấn:**
-- Xóa 1 pod trước mặt người phỏng vấn → K8s tự tạo lại, app không gián đoạn (self-healing).
-- Tăng tải → HPA tự thêm pod (autoscale).
-Đây là bằng chứng *sống động* về độ tin cậy, hơn hẳn nói suông.
-
-### 🧪 Lab cơ bản
-
-1. Cài stack giám sát (kube-prometheus-stack + Loki) bằng Helm vào cluster.
-2. Tạo dashboard Grafana hiển thị 4 golden signals của ứng dụng.
-3. Định nghĩa SLO và cấu hình alert khi vi phạm.
-4. Thêm liveness/readiness probe, resource limits và HPA cho các service.
-5. Viết runbook xử lý sự cố và hướng dẫn rollback trong `/docs`.
-
-### 🚀 Lab nâng cao (best-practice)
-
-> Mục tiêu: hệ thống "production-ready" — quan sát được, tự phục hồi, có tài liệu vận hành.
-
-1. **Dashboard golden signals** (Ngày 45) cho app của bạn — không phải chỉ CPU/RAM.
-2. **SLO + alert dựa trên SLO** (Ngày 51) — alert khi sắp vi phạm cam kết, không phải mọi dao động.
-3. **Reliability đầy đủ:** probe đúng (Ngày 41) + resource limits + HPA + PodDisruptionBudget.
-4. **Runbook thật** trong `/docs` — từng bước xử lý các sự cố hay gặp + cách rollback. Đây là tài liệu vận hành chuyên nghiệp.
-
-### 💡 Bổ sung thực tế: monitoring + reliability biến dự án thành "production-grade"
-
-- **Đây là thứ phân biệt dự án "chạy được" với dự án "production-ready":** nhiều ứng viên dừng ở "app deploy được". Thêm monitoring + self-healing + SLO + runbook → dự án của bạn ở đẳng cấp khác hẳn.
-- **Demo self-healing gây ấn tượng:** xóa 1 pod trước mặt người phỏng vấn → K8s tự tạo lại, app không gián đoạn. Tăng tải → HPA tự scale. Đây là bằng chứng sống động về reliability.
-- **Runbook thể hiện tư duy vận hành:** không chỉ "xây xong" mà "biết vận hành + xử lý khi hỏng". Người phỏng vấn senior đánh giá rất cao điều này.
-- **Gắn alert với golden signals/SLO** — cho thấy bạn hiểu SRE, không chỉ cắm dashboard cho đẹp.
-
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
-
-**Trình tự nên làm:** cài kube-prometheus-stack + Loki (Helm) → dashboard 4 golden signals → định nghĩa SLO + alert → thêm probe/limits/HPA → viết runbook.
-
-**Giải nghĩa & cách làm:**
-- `helm install monitoring prometheus-community/kube-prometheus-stack` + Loki. Grafana dashboard cho app (latency/traffic/errors/saturation).
-- Thêm liveness/readiness probe + resource limits + HPA (gom Ngày 41). Alert gắn với SLO (Ngày 51).
-- Runbook trong `/docs`: từng bước xử lý sự cố + rollback.
-
-**🧪 Thử nghiệm:**
-- Xóa 1 pod giữa lúc demo → K8s tự tạo lại, app không gián đoạn. Tăng tải → HPA scale. **Bài học:** demo self-healing gây ấn tượng mạnh.
-- Làm app lỗi → alert kích hoạt + dashboard đổi màu. **Bài học:** observability phát hiện sự cố thật.
-
-⚠️ **Dễ sai:** dừng ở "app deploy được". Thiếu monitoring + self-healing + runbook = dự án "chạy được" chứ chưa "production-ready".
-
-💡 **Hiểu sâu:** runbook thể hiện tư duy **vận hành** (không chỉ xây xong mà biết xử lý khi hỏng) — senior đánh giá rất cao. Đây là thứ nâng dự án lên đẳng cấp khác.
-
-### 📝 Bài ôn tập & Demo đối chiếu
-
-**✅ Checklist tự chấm Phần 3:**
-
-<details>
-<summary>1. Quan sát được sức khoẻ hệ thống qua dashboard chưa?</summary>
-
-> Grafana dashboard 4 golden signals (latency/traffic/errors/saturation) cho app của bạn, không chỉ CPU/RAM.
-</details>
-
-<details>
-<summary>2. Alert có kích hoạt khi có vấn đề chưa?</summary>
-
-> Có alert gắn với SLO (không phải mọi dao động), gửi tới kênh thật; đã test kích hoạt bằng cách gây lỗi giả.
-</details>
-
-<details>
-<summary>3. Hệ thống tự phục hồi khi pod chết chưa?</summary>
-
-> Xoá 1 pod → K8s tự tạo lại, app không gián đoạn (probe + Deployment). Tăng tải → HPA scale.
-</details>
-
-<details>
-<summary>4. Runbook thể hiện điều gì với người phỏng vấn?</summary>
-
-> Tư duy vận hành — không chỉ "xây xong" mà "biết xử lý khi hỏng + rollback". Senior đánh giá rất cao.
-</details>
-
-**🔬 Demo đối chiếu:**
-
-| Demo đối chiếu | Kết quả mong đợi |
+| Câu hỏi | Trả lời bằng |
 |---|---|
-| Monitoring | Grafana dashboard cho app |
-| Alerting | Cảnh báo test kích hoạt được |
-| HA/probe | App tự phục hồi, không downtime khi mất 1 pod |
+| Hệ thống có khoẻ không? | Dashboard 4 tín hiệu vàng |
+| Có đang vi phạm cam kết không? | SLO + ngân sách lỗi |
+| Hỏng thì tôi có biết không? | Cảnh báo gửi tới kênh thật |
+| Hỏng thì có tự chữa không? | Probe, nhiều bản sao, HPA |
 
-### 📚 Thuật ngữ Anh–Việt (ngày này)
+### ✅ Yêu cầu của Phần 3
 
-| Thuật ngữ | Nghĩa |
+#### Bắt buộc
+
+| # | Yêu cầu | Cách tự kiểm chứng |
+|---|---|---|
+| 3.1 | **Ứng dụng tự expose metric** (số request, độ trễ, lỗi) | `curl /metrics` thấy metric nghiệp vụ, không chỉ CPU/RAM |
+| 3.2 | **Prometheus thu được metric của mọi thành phần** | Trang Targets tất cả `UP` |
+| 3.3 | **Dashboard Grafana** đủ 4 tín hiệu vàng, **provisioning từ file** | Xoá container Grafana, dựng lại vẫn còn dashboard |
+| 3.4 | **Log tập trung** (Loki), tra được theo dịch vụ | Một truy vấn LogQL lấy được log của cả hệ thống |
+| 3.5 | **SLO + ngân sách lỗi** hiển thị trên dashboard | Có panel ngân sách còn lại |
+| 3.6 | **Ít nhất 3 cảnh báo có ý nghĩa**, gửi tới kênh thật | Gây sự cố và **nhận được** thông báo |
+| 3.7 | **Probe đầy đủ** cho mọi dịch vụ | Xoá điều kiện khoẻ → pod bị rút khỏi Service |
+| 3.8 | **Nhiều bản sao + HPA** cho thành phần không trạng thái | Giết 1 pod, dịch vụ không gián đoạn |
+| 3.9 | **Sao lưu database tự động** có bước tự kiểm chứng | Chạy script, thấy bản sao lưu hợp lệ |
+| 3.10 | **Một bài diễn tập sự cố** có ghi biên bản | Có file postmortem |
+
+#### Nâng cao
+
+| # | Yêu cầu |
 |---|---|
-| **Observability** | Metric + Log + (Trace) |
-| **Golden signals** | Latency/Traffic/Errors/Saturation |
-| **SLO** | Mục tiêu độ tin cậy |
-| **Probe / HPA** | Health check / tự scale |
-| **PodDisruptionBudget** | Giới hạn pod tắt cùng lúc khi bảo trì |
-| **Runbook** | Tài liệu xử lý sự cố từng bước |
-| **Production-ready** | Đủ chuẩn chạy thật |
+| 3.11 | Cảnh báo theo **tốc độ đốt ngân sách**, hai khung thời gian (Ngày 51) |
+| 3.12 | **Distributed tracing** (Module nâng cao NC1) |
+| 3.13 | Mỗi cảnh báo kèm **runbook** hướng dẫn xử lý |
+| 3.14 | `PodDisruptionBudget` bảo vệ lúc bảo trì |
+| 3.15 | Diễn tập khôi phục database thật, có bấm giờ RTO |
+
+### 📐 Tiêu chí chấm Phần 3 (30 điểm)
+
+| Hạng mục | Điểm | Đạt điểm tối đa khi |
+|---|---:|---|
+| Thu thập metric | 5 | Có metric nghiệp vụ, không chỉ metric hệ thống |
+| Dashboard | 5 | Đủ 4 tín hiệu vàng, provisioning từ file, đọc 5 giây là hiểu |
+| Log tập trung | 4 | Mọi thành phần đổ log về một chỗ, tra cứu được |
+| SLO & ngân sách lỗi | 5 | Có SLO rõ ràng, tính được, hiển thị được |
+| Cảnh báo | 5 | Có ý nghĩa, gửi tới nơi người thật đọc, có runbook |
+| Khả năng chịu lỗi | 6 | Probe + nhiều bản sao + HPA, **đã kiểm chứng bằng cách phá thật** |
+
+> 🎯 Cộng dồn ba phần: **85 điểm**. Từ 68 trở lên là hồ sơ mạnh.
+
+### 🗺️ Gợi ý trình tự
+
+**1. Đo trước, cảnh báo sau (40 phút).** Không thể cảnh báo cái chưa đo được. Thứ tự: thêm metric vào ứng dụng → Prometheus thu được → dashboard hiển thị → rồi mới đặt cảnh báo.
+
+**2. Metric nghiệp vụ mới là thứ đáng giá (30 phút).** CPU và RAM thì exporter nào cũng có. Thứ nói lên hệ thống *của bạn* khoẻ hay không là:
+
+```text
+cloudnote_ghi_chu_tao_total          (counter) — số ghi chú được tạo
+cloudnote_http_request_duration_seconds (histogram) — độ trễ, để tính p95
+cloudnote_http_requests_total{ma_loi} (counter) — để tính tỉ lệ lỗi
+cloudnote_ket_noi_db_dang_mo         (gauge)   — sức khoẻ tầng dữ liệu
+```
+
+**3. Đặt SLO dựa trên số đo thật (20 phút).** Chạy hệ thống một lúc, xem thực tế đang đạt bao nhiêu, rồi đặt SLO **hơi thấp hơn hiện trạng** (Ngày 51). Đừng bốc số.
+
+**4. Phá hệ thống một cách có chủ đích (40 phút).** Đây là phần quan trọng nhất — chi tiết ở mục dưới.
+
+**5. Sao lưu và diễn tập khôi phục (20 phút).** Dùng lại script của Ngày 52, có bước tự kiểm chứng.
+
+### 🔥 Bài diễn tập sự cố bắt buộc
+
+Một hệ thống chưa từng bị phá thì **chưa biết nó có chịu được hay không**. Hãy tự phá theo kịch bản, ghi lại kết quả:
+
+| # | Kịch bản | Điều đáng lẽ phải xảy ra | Ghi kết quả thật |
+|---|---|---|---|
+| 1 | Giết 1 pod backend | Dịch vụ không gián đoạn, pod mới lên trong vài giây | |
+| 2 | Giết **toàn bộ** pod backend | Gián đoạn ngắn rồi tự hồi phục | |
+| 3 | Làm readiness trượt ở 1 pod | Pod bị rút khỏi Service, **không** bị restart | |
+| 4 | Dừng database | Cảnh báo bắn; ứng dụng suy giảm có kiểm soát, không treo | |
+| 5 | Đổ tải cao | HPA nhân pod lên; độ trễ vẫn trong ngưỡng SLO | |
+| 6 | Xoá dữ liệu rồi khôi phục | Khôi phục được; **ghi lại RTO thật** | |
+
+```bash
+# Gợi ý cho kịch bản 1 và 2
+kubectl delete pod -l app=cloudnote-api --wait=false
+# Đồng thời ở terminal khác, đo gián đoạn:
+while true; do
+  curl -fs --max-time 2 http://<dia-chi>/health > /dev/null \
+    && printf "." || printf "X"
+  sleep 0.5
+done
+```
+
+Với **mỗi** kịch bản, ghi ba điều: *hệ thống phản ứng thế nào*, *bạn có được báo không*, *mất bao lâu để hồi phục*. Đây chính là nội dung của postmortem ở yêu cầu 3.10.
+
+> 💡 Nếu một kịch bản cho kết quả **tệ hơn bạn nghĩ** — đó là thu hoạch quý nhất của cả ngày hôm nay. Sửa nó, rồi thử lại.
+
+### 🧪 Tự kiểm chứng trước khi sang Ngày 59
+
+```bash
+echo "▸ 3.1 Ứng dụng có metric nghiệp vụ"
+kubectl exec deploy/cloudnote-api -- wget -qO- localhost:3000/metrics 2>/dev/null \
+  | grep -c "^cloudnote_" | xargs echo "  số metric riêng:"
+
+echo "▸ 3.2 Mọi target đều UP"
+curl -s http://<prometheus>/api/v1/targets \
+  | grep -o '"health":"[^"]*"' | sort | uniq -c
+
+echo "▸ 3.3 Dashboard đến từ file, không phải bấm tay"
+ls grafana/provisioning/dashboards/*.json | wc -l | xargs echo "  số dashboard trong Git:"
+
+echo "▸ 3.5 SLO tính được"
+curl -s "http://<prometheus>/api/v1/query?query=slo:ngan_sach_con_lai_phan_tram" \
+  | grep -o '"value":\[[^]]*\]'
+
+echo "▸ 3.6 Cảnh báo đã nạp"
+curl -s http://<prometheus>/api/v1/rules | grep -o '"name":"[^"]*"' | wc -l
+
+echo "▸ 3.7 Probe đầy đủ"
+kubectl get deploy -o json \
+  | grep -c "readinessProbe" | xargs echo "  số deployment có readiness:"
+
+echo "▸ 3.8 Nhiều bản sao"
+kubectl get deploy -o custom-columns=TEN:.metadata.name,MONG_MUON:.spec.replicas
+
+echo "▸ 3.9 Sao lưu tự kiểm chứng"
+ls -lh sao-luu/*.dump 2>/dev/null | tail -3
+```
+
+### ⚠️ Những cái bẫy hay gặp ở Phần 3
+
+| Bẫy | Hậu quả | Cách tránh |
+|---|---|---|
+| Chỉ có metric CPU/RAM | Không biết người dùng đang gặp gì | Thêm metric nghiệp vụ (3.1) |
+| Dashboard bấm tay | Grafana chết là mất sạch | Provisioning từ file (Ngày 45) |
+| Cảnh báo ngưỡng CPU | Đánh thức người vô ích | Cảnh báo theo triệu chứng người dùng thấy |
+| Liveness gọi sang database | Database chậm → giết sạch pod → sập dây chuyền | Liveness chỉ kiểm tra chính tiến trình (Ngày 41) |
+| Sao lưu chưa từng khôi phục thử | Ngày cần thì phát hiện hỏng | Script có bước tự kiểm chứng (Ngày 52) |
+| Không diễn tập sự cố | Không biết hệ thống chịu được gì | Làm đủ 6 kịch bản ở trên |
+
+### 💬 Gợi ý khi bí
+
+<details>
+<summary><b>Làm sao thêm metric vào ứng dụng Node?</b></summary>
+
+Dùng `prom-client`:
+
+```javascript
+const client = require('prom-client');
+client.collectDefaultMetrics();
+
+const soRequest = new client.Counter({
+  name: 'cloudnote_http_requests_total',
+  help: 'Tổng số request HTTP',
+  labelNames: ['method', 'route', 'ma_trang_thai'],   // nhãn HỮU HẠN
+});
+
+const doTre = new client.Histogram({
+  name: 'cloudnote_http_request_duration_seconds',
+  help: 'Thời gian xử lý request',
+  labelNames: ['method', 'route'],
+  buckets: [0.01, 0.05, 0.1, 0.3, 0.5, 1, 3],
+});
+
+// Trong middleware
+const ketThuc = doTre.startTimer({ method: req.method, route: duongDan });
+res.on('finish', () => {
+  ketThuc();
+  soRequest.inc({ method: req.method, route: duongDan, ma_trang_thai: res.statusCode });
+});
+
+// Điểm để Prometheus tới lấy
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', client.register.contentType);
+  res.end(await client.register.metrics());
+});
+```
+
+⚠️ **Nhãn `route` phải là mẫu đường dẫn** (`/ghi-chu/:id`), **không phải** đường dẫn thật (`/ghi-chu/12345`). Dùng đường dẫn thật sẽ tạo ra một chuỗi time-series cho mỗi ID — đúng lỗi cardinality explosion của Ngày 44.
+</details>
+
+<details>
+<summary><b>Ba cảnh báo nào là đáng đặt nhất?</b></summary>
+
+Chọn theo triệu chứng người dùng cảm nhận được, không theo tài nguyên:
+
+1. **Dịch vụ không phản hồi** — `up == 0` hoặc `probe_success == 0`, `for: 2m`. Cảnh báo giá trị nhất, gần như hệ thống nào cũng nên có.
+2. **Tỉ lệ lỗi vượt ngưỡng** — `rate(...{ma_trang_thai=~"5.."}[5m]) / rate(...[5m]) > 0.05`, `for: 5m`.
+3. **Độ trễ p95 vượt SLO** — `histogram_quantile(0.95, ...) > 0.3`, `for: 10m`.
+
+Thêm được cái thứ tư thì chọn **tốc độ đốt ngân sách** của Ngày 51 — nó gộp cả ba ý trên vào một câu hỏi duy nhất: *"với đà này thì bao giờ hết ngân sách?"*
+</details>
+
+<details>
+<summary><b>Gửi cảnh báo đi đâu khi không có Slack công ty?</b></summary>
+
+Vài lựa chọn miễn phí, đều dùng được cho portfolio:
+
+- **Discord webhook** — tạo trong 2 phút, Alertmanager và Grafana đều hỗ trợ
+- **Telegram bot** — tạo bot qua @BotFather, gửi bằng HTTP
+- **Email** — Alertmanager với SMTP của Gmail (dùng mật khẩu ứng dụng)
+- **Slack cá nhân** — tạo workspace riêng miễn phí
+
+Điều quan trọng với người chấm không phải bạn dùng kênh nào, mà là **cảnh báo thật sự đi tới nơi nào đó** — chứ không dừng lại ở giao diện Prometheus. Chụp màn hình thông báo nhận được đưa vào README.
+</details>
+
+<details>
+<summary><b>Đặt SLO bao nhiêu cho dự án học tập?</b></summary>
+
+Đo thực tế trước. Cho chạy vài giờ, xem `avg_over_time(probe_success[6h])` ra bao nhiêu, rồi đặt SLO **hơi thấp hơn** con số đó.
+
+Mức hợp lý cho một dự án tốt nghiệp: **khả dụng 99,5%** và **p95 dưới 300ms**. Quan trọng hơn con số là bạn **giải thích được vì sao chọn nó** — và ghi lý do đó vào một ADR. Đặt 99,99% cho hệ thống chạy trên một minikube là dấu hiệu bạn chưa hiểu bản chất.
+</details>
 
 ### 🎯 Đúc kết Ngày 58
 
 **3 điều phải mang theo:**
-1. **Đây là ranh giới "chạy được" vs "production-ready":** nhiều ứng viên dừng ở app deploy được; thêm monitoring + self-healing + SLO + runbook mới đưa dự án lên đẳng cấp khác.
-2. **Dashboard theo golden signals + alert theo SLO:** đo latency/traffic/errors/saturation của app (không chỉ CPU/RAM), và chỉ báo động khi sắp vi phạm cam kết — không hú mọi dao động.
-3. **Reliability đầy đủ + runbook:** probe + resource limits + HPA (+ PodDisruptionBudget) để tự phục hồi, kèm tài liệu "sự cố X → làm bước Y" và cách rollback.
 
-> 🧠 **Một câu để nhớ:** **runbook** thể hiện tư duy *vận hành* — không chỉ "xây xong" mà "biết xử lý khi hỏng". Người phỏng vấn senior đánh giá rất cao điều này; demo xoá 1 pod thấy app tự lành cũng thuyết phục hơn mọi lời nói.
+1. **Metric nghiệp vụ quan trọng hơn metric hệ thống.** CPU không nói được người dùng có đang khổ hay không.
+2. **Hệ thống chưa bị phá thì chưa biết nó chịu được gì.** Sáu kịch bản diễn tập là phần giá trị nhất của ngày hôm nay.
+3. **Cảnh báo phải tới được nơi người thật đọc**, và phải kèm hướng dẫn xử lý. Cảnh báo chỉ nằm trên dashboard là cảnh báo không tồn tại.
 
-**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
-- [ ] Có dashboard Grafana 4 golden signals cho app, không chỉ CPU/RAM
-- [ ] Alert gắn với SLO và đã test kích hoạt bằng cách gây lỗi giả
-- [ ] Xoá 1 pod → app không gián đoạn; tăng tải → HPA scale
-- [ ] Có runbook xử lý sự cố + hướng dẫn rollback trong `/docs`
-- [ ] Giải thích được vì sao runbook gây ấn tượng với người phỏng vấn senior
+> 🧠 **Một câu để nhớ:** phần này là ranh giới giữa *"em có làm dự án Kubernetes"* và *"em vận hành một hệ thống, đây là SLO, đây là kết quả diễn tập sự cố"*. Người phỏng vấn nghe ra khác biệt ngay lập tức.
 
-✅ **Kết quả đạt được:** Dự án có observability + reliability đầy đủ (self-healing, SLO, runbook) — chuẩn production.
+**✅ Tự chấm Phần 3:**
+
+- [ ] Ứng dụng expose metric nghiệp vụ, nhãn hữu hạn
+- [ ] Mọi target trong Prometheus đều `UP`
+- [ ] Dashboard đủ 4 tín hiệu vàng, sinh từ file
+- [ ] Log mọi thành phần tập trung, tra cứu được
+- [ ] SLO và ngân sách lỗi hiển thị được
+- [ ] Ít nhất 3 cảnh báo gửi tới kênh thật, đã nhận được thử
+- [ ] Probe đầy đủ, liveness không phụ thuộc dịch vụ ngoài
+- [ ] Nhiều bản sao + HPA, đã kiểm chứng bằng cách giết pod
+- [ ] Sao lưu tự động có bước tự kiểm chứng
+- [ ] Hoàn thành 6 kịch bản diễn tập và viết postmortem
+
+✅ **Kết quả đạt được:** Một hệ thống tự báo cáo sức khoẻ, tự chịu được hỏng hóc, và bạn có bằng chứng thực nghiệm cho điều đó — không phải lời khẳng định suông.
 
 ---
 
 ## Ngày 59 — Dự án tốt nghiệp — Phần 4: Tài liệu, Demo & Portfolio
 
-> ⏱️ ~120 phút · Loại: Capstone
+> ⏱️ ~150 phút · Loại: Capstone
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 58 (Monitoring & Reliability) → **Ngày 59 (biến dự án thành tài sản portfolio)** → Ngày 60 (Tốt nghiệp & định hướng nghề). Làm tốt phần này thì cả công sức 3 phần trước mới "bán" được cho nhà tuyển dụng.
+> 🧭 **Bạn đang ở đâu:** Ngày 58 (hệ thống đã tự giám sát và chịu lỗi) → **Ngày 59 (biến nó thành thứ người khác hiểu được trong 5 phút)** → Ngày 60 (tổng kết & định hướng).
 >
-> ✅ **Chuẩn bị:** dự án đã hoàn chỉnh (Ngày 56–58). Công cụ quay màn hình để làm video demo.
+> ✅ **Chuẩn bị:** dự án đã hoàn thành Phần 1–3 và đang chạy được.
+>
+> 🎯 **Sự thật khó chịu:** một hệ thống tuyệt vời mà **không ai hiểu được trong 5 phút đầu** sẽ bị bỏ qua. Nhà tuyển dụng dành trung bình chưa tới 3 phút cho một repo. Hôm nay bạn làm cho 3 phút đó đáng giá.
 
-### 📘 Lý thuyết
+### 📋 Mục tiêu Phần 4
 
-- **Hôm nay:** hoàn thiện tài liệu và biến dự án thành tài sản trong portfolio.
-- **README chuyên nghiệp:** mô tả, kiến trúc, công nghệ, cách chạy, demo, screenshot.
-- **Tài liệu kỹ thuật:** sơ đồ kiến trúc, quyết định thiết kế (ADR), hướng dẫn vận hành.
-- **Demo:** video/screenshot quay lại toàn bộ luồng từ code đến deploy đến monitoring.
-- **Blog kỹ thuật:** viết bài chia sẻ giúp ghi nhớ và xây dựng thương hiệu cá nhân.
+| Sản phẩm | Dành cho ai | Họ cần gì trong bao lâu |
+|---|---|---|
+| **README** | Người xem repo lần đầu | Hiểu hệ thống làm gì và ấn tượng — **60 giây** |
+| **Tài liệu kiến trúc** | Người muốn đào sâu | Hiểu vì sao thiết kế như vậy — 10 phút |
+| **Runbook** | Người trực lúc sự cố | Biết làm gì ngay — 2 phút |
+| **Bản demo** | Nhà tuyển dụng, phỏng vấn viên | Thấy hệ thống chạy thật — 3 phút |
+| **Mục portfolio** | Người sàng lọc hồ sơ | Biết bạn làm được gì — 30 giây |
 
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
+### ✅ Yêu cầu của Phần 4
 
-**Hôm nay: biến công sức kỹ thuật thành tài sản nghề nghiệp.**
-Bạn đã xây xong hệ thống — giờ phải làm cho *người khác thấy được giá trị* của nó. Code giỏi mà không ai hiểu = lãng phí.
+#### Bắt buộc
 
-**3 thứ tạo nên "tài sản portfolio":**
-1. **README chuyên nghiệp** = bộ mặt dự án. Kể chuyện: bài toán → sơ đồ kiến trúc → tech stack → cách chạy (1 lệnh) → demo → quyết định thiết kế. Người lạ đọc xong chạy được ngay.
-2. **Video demo 3–5 phút** = "vũ khí" phỏng vấn. Quay luồng: sửa code → pipeline chạy → app cập nhật → dashboard. Ai cũng ghi "biết K8s"; video bạn deploy thật = bằng chứng không thể chối cãi.
-3. **Blog kỹ thuật** = xây thương hiệu + khắc sâu kiến thức (dạy lại là cách học tốt nhất).
+| # | Yêu cầu | Cách tự kiểm chứng |
+|---|---|---|
+| 4.1 | **README** có sơ đồ kiến trúc, ảnh chụp màn hình, hướng dẫn chạy | Người lạ đọc 60 giây biết đây là gì |
+| 4.2 | **Hướng dẫn chạy thật sự chạy được** | Nhờ người khác làm theo trên máy sạch |
+| 4.3 | **Tài liệu kiến trúc** + toàn bộ ADR | `docs/` đầy đủ, có mục lục |
+| 4.4 | **Runbook** cho ít nhất 3 sự cố thường gặp | Mỗi cái: triệu chứng → cách kiểm tra → cách xử lý |
+| 4.5 | **Ảnh chụp màn hình**: dashboard, pipeline xanh, cảnh báo nhận được | Có trong README |
+| 4.6 | **Bản demo 3–5 phút** (video hoặc kịch bản chi tiết) | Đi hết một vòng: push code → chạy thật |
+| 4.7 | **Repo sạch**: không bí mật, không file rác, `.gitignore` đầy đủ | Gitleaks không phát hiện gì |
 
-**Đừng quên:** quét secret lần cuối (`gitleaks`) trước khi public — đảm bảo không lộ mật khẩu/key.
+#### Nâng cao
 
-### 🧪 Lab cơ bản
-
-1. Hoàn thiện README dự án đầy đủ: mô tả, sơ đồ, tech stack, hướng dẫn chạy, screenshot dashboard.
-2. Quay video demo (3–5 phút) toàn bộ luồng: push code → CI/CD → deploy → giám sát.
-3. Viết bài blog (~800 chữ) trên viblo.asia hoặc dev.to về dự án và bài học.
-4. Dọn dẹp repo: xóa file thừa, kiểm tra `.gitignore`, đảm bảo không lộ secret.
-5. Ghim (pin) dự án trên GitHub profile.
-
-### 🚀 Lab nâng cao (best-practice)
-
-> Mục tiêu: biến công sức kỹ thuật thành tài sản nghề nghiệp — người khác (và nhà tuyển dụng) thấy được giá trị.
-
-1. **README kể chuyện rõ ràng:** bài toán → kiến trúc (có sơ đồ) → tech stack → cách chạy (1 lệnh) → demo → quyết định thiết kế. Người lạ đọc xong chạy được ngay.
-2. **Video demo 3–5 phút** — show luồng end-to-end: sửa code → pipeline chạy → app cập nhật → dashboard phản ánh. Đây là "vũ khí" phỏng vấn.
-3. **Quét secret lần cuối** (gitleaks) trước khi public — đảm bảo không lộ gì.
-4. **Blog kỹ thuật** — viết về dự án không chỉ giúp người khác mà còn khắc sâu kiến thức và xây thương hiệu cá nhân.
-
-### 💡 Bổ sung thực tế: GitHub là CV của DevOps
-
-- **Nhà tuyển dụng DevOps xem GitHub trước CV:** code + pipeline + IaC nói lên năng lực thật hơn mọi dòng mô tả. README đẹp + dự án chạy được = ấn tượng mạnh.
-- **README quyết định ấn tượng đầu:** repo không README/README sơ sài = bị bỏ qua dù code tốt. Đầu tư README như đầu tư bộ mặt sản phẩm.
-- **Video demo vượt qua "nói suông":** ai cũng ghi "biết Kubernetes" trong CV. Video bạn deploy thật + self-healing thật = bằng chứng không thể chối cãi.
-- **Blog xây dựng thương hiệu dài hạn:** bài viết kỹ thuật tốt thu hút nhà tuyển dụng, kết nối cộng đồng, và buộc bạn hiểu sâu hơn (dạy lại là cách học tốt nhất).
-
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
-
-**Trình tự nên làm:** hoàn thiện README (mô tả/sơ đồ/cách chạy/screenshot) → quay video demo 3–5 phút → viết blog → dọn repo + quét secret → pin lên profile.
-
-**Giải nghĩa & cách làm:**
-- README kể chuyện: bài toán → kiến trúc (sơ đồ) → tech stack → cách chạy (1 lệnh) → demo → ADR.
-- Video demo: sửa code → pipeline chạy → app cập nhật → dashboard. Đây là "vũ khí" phỏng vấn.
-- `gitleaks detect --source .` quét secret lần cuối trước khi public.
-
-**🧪 Thử nghiệm:**
-- Nhờ 1 người (hoặc chính bạn trên máy sạch) clone repo + làm theo README → chạy được không? **Bài học:** README tốt = người lạ chạy được ngay.
-- `gitleaks detect --source .` → đảm bảo không lộ secret nào. **Bài học:** an toàn trước khi public.
-
-⚠️ **Dễ sai:** repo không README / README sơ sài = bị bỏ qua dù code tốt. README là bộ mặt sản phẩm.
-
-💡 **Hiểu sâu:** với DevOps, **GitHub là CV** — nhà tuyển dụng xem code + pipeline + IaC trước cả CV chữ. Video demo vượt qua "nói suông"; blog xây thương hiệu dài hạn.
-
-### 📝 Bài ôn tập & Demo đối chiếu
-
-**✅ Checklist tự chấm Phần 4:**
-
-<details>
-<summary>1. Người lạ đọc README có chạy được dự án không?</summary>
-
-> README kể chuyện: bài toán → kiến trúc (sơ đồ) → tech stack → cách chạy (1 lệnh) → demo → quyết định thiết kế. Người lạ đọc xong chạy được.
-</details>
-
-<details>
-<summary>2. Video demo thể hiện năng lực gì?</summary>
-
-> Luồng end-to-end: sửa code → pipeline chạy → app cập nhật → dashboard phản ánh + self-healing. Bằng chứng sống, hơn "nói suông".
-</details>
-
-<details>
-<summary>3. Repo đã sạch & an toàn chưa?</summary>
-
-> Xoá file thừa, `.gitignore` đúng, quét gitleaks lần cuối (không lộ secret), pin dự án lên profile.
-</details>
-
-<details>
-<summary>4. Vì sao "GitHub là CV" với DevOps?</summary>
-
-> Nhà tuyển dụng xem code + pipeline + IaC trước CV chữ. README đẹp + dự án chạy được = ấn tượng mạnh nhất.
-</details>
-
-**🔬 Demo đối chiếu:**
-
-| Demo đối chiếu | Kết quả mong đợi |
+| # | Yêu cầu |
 |---|---|
-| README/tài liệu | Setup, kiến trúc, cách chạy đầy đủ |
-| Video demo | Luồng code → deploy → live → monitor |
-| Portfolio | Repo công khai, pin lên profile |
+| 4.8 | Có **huy hiệu** trạng thái CI trên README |
+| 4.9 | **Bài viết** kể lại quá trình làm và những gì học được |
+| 4.10 | So sánh **trước/sau**: thời gian deploy thủ công so với tự động |
+| 4.11 | Ghi rõ **giới hạn và hướng phát triển tiếp** (rất được đánh giá cao) |
 
-### 📚 Thuật ngữ Anh–Việt (ngày này)
+### 📐 Tiêu chí chấm Phần 4 (15 điểm)
 
-| Thuật ngữ | Nghĩa |
+| Hạng mục | Điểm | Đạt điểm tối đa khi |
+|---|---:|---|
+| README | 5 | Có sơ đồ, ảnh, hướng dẫn chạy được; đọc 60 giây là hiểu |
+| Tài liệu kiến trúc & ADR | 4 | Giải thích được **vì sao**, không chỉ **cái gì** |
+| Runbook | 3 | Dùng được thật lúc sự cố, không phải văn vở |
+| Demo | 3 | Đi hết một vòng end-to-end, dưới 5 phút |
+
+> 🎯 **Tổng toàn dự án: 100 điểm.** Từ 80 trở lên là một dự án portfolio mạnh, đủ tự tin mang đi phỏng vấn.
+
+### 🗺️ Khuôn mẫu README
+
+Đây là cấu trúc đã được kiểm chứng. Thứ tự rất quan trọng — **thông tin đắt giá nhất phải nằm trên cùng**:
+
+```markdown
+# CloudNote — Hệ thống ghi chú vận hành hoàn toàn bằng code
+
+[![CI](https://github.com/ban/cloudnote/actions/workflows/ci.yml/badge.svg)](...)
+
+> Ứng dụng ghi chú 3 tầng chạy trên Kubernetes, triển khai tự động bằng
+> GitOps, có giám sát đầy đủ và SLO đo được.
+
+![Sơ đồ kiến trúc](docs/hinh/kien-truc.png)
+
+## Hệ thống này thể hiện điều gì
+
+| Lĩnh vực | Cách thể hiện |
 |---|---|
-| **Portfolio** | Bộ sản phẩm để xin việc |
-| **README** | Bộ mặt & hướng dẫn của repo |
-| **ADR** | Ghi chép quyết định kiến trúc |
-| **Demo** | Video/trình diễn luồng end-to-end |
-| **gitleaks** | Quét secret lỡ commit |
-| **Technical blog** | Bài viết kỹ thuật xây thương hiệu |
-| **Pin (GitHub)** | Ghim dự án nổi bật lên profile |
+| Hạ tầng dạng code | Terraform có module, remote state, 2 môi trường |
+| Đóng gói | Dockerfile đa tầng, user thường, image dưới 150 MB |
+| CI/CD | Lint → test → quét bảo mật → build → GitOps, dưới 5 phút |
+| Kubernetes | Helm, probe, HPA, nhiều bản sao |
+| Giám sát | Prometheus + Grafana + Loki, SLO 99,5%, 4 cảnh báo |
+| Bảo mật | Quét bí mật, quét lỗ hổng, không chạy bằng root |
+
+## Xem nhanh
+
+| | |
+|---|---|
+| ![dashboard](docs/hinh/dashboard.png) | ![pipeline](docs/hinh/pipeline.png) |
+| Dashboard 4 tín hiệu vàng | Pipeline CI/CD |
+
+## Chạy thử tại máy (5 phút)
+
+```bash
+git clone https://github.com/ban/cloudnote.git && cd cloudnote
+make khoi-dong          # dựng minikube + cài toàn bộ
+make kiem-tra           # xác nhận mọi thứ chạy
+```
+Mở http://cloudnote.local — xong.
+
+## Số liệu thật
+
+| Chỉ số | Giá trị đo được |
+|---|---|
+| Thời gian từ commit tới chạy thật | 4 phút 12 giây |
+| Thời gian quay lui | 45 giây |
+| Khả dụng (7 ngày) | 99,7% |
+| RTO khôi phục database | 23 giây |
+| Kích thước image | 138 MB |
+
+## Tài liệu
+
+- [Kiến trúc](docs/kien-truc.md) · [Các quyết định (ADR)](docs/adr/) ·
+  [Runbook xử lý sự cố](docs/runbook.md) · [Kết quả diễn tập](docs/dien-tap.md)
+
+## Giới hạn hiện tại và hướng phát triển
+
+- Chạy trên một node → chưa thể hiện được HA ở tầng cluster ([ADR-001](docs/adr/001.md))
+- Database trong cluster → production nên dùng dịch vụ quản lý ([ADR-003](docs/adr/003.md))
+- Chưa có distributed tracing → dự định thêm OpenTelemetry
+```
+
+> 💡 **Hai mục hiếm ai làm mà lại gây ấn tượng mạnh nhất:** *"Số liệu thật"* và *"Giới hạn hiện tại"*. Con số cho thấy bạn **đo** chứ không đoán. Nêu giới hạn cho thấy bạn **hiểu** hệ thống của mình, không ảo tưởng. Người phỏng vấn có kinh nghiệm để ý ngay hai mục này.
+
+### 📕 Khuôn mẫu Runbook
+
+Runbook được đọc lúc 3 giờ sáng bởi một người đang hoảng. Viết cho hoàn cảnh đó: **ngắn, có lệnh copy được, không giải thích dài dòng**.
+
+```markdown
+# Runbook — CloudNote
+
+## SC-01: API trả về lỗi 5xx
+
+**Cảnh báo:** `TyLeLoiCao`
+**Mức độ:** nghiêm trọng · **Ảnh hưởng:** người dùng không lưu được ghi chú
+
+### Kiểm tra nhanh (2 phút)
+```bash
+kubectl get pods -l app=cloudnote-api          # có pod nào không Running?
+kubectl logs -l app=cloudnote-api --tail=50 | grep -i error
+kubectl exec deploy/cloudnote-api -- wget -qO- localhost:3000/health
+```
+
+### Nguyên nhân thường gặp
+
+| Triệu chứng | Nguyên nhân | Xử lý |
+|---|---|---|
+| Pod `CrashLoopBackOff` | Sai cấu hình / thiếu biến môi trường | `kubectl describe pod`, xem Events |
+| Pod `OOMKilled` | Hết RAM | Tăng limits, hoặc điều tra rò rỉ bộ nhớ |
+| Log báo `connection refused` tới DB | Database chết | Xem SC-02 |
+| Chỉ xảy ra sau lần deploy mới | Bản mới có lỗi | **Quay lui ngay** (mục dưới) |
+
+### Quay lui (45 giây)
+```bash
+cd cloudnote-config && git revert --no-edit HEAD && git push
+# ArgoCD tự đồng bộ. Theo dõi:
+kubectl rollout status deploy/cloudnote-api
+```
+
+### Leo thang
+Không xử lý được trong 15 phút → báo <người/kênh>.
+```
+
+Viết đủ **3 sự cố**: API lỗi 5xx, database không kết nối được, và deploy thất bại.
+
+### 🎬 Kịch bản demo 4 phút
+
+| Phút | Nội dung | Điều cần làm nổi bật |
+|---|---|---|
+| 0:00–0:30 | **Bài toán và kiến trúc** | Chỉ vào sơ đồ, nói 3 luồng chính |
+| 0:30–1:00 | **Ứng dụng đang chạy** | Tạo một ghi chú, cho thấy nó hoạt động thật |
+| 1:00–2:00 | **Sửa code → push → tự lên** | Chạy đồng hồ, cho thấy pipeline và kết quả |
+| 2:00–3:00 | **Giám sát** | Dashboard, SLO, ngân sách lỗi |
+| 3:00–3:40 | **Phá và tự chữa** | Giết pod, cho thấy dịch vụ không gián đoạn + cảnh báo bắn |
+| 3:40–4:00 | **Quay lui** | `git revert`, hệ thống về bản cũ |
+
+> 💡 **Đoạn 3:00–3:40 là đoạn đáng giá nhất.** Ai cũng demo được "ứng dụng chạy". Rất ít người dám **phá hệ thống ngay trước mặt người xem** và cho thấy nó tự hồi phục. Đó là khoảnh khắc chứng minh bạn hiểu vận hành, không chỉ biết lắp ghép công cụ.
+
+Không quay video được thì viết kịch bản chi tiết kèm ảnh chụp từng bước vào `docs/demo.md` — vẫn có giá trị.
+
+### 🧪 Phép thử cuối cùng: người lạ có chạy được không?
+
+Đây là phép thử nghiêm khắc nhất và cũng hữu ích nhất:
+
+```text
+1. Nhờ một người bạn (hoặc tự dùng một máy ảo sạch)
+2. Đưa duy nhất đường dẫn repo, KHÔNG giải thích gì thêm
+3. Bấm giờ xem họ mất bao lâu để hệ thống chạy được
+4. Ghi lại MỌI chỗ họ vướng
+```
+
+| Kết quả | Ý nghĩa |
+|---|---|
+| Dưới 15 phút | 🟢 Tài liệu tốt |
+| 15–40 phút | 🟡 Có vài chỗ thiếu, sửa lại |
+| Trên 40 phút, hoặc phải hỏi bạn | 🔴 Tài liệu chưa dùng được |
+
+Mỗi câu hỏi họ phải hỏi bạn là **một lỗ hổng trong tài liệu**. Đây chính là tinh thần trải nghiệm lập trình viên của Ngày 55, áp cho chính dự án của bạn.
+
+### 🧪 Tự kiểm chứng
+
+```bash
+cd ~/cloudnote
+
+echo "▸ 4.1 README có sơ đồ và ảnh"
+grep -qE '!\[.*\]\(' README.md && echo "  ✅" || echo "  ❌ chưa có hình"
+
+echo "▸ 4.1 README có hướng dẫn chạy"
+grep -qiE 'chạy thử|quick start|bắt đầu' README.md && echo "  ✅" || echo "  ❌"
+
+echo "▸ 4.3 Tài liệu đầy đủ"
+for f in docs/kien-truc.md docs/runbook.md; do
+  [ -f "$f" ] && echo "  ✅ $f" || echo "  ❌ thiếu $f"
+done
+ls docs/adr/*.md 2>/dev/null | wc -l | xargs echo "  số ADR:"
+
+echo "▸ 4.4 Runbook đủ 3 sự cố"
+grep -c "^## SC-" docs/runbook.md 2>/dev/null | xargs echo "  số sự cố:"
+
+echo "▸ 4.7 Repo sạch, không bí mật"
+docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+  detect --source=/repo --no-banner 2>&1 | tail -1
+
+echo "▸ 4.7 Không commit file rác"
+git ls-files | grep -E "node_modules|\.env$|tfstate|\.DS_Store" \
+  && echo "  ❌ có file không nên commit" || echo "  ✅"
+
+echo "▸ Kích thước repo (nên dưới 50MB)"
+du -sh .git | cut -f1 | xargs echo "  "
+```
+
+### 💬 Gợi ý khi bí
+
+<details>
+<summary><b>Tôi không biết viết gì trong README</b></summary>
+
+Trả lời đúng bốn câu hỏi này, theo thứ tự — đó chính là README:
+
+1. **Cái này là gì?** (một câu)
+2. **Nó thể hiện tôi làm được gì?** (bảng kỹ năng ↔ cách thể hiện)
+3. **Làm sao chạy thử?** (các lệnh copy được)
+4. **Nó chưa làm được gì?** (giới hạn — mục này gây ấn tượng mạnh hơn bạn nghĩ)
+
+Đừng viết dài. README tốt thường **dưới 150 dòng**, và dùng hình thay cho chữ ở những chỗ có thể.
+</details>
+
+<details>
+<summary><b>Làm sao tạo sơ đồ kiến trúc đẹp mà nhanh?</b></summary>
+
+Viết **Mermaid** thẳng vào README — GitHub tự hiển thị thành hình, và vì nó là text nên sửa được, đưa vào Git được, không cần công cụ nào:
+
+````markdown
+```mermaid
+flowchart TB
+    ND(("Người dùng")) --> ING["🌐 Ingress"]
+    ING --> FE["Frontend"]
+    FE --> API["API"]
+    API --> DB[("PostgreSQL")]
+    API -.metric.-> PROM["📊 Prometheus"]
+    PROM --> GRAF["📈 Grafana"]
+    DEV(("Lập trình viên")) -->|push| CI["🔧 CI"]
+    CI --> REG["📦 Registry"]
+    REG --> ARGO["🔄 ArgoCD"]
+    ARGO --> API
+```
+````
+
+Muốn ảnh đẹp hơn để chèn vào bài viết thì dùng [excalidraw.com](https://excalidraw.com) — xuất PNG, đặt vào `docs/hinh/`.
+</details>
+
+<details>
+<summary><b>Quay video demo bằng gì?</b></summary>
+
+- **Linux:** OBS Studio (miễn phí), hoặc `asciinema` nếu chỉ quay terminal — nhẹ và rất chuyên nghiệp cho nội dung kỹ thuật
+- **Tải lên:** YouTube ở chế độ không công khai, rồi dán link vào README
+
+Mẹo: **viết kịch bản và tập trước 2 lần.** Video 4 phút mạch lạc giá trị hơn nhiều so với video 15 phút lúng túng. Và hãy quay lại nếu bạn lỡ để lộ thông tin nhạy cảm trên màn hình.
+</details>
+
+<details>
+<summary><b>Viết mục này vào CV thế nào?</b></summary>
+
+Dùng công thức: **làm gì → bằng công nghệ nào → kết quả đo được**.
+
+> **CloudNote — Hệ thống ghi chú vận hành hoàn toàn bằng code** *(dự án cá nhân)*
+> Xây dựng và vận hành hệ thống 3 tầng trên Kubernetes với triển khai GitOps,
+> hạ tầng bằng Terraform và giám sát đầy đủ.
+> - Rút thời gian từ commit tới chạy thật xuống **4 phút**, quay lui trong **45 giây**
+> - Đạt **99,7%** khả dụng trong 7 ngày, có SLO và cảnh báo theo tốc độ đốt ngân sách
+> - Pipeline có 3 lớp quét bảo mật (bí mật, lỗ hổng, cấu hình hạ tầng)
+> - *Terraform · Kubernetes · Helm · ArgoCD · GitHub Actions · Prometheus · Grafana · Loki*
+
+**Con số là thứ tạo khác biệt.** So sánh: *"có kinh nghiệm CI/CD"* với *"rút thời gian triển khai xuống 4 phút, quay lui 45 giây"* — câu thứ hai chứng minh bạn đã làm thật và có đo.
+</details>
 
 ### 🎯 Đúc kết Ngày 59
 
 **3 điều phải mang theo:**
-1. **Code giỏi mà không ai hiểu = lãng phí:** phần cuối này biến công sức kỹ thuật thành *tài sản nghề nghiệp* — người khác phải thấy được giá trị của nó.
-2. **README + video demo là bộ mặt và vũ khí:** README kể chuyện (bài toán → kiến trúc → cách chạy 1 lệnh → demo) để người lạ chạy được ngay; video 3–5 phút chứng minh bạn deploy + self-healing thật, vượt xa "nói suông".
-3. **An toàn trước khi public:** quét `gitleaks` lần cuối, dọn repo, `.gitignore` đúng, rồi mới pin lên profile.
 
-> 🧠 **Một câu để nhớ:** với DevOps, **GitHub chính là CV** — nhà tuyển dụng xem code + pipeline + IaC trước cả CV chữ. Đầu tư README + demo như đầu tư bộ mặt sản phẩm.
+1. **Tài liệu là một phần của sản phẩm.** Hệ thống không ai hiểu được thì với người xem, nó không tồn tại.
+2. **Số liệu đo được đánh bại mọi tính từ.** "4 phút 12 giây" thuyết phục hơn "nhanh" ở mọi hoàn cảnh.
+3. **Nêu giới hạn làm bạn đáng tin hơn, không phải yếu đi.** Người hiểu hệ thống của mình thì biết nó chưa làm được gì.
 
-**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
-- [ ] Người lạ clone repo + làm theo README là chạy được dự án
-- [ ] Có video demo 3–5 phút luồng code → CI/CD → deploy → dashboard
-- [ ] Quét `gitleaks` sạch, repo không còn file thừa/secret
-- [ ] Viết được 1 bài blog kỹ thuật về dự án và bài học
-- [ ] Đã pin dự án lên GitHub profile
+> 🧠 **Một câu để nhớ:** bạn có 60 giây trước khi người ta đóng tab. Hãy đặt **sơ đồ, số liệu và một ảnh dashboard** vào đúng 60 giây đó.
 
-✅ **Kết quả đạt được:** Dự án tốt nghiệp hoàn chỉnh, tài liệu hoá kỹ — sẵn sàng đưa vào CV.
+**✅ Tự chấm Phần 4:**
+
+- [ ] README có sơ đồ, ảnh chụp, bảng kỹ năng, số liệu thật
+- [ ] Hướng dẫn chạy đã được người khác thử thành công
+- [ ] Tài liệu kiến trúc và toàn bộ ADR đầy đủ
+- [ ] Runbook cho ít nhất 3 sự cố, có lệnh copy được
+- [ ] Ảnh dashboard, pipeline và cảnh báo đã nhận
+- [ ] Demo 3–5 phút, có đoạn phá và tự chữa
+- [ ] Repo sạch: không bí mật, không file rác
+- [ ] Có mục giới hạn và hướng phát triển tiếp
+- [ ] Đã viết xong mục cho CV theo công thức có số liệu
+
+✅ **Kết quả đạt được:** Dự án tốt nghiệp hoàn chỉnh — chạy được, đo được, tài liệu đầy đủ, và trình bày được trong 5 phút cho bất kỳ ai.
 
 ---
 
 ## Ngày 60 — TỐT NGHIỆP — Tổng kết, Chứng chỉ & Định hướng Sự nghiệp
 
-> ⏱️ ~120 phút · Loại: Milestone
+> ⏱️ ~150 phút · Loại: Tổng kết
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 1 (`pwd`/`ls`) → ... → **Ngày 60 (nhìn lại cả hành trình + định hướng nghề)** 🎓. Đây là vạch đích của 60 ngày — và vạch xuất phát của sự nghiệp DevOps.
+> 🧭 **Bạn đang ở đâu:** Ngày 1 bạn chưa biết CI/CD là gì. Hôm nay bạn có một hệ thống chạy trên Kubernetes, triển khai bằng GitOps, có SLO đo được và đã qua diễn tập sự cố. **Ngày 60 không phải vạch đích** — nó là lúc kiểm kê những gì đã có và quyết định đi tiếp về đâu.
 >
-> ✅ **Chuẩn bị:** dự án capstone hoàn chỉnh (Ngày 56–59). Sẵn sàng nhìn lại + lập kế hoạch 90 ngày tiếp theo.
+> ✅ **Chuẩn bị:** dự án tốt nghiệp đã xong (Ngày 56–59). Dành trọn 150 phút, đừng làm vội.
+>
+> 🎁 **Hôm nay bạn làm gì:** một **bài kiểm tra năng lực cuối khoá** (tự chấm), một bản tự đánh giá 60 ngày, và một kế hoạch 90 ngày tiếp theo.
 
-### 📘 Lý thuyết
+### 📘 Nhìn lại: bạn đã đi qua những gì
 
-- **Nhìn lại hành trình 60 ngày:** Linux/SysOps → Git → Docker → Cloud → IaC → CI/CD → K8s → Monitoring → SRE → Capstone.
-- **Bức tranh kiến trúc DevOps đầy đủ:** Code → CI (test/scan) → Build image → Registry → GitOps/CD → K8s → Monitor → Alert → cải tiến.
-- **Chứng chỉ nhập môn:** Linux Foundation LFCA, AWS Certified Cloud Practitioner (CLF-C02).
-- **Chứng chỉ trung cấp (3–6 tháng tới):** AWS Solutions Architect Associate, CKA (Certified Kubernetes Administrator), Terraform Associate.
-- **Định hướng nghề:** DevOps Engineer, SRE, Cloud Engineer, Platform Engineer.
-- **Học suốt đời:** theo dõi CNCF landscape, đọc blog kỹ thuật, đóng góp mã nguồn mở.
-- **Cộng đồng:** DevOps VN (Facebook), r/devops (Reddit), CNCF Slack, Discord DevOps.
+| Giai đoạn | Từ chỗ | Tới chỗ |
+|---|---|---|
+| **1** (1–12) | Gõ lệnh Linux còn ngập ngừng | Quản trị server, mạng, bảo mật, viết script tự động |
+| **2** (13–30) | Chép file lên server bằng tay | Đóng gói bằng Docker, dựng hạ tầng bằng Terraform |
+| **3** (31–50) | Deploy thủ công lúc nửa đêm | Pipeline tự động, Kubernetes, GitOps, giám sát đầy đủ |
+| **4** (51–60) | "Chạy được là xong" | SLO, ngân sách lỗi, HA/DR, FinOps, nền tảng nội bộ |
 
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
+Và bức tranh tổng thể mà giờ bạn **dựng lại được**, không chỉ đọc hiểu:
 
-**Tốt nghiệp — nhìn lại cả hành trình.**
-Bạn đã đi từ `pwd`/`ls` (Ngày 2) đến vận hành cả hệ thống DevOps tự động (Ngày 50). Bức tranh tổng: `Code → CI (test/scan) → Build → Registry → CD/GitOps → K8s → Monitor → cải tiến`. Đây là vòng đời mà mọi công ty công nghệ đang chạy.
+```text
+  Code → CI (lint/test/quét) → Image (tag SHA) → Registry
+                                                     │
+                                                     ▼
+  Giám sát ← Kubernetes (probe/HPA/HA) ← GitOps ← Repo cấu hình
+     │
+     └─→ SLO → ngân sách lỗi → quyết định: phát hành tiếp hay dừng lại vá
+```
 
-**Chứng chỉ — lộ trình hợp lý (không học bừa):**
-- **Nhập môn (giờ):** Linux Foundation LFCA, AWS Cloud Practitioner — dễ đạt, chứng minh nền tảng.
-- **Trung cấp (3–6 tháng):** AWS Solutions Architect Associate, **CKA** (Certified Kubernetes Administrator), Terraform Associate — có giá trị tuyển dụng thật.
+### 🏁 LAB FINAL — Bài kiểm tra năng lực cuối khoá
 
-**Sự thật về chứng chỉ vs portfolio:**
-Chứng chỉ **mở cửa CV** (qua vòng lọc hồ sơ), nhưng **dự án thực chiến** mới thuyết phục khi phỏng vấn. Cần **cả hai**, không thay thế nhau.
+> **Luật chơi:** 90 phút, **không xem lại tài liệu** trong lúc làm. Đây là bài tự đánh giá trung thực — chấm điểm cao bằng cách tra tài liệu thì chỉ tự lừa mình. Làm xong mới đối chiếu đáp án.
 
-**Học không bao giờ dừng:**
-CNCF Landscape có hàng trăm công cụ — đừng học hết, hiểu **danh mục** (CI/CD, observability, mesh, security...) + 1 đại diện tiêu biểu mỗi nhóm. Theo dõi cộng đồng, đọc blog, đóng góp open-source.
+#### Phần 1 — Chẩn đoán sự cố (30 điểm)
 
-### 🧪 Lab cơ bản
+Với mỗi tình huống: nêu **ba lệnh đầu tiên** bạn chạy, và **giả thuyết nghi ngờ nhất**.
 
-1. Hoàn thiện GitHub portfolio: tối thiểu 5 repo (`sysops-foundation`, `docker-fullstack`, `cicd-pipeline`, `k8s-deploy`, `capstone`).
-2. Cập nhật CV/LinkedIn: liệt kê kỹ năng và dự án với từ khóa rõ ràng.
-3. Vẽ sơ đồ kiến trúc tổng thể tất cả những gì đã xây dựng trong 60 ngày.
-4. Chọn và đăng ký 1 chứng chỉ (LFCA hoặc AWS CCP), lập kế hoạch ôn thi.
-5. Tham gia 1 cộng đồng DevOps và đặt câu hỏi/chia sẻ dự án đầu tiên.
-
-### 🚀 Lab nâng cao (best-practice)
-
-> Mục tiêu: chuyển từ "học xong" sang "sẵn sàng đi làm và phát triển dài hạn".
-
-1. **Hoàn thành [Bảng kiểm năng lực 17 kỹ năng](#phụ-lục-c--bảng-kiểm-năng-lực-tốt-nghiệp)** — tự đánh dấu cái nào tự làm được không cần tra cứu. Phần chưa vững → học lại.
-2. **Lập kế hoạch 90 ngày tiếp theo:** 1 chứng chỉ + 1 chủ đề chuyên sâu (xem [Phụ lục D](#phụ-lục-d--định-hướng-nghề--90-ngày-tiếp-theo)).
-3. **Xác định vị trí mục tiêu** (DevOps/SRE/Cloud/Platform) và khoảng cách kỹ năng cần lấp.
-4. **Bắt đầu hiện diện cộng đồng** — đặt câu hỏi, chia sẻ dự án, viết blog → cơ hội nghề tự tìm đến.
-
-### 💡 Bổ sung thực tế: học không bao giờ dừng + chọn chứng chỉ đúng
-
-- **Lộ trình chứng chỉ hợp lý:**
-  | Giai đoạn | Chứng chỉ | Mục đích |
-  |---|---|---|
-  | Nhập môn (giờ) | LFCA / AWS CCP | chứng minh nền tảng, dễ đạt |
-  | Trung cấp (3–6 tháng) | AWS SAA · CKA · Terraform Associate | có giá trị tuyển dụng thật |
-  | Chuyên sâu | CKS (security) · AWS DevOps Pro | nâng cao |
-- **Chứng chỉ không thay portfolio:** chứng chỉ mở cửa CV, nhưng **dự án thực chiến** mới thuyết phục khi phỏng vấn. Cả hai bổ trợ nhau.
-- **CNCF Landscape là bản đồ ngành:** hàng trăm công cụ cloud-native. Đừng học hết — hiểu **danh mục** (CI/CD, observability, service mesh, security...) và đại diện tiêu biểu mỗi nhóm.
-- **"Consistency beats intensity":** 90 phút mỗi ngày đều đặn thắng học dồn rồi bỏ. Kỹ năng DevOps là tích lũy — duy trì nhịp học sau khi "tốt nghiệp" mới là thứ tạo khác biệt dài hạn.
-
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
-
-**Trình tự nên làm:** hoàn thiện portfolio 5 repo → cập nhật CV/LinkedIn → vẽ sơ đồ tổng → đăng ký 1 chứng chỉ → tham gia cộng đồng.
-
-**Giải nghĩa & cách làm:**
-- Pin 5 repo lên GitHub profile (sysops-foundation, docker-fullstack, cicd-pipeline, k8s-deploy, capstone).
-- Hoàn thành [bảng kiểm 17 năng lực](#phụ-lục-c--bảng-kiểm-năng-lực-tốt-nghiệp) — tự đánh dấu cái nào **tự làm được không cần tra cứu**.
-
-**🧪 Thử nghiệm:**
-- Tự dựng lại 1 thứ bất kỳ (vd deploy app lên K8s) từ con số 0, **không nhìn tài liệu**. **Bài học:** đây mới là thước đo thật, không phải tick checklist.
-- Đặt 1 câu hỏi hoặc chia sẻ dự án trên 1 cộng đồng (r/devops, DevOps VN). **Bài học:** hiện diện cộng đồng → cơ hội tự tìm đến.
-
-⚠️ **Dễ sai:** coi chứng chỉ là đủ. Chứng chỉ mở cửa CV, nhưng **dự án thực chiến** mới thuyết phục khi phỏng vấn.
-
-💡 **Hiểu sâu:** *"Consistency beats intensity"* — duy trì nhịp học sau "tốt nghiệp" mới tạo khác biệt. CNCF Landscape: hiểu **danh mục** (CI/CD, observability, mesh...) + đại diện tiêu biểu, đừng học hết.
-
-### 📝 Bài ôn tập & Demo đối chiếu
-
-**✍️ Tự kiểm tra (tổng kết cả hành trình):**
+**Tình huống A (10đ).** Người dùng báo trang web lỗi 502. Pod hiện `Running`, `READY 1/1`.
 
 <details>
-<summary>1. Vẽ lại bức tranh DevOps end-to-end (không nhìn tài liệu).</summary>
+<summary>Đáp án tham khảo</summary>
 
-> Code → CI (test/scan) → Build image → Registry → CD/GitOps → K8s (probe/HPA) → Monitor (metric/log + alert) → phát hiện vấn đề → cải tiến → lặp lại.
+```bash
+kubectl get endpoints <ten-svc>      # Service có tìm thấy pod nào không?
+kubectl logs -l app=<app> --tail=50  # ứng dụng nói gì?
+kubectl describe pod <pod> | grep -A10 Events
+```
+**Nghi ngờ nhất:** selector của Service không khớp nhãn pod (endpoints rỗng), hoặc cổng khai sai (`targetPort` không trùng cổng ứng dụng nghe). `READY 1/1` chỉ nói probe đạt, **không** nói Service định tuyến đúng. *(Ngày 38)*
 </details>
+
+**Tình huống B (10đ).** Sau khi deploy, pod liên tục restart. `RESTARTS: 7`.
 
 <details>
-<summary>2. Chứng chỉ và portfolio — cái nào quan trọng hơn?</summary>
+<summary>Đáp án tham khảo</summary>
 
-> Cần **cả hai**: chứng chỉ mở cửa CV (qua vòng lọc), portfolio/dự án thực chiến thuyết phục khi phỏng vấn. Không thay thế nhau.
+```bash
+kubectl describe pod <pod> | grep -E "Reason|Exit Code|Last State"
+kubectl logs <pod> --previous       # log của LẦN CHẠY TRƯỚC — quan trọng nhất
+kubectl get events --sort-by=.lastTimestamp | tail -20
+```
+**Nghi ngờ nhất:** `OOMKilled` (Exit 137) do limits RAM quá thấp, hoặc livenessProbe quá gắt khiến pod bị giết trong lúc còn đang khởi động. Cờ `--previous` là chìa khoá — không có nó bạn chỉ thấy log của lần chạy mới, chưa kịp lỗi. *(Ngày 41)*
 </details>
+
+**Tình huống C (10đ).** Pipeline CI xanh, nhưng bản mới **không** xuất hiện trên cluster.
 
 <details>
-<summary>3. Lộ trình chứng chỉ hợp lý?</summary>
+<summary>Đáp án tham khảo</summary>
 
-> Nhập môn: LFCA / AWS CCP. Trung cấp (3–6 tháng): AWS SAA, CKA, Terraform Associate. Chuyên sâu: CKS, AWS DevOps Pro.
+```bash
+kubectl get application -n argocd          # SYNC STATUS là gì?
+argocd app diff <app>                      # Git khác cluster chỗ nào?
+git -C cloudnote-config log --oneline -3   # CI đã cập nhật tag chưa?
+```
+**Nghi ngờ nhất:** CI build và đẩy image thành công nhưng **chưa cập nhật tag vào repo cấu hình** — GitOps không thấy gì đổi nên không làm gì. Hoặc ArgoCD đang ở chế độ sync thủ công. *(Ngày 43, 57)*
 </details>
+
+#### Phần 2 — Thiết kế (30 điểm)
+
+**Câu 1 (15đ).** Một cửa hàng trực tuyến cần **99,9%** khả dụng. Hãy nêu: ngân sách lỗi mỗi tháng, ba SPOF phải loại bỏ, và hai cảnh báo bạn đặt đầu tiên.
 
 <details>
-<summary>4. Câu "thần chú" để phát triển dài hạn?</summary>
+<summary>Đáp án tham khảo</summary>
 
-> *"Consistency beats intensity"* — học đều mỗi ngày thắng học dồn rồi bỏ. Kỹ năng DevOps là tích luỹ; duy trì nhịp học sau tốt nghiệp mới tạo khác biệt.
+**Ngân sách lỗi:** 0,1% × 30 ngày = **43,2 phút chết/tháng**.
+
+**Ba SPOF cần loại bỏ:**
+1. Một bản ứng dụng duy nhất → chạy tối thiểu 3 bản, trải trên nhiều node
+2. Database một bản → bản chính kèm bản dự phòng, có tự chuyển đổi
+3. Một bộ cân bằng tải duy nhất → dùng bộ cân bằng tải của cloud, hoặc hai bộ chia sẻ IP trôi nổi
+
+**Hai cảnh báo đầu tiên:**
+1. Tốc độ đốt ngân sách lỗi, kiểm tra trên hai khung (5 phút và 1 giờ), ngưỡng 14,4
+2. Tỉ lệ lỗi 5xx vượt 1% trong 5 phút liên tục
+
+Không chọn "CPU > 80%" — nó không phản ánh trải nghiệm người dùng. *(Ngày 51, 52)*
 </details>
 
-**🔬 Demo đối chiếu:**
+**Câu 2 (15đ).** Đội bạn deploy mỗi tháng một lần, mỗi lần mất 4 tiếng và hay hỏng. Hãy đề xuất **ba việc làm trước tiên**, kèm lý do.
 
-| Demo đối chiếu | Kết quả mong đợi |
+<details>
+<summary>Đáp án tham khảo</summary>
+
+1. **Tự động hoá phần kiểm tra trước (CI)** — bắt lỗi trong vài phút thay vì lúc đang deploy. Kèm branch protection để code đỏ không vào được `main`.
+2. **Deploy thường xuyên hơn, mỗi lần nhỏ hơn.** Nghe phản trực giác nhưng đây là phát hiện cốt lõi của DORA: thay đổi nhỏ dễ kiểm tra, dễ hiểu, dễ quay lui. Deploy hằng tháng khiến mỗi lần trở thành một sự kiện to và đáng sợ.
+3. **Làm cho quay lui trở nên dễ và nhanh** — tag bất biến theo SHA, một lệnh là về bản cũ. Khi quay lui rẻ, người ta hết sợ phát hành.
+
+Điểm cộng nếu nói thêm: đo bốn chỉ số DORA trước, để biết mình đang ở đâu và có bằng chứng cải thiện. *(Ngày 32, 33, 55)*
+</details>
+
+#### Phần 3 — Thực hành (40 điểm)
+
+Làm trên máy, tính giờ.
+
+| # | Yêu cầu | Điểm | Thời gian mục tiêu |
+|---|---|---:|---|
+| 3.1 | Dựng một dịch vụ có Dockerfile + CI + healthcheck, từ số 0 | 10 | 10 phút |
+| 3.2 | Deploy lên cluster với probe, 3 bản sao, Service | 10 | 15 phút |
+| 3.3 | Gây một sự cố, dùng log và metric tìm ra nguyên nhân | 10 | 10 phút |
+| 3.4 | Quay lui về bản trước | 5 | 5 phút |
+| 3.5 | Viết postmortem không đổ lỗi cho sự cố vừa rồi | 5 | 10 phút |
+
+> 💡 Yêu cầu 3.1 làm được trong 10 phút nếu bạn còn giữ `tao-dich-vu.sh` của Ngày 55. Đó chính là ý nghĩa của golden path — và cũng là một cách chứng minh giá trị của nó.
+
+#### Thang điểm
+
+| Tổng | Đánh giá |
 |---|---|
-| Checklist 17 kỹ năng | Tự đánh dấu phần lớn mục |
-| Dự án tốt nghiệp | Link repo + demo sẵn sàng đưa vào CV |
-| Kế hoạch chứng chỉ | Chọn LFCA/AWS CCP/CKA + mốc thời gian |
+| **85–100** | Sẵn sàng cho vị trí DevOps. Đi phỏng vấn đi. |
+| **70–84** | Nền tảng vững, ôn lại phần điểm thấp là ổn |
+| **50–69** | Học lại giai đoạn tương ứng với phần yếu nhất |
+| **Dưới 50** | Làm lại dự án tốt nghiệp từ đầu — lần này không nhìn hướng dẫn |
 
-### 📚 Thuật ngữ Anh–Việt (ngày này)
+### 📊 Bảng tự đánh giá năng lực 60 ngày
 
-| Thuật ngữ | Nghĩa |
+Chấm trung thực từng mục: **0** = chưa biết · **1** = biết khái niệm · **2** = làm được khi có tài liệu · **3** = làm được không cần tra cứu
+
+| Lĩnh vực | Cụ thể | Điểm (0–3) |
+|---|---|---|
+| **Linux** | Quản lý tiến trình, phân quyền, log, systemd | |
+| **Mạng** | Debug theo tầng, DNS, port, phân biệt refused vs timeout | |
+| **Shell** | Viết script tự động có xử lý lỗi | |
+| **Git** | Branch, rebase, giải quyết xung đột, quy trình làm việc nhóm | |
+| **Docker** | Multi-stage, tối ưu image, volume, mạng | |
+| **Cloud** | Dựng VM, mạng ảo, nhóm bảo mật, quản lý chi phí |  |
+| **Terraform** | Module, remote state, workspace, đọc được plan | |
+| **CI/CD** | Pipeline nhiều tầng, cache, artifact, branch protection | |
+| **Kubernetes** | Deployment, Service, Ingress, ConfigMap, PVC, probe, HPA | |
+| **Helm** | Viết chart, tách values theo môi trường, rollback | |
+| **GitOps** | ArgoCD, xử lý trôi cấu hình, quay lui bằng Git | |
+| **Giám sát** | PromQL, dashboard, LogQL, đặt cảnh báo có ý nghĩa | |
+| **SRE** | SLI/SLO, ngân sách lỗi, postmortem không đổ lỗi | |
+| **HA/DR** | Tìm SPOF, RTO/RPO, sao lưu và khôi phục có kiểm chứng | |
+| **Bảo mật** | Quét bí mật/lỗ hổng, đặc quyền tối thiểu, ghim phiên bản | |
+| **FinOps** | Điều chỉnh đúng kích cỡ, gắn thẻ, tìm tài nguyên mồ côi | |
+
+**Tổng: ___ / 48**
+
+| Tổng | Nghĩa là |
 |---|---|
-| **LFCA / AWS CCP** | Chứng chỉ nhập môn Linux / Cloud |
-| **CKA** | Certified Kubernetes Administrator |
-| **Terraform Associate** | Chứng chỉ IaC Terraform |
-| **CNCF Landscape** | Bản đồ công cụ cloud-native |
-| **SRE / Platform Engineer** | Các hướng nghề tiến hoá của DevOps |
-| **DORA** | 4 chỉ số đo hiệu suất DevOps |
-| **Consistency beats intensity** | Học đều thắng học dồn |
+| 40+ | Vững ở mức ứng tuyển được vị trí DevOps chính thức |
+| 30–39 | Nền tảng tốt, còn vài mảng cần đào sâu |
+| 20–29 | Đã hiểu bức tranh, cần thực hành thêm nhiều |
+| Dưới 20 | Quay lại làm lại lab các phần điểm 0–1 |
 
-### 🎯 Đúc kết Ngày 60 — Tổng kết cả hành trình 60 ngày
+> 💡 **Mục nào bạn chấm 0 hoặc 1 chính là kế hoạch học 90 ngày tới.** Đừng học lan man — học đúng chỗ yếu.
 
-**3 điều phải mang theo cho cả chặng đường phía trước:**
-1. **Bạn đã đi trọn vòng đời DevOps end-to-end:** Linux/SysOps → Git → Docker → Cloud → IaC → CI/CD → K8s → Monitoring → SRE → Capstone. Bức tranh `Code → CI (test/scan) → Build → Registry → CD/GitOps → K8s (probe/HPA) → Monitor → Alert → cải tiến` giờ là thứ bạn dựng lại được, không chỉ đọc hiểu.
-2. **Chứng chỉ + portfolio, không phải chọn một:** chứng chỉ (LFCA/AWS CCP → SAA/CKA/Terraform Associate) mở cửa CV qua vòng lọc; dự án thực chiến mới thuyết phục khi phỏng vấn. Với DevOps, GitHub là CV.
-3. **Học là tích luỹ, không phải nước rút:** CNCF Landscape mênh mông — hiểu **danh mục** + một đại diện mỗi nhóm là đủ để không lạc, phần còn lại học theo nhu cầu công việc.
+### 🎓 Chứng chỉ — chọn cái nào, theo thứ tự nào
 
-> 🧠 **Một câu để nhớ:** *"Consistency beats intensity"* — học đều mỗi ngày thắng học dồn rồi bỏ. Kỹ năng DevOps là **tích luỹ**; duy trì nhịp học sau "tốt nghiệp" mới là thứ tạo khác biệt dài hạn. 🎓
+| Chứng chỉ | Dành cho | Khi nào nên thi |
+|---|---|---|
+| **AWS Cloud Practitioner** / **LFCA** | Nhập môn | Cần một mốc để bắt đầu, hoặc CV cần điểm neo |
+| **CKA** (Certified Kubernetes Administrator) | **Giá trị nhất cho DevOps** | Sau khoá này — bạn đã có nền từ Ngày 36–43 |
+| **Terraform Associate** | IaC | Dễ nhất trong nhóm, ôn 2 tuần là thi được |
+| **AWS Solutions Architect Associate** | Cloud chuyên sâu | Khi công việc gắn với AWS |
+| **CKS** (Kubernetes Security) | Nâng cao | Sau CKA, khi đi sâu về bảo mật |
 
-**✅ Chốt năng lực tốt nghiệp** *(đánh dấu khi tự làm được, không nhìn tài liệu — chi tiết ở [Bảng kiểm 17 kỹ năng](#phụ-lục-c--bảng-kiểm-năng-lực-tốt-nghiệp)):*
-- [ ] Vẽ lại bức tranh DevOps end-to-end và giải thích từng chặng
-- [ ] Dựng lại được 1 thứ bất kỳ (vd deploy app lên K8s) từ số 0, không nhìn tài liệu
-- [ ] Portfolio ≥5 repo đã pin, có dự án capstone chạy được + video demo
-- [ ] CV/LinkedIn cập nhật với kỹ năng và dự án, từ khoá rõ ràng
-- [ ] Đã chọn + đăng ký 1 chứng chỉ và có kế hoạch 90 ngày tiếp theo
-- [ ] Đã hiện diện ở ít nhất 1 cộng đồng DevOps (hỏi/chia sẻ dự án)
+> 🔑 **Nói thẳng về chứng chỉ:** nó giúp hồ sơ qua được vòng lọc tự động và vòng nhân sự. Nhưng khi ngồi trước một kỹ sư phỏng vấn, **dự án của bạn mới là thứ quyết định**. Đừng học chứng chỉ thay cho làm dự án; hãy làm cả hai, theo thứ tự: dự án trước, chứng chỉ sau. Với DevOps, **GitHub chính là CV**.
+>
+> **CKA đáng thi nhất** vì nó là bài thi thực hành trên cluster thật, không phải trắc nghiệm — nên nó chứng minh được năng lực thật, và người phỏng vấn biết điều đó.
 
-✅ **Kết quả đạt được — TỐT NGHIỆP! 🎓** Bạn đã có nền tảng SysOps + DevOps vững chắc, portfolio thực chiến và lộ trình phát triển tiếp theo.
+### 🧭 Chuẩn bị phỏng vấn — năm câu chắc chắn gặp
+
+Với **mọi** câu, hãy trả lời bằng cách **dẫn về dự án tốt nghiệp của bạn**. Câu trả lời có ví dụ cụ thể luôn thắng câu trả lời lý thuyết.
+
+<details>
+<summary><b>1. "Kể về một hệ thống bạn đã xây."</b></summary>
+
+Khung 90 giây: **bài toán → kiến trúc → kết quả đo được → điều đánh đổi**.
+
+> *"Em xây CloudNote, hệ thống ghi chú 3 tầng trên Kubernetes. Toàn bộ hạ tầng bằng Terraform, triển khai bằng GitOps với ArgoCD. Từ lúc push code tới lúc chạy thật mất 4 phút, quay lui 45 giây. Có SLO 99,5% với cảnh báo theo tốc độ đốt ngân sách lỗi. Điểm đánh đổi lớn nhất là em chạy trên một node để không tốn chi phí — nên chưa thể hiện được HA ở tầng cluster; em có ghi rõ lý do và hướng thay thế trong ADR-001."*
+
+Chính mệnh đề cuối — nêu giới hạn — là thứ tạo khác biệt.
+</details>
+
+<details>
+<summary><b>2. "Production đang chết. Bạn làm gì?"</b></summary>
+
+Họ đánh giá **quy trình**, không phải câu trả lời đúng:
+
+1. **Đánh giá mức ảnh hưởng trước** — bao nhiêu người dùng, chức năng nào?
+2. **Cầm máu trước, điều tra sau** — nếu vừa deploy thì **quay lui ngay**, đừng debug trên production đang cháy.
+3. **Điều tra theo tầng** — metric (có gì sai?) → log (sai cái gì?) → trace (sai ở đâu?).
+4. **Thông báo** — cho người liên quan biết tình hình và thời gian dự kiến.
+5. **Postmortem sau đó**, không đổ lỗi cá nhân.
+
+Điểm cộng lớn: nói rõ *"khôi phục dịch vụ được ưu tiên hơn tìm ra nguyên nhân"* — đây là tư duy SRE mà người mới thường ngược lại.
+</details>
+
+<details>
+<summary><b>3. "Vì sao chọn X mà không chọn Y?"</b></summary>
+
+Đây chính là lý do bạn viết ADR. Cấu trúc: **bối cảnh → lựa chọn → đánh đổi → nếu bối cảnh khác thì sao**.
+
+> *"Em chọn GitOps thay vì CI đẩy thẳng vào cluster, vì như vậy không hệ thống nào bên ngoài phải giữ kubeconfig của production. Đánh đổi là thêm một thành phần phải vận hành và thời gian triển khai chậm hơn chút do chu kỳ đồng bộ. Nếu đội chỉ có 2 người và một dịch vụ, em sẽ chọn CI đẩy thẳng cho đơn giản."*
+</details>
+
+<details>
+<summary><b>4. "Bạn xử lý bí mật thế nào?"</b></summary>
+
+Câu này lộ ngay trình độ. Trả lời đủ ba tầng:
+
+- **Không bao giờ** đưa bí mật vào Git hay vào image — kể cả repo private
+- **Secret của Kubernetes chỉ là base64**, không phải mã hoá; ai có quyền đọc là lấy được
+- Giải pháp thật: Vault hoặc dịch vụ bí mật của cloud; nếu buộc phải để trong Git thì dùng Sealed Secrets hoặc SOPS
+- Lỡ commit rồi thì **thu hồi bí mật trước**, dọn lịch sử sau — vì `git rm` không xoá được khỏi lịch sử
+</details>
+
+<details>
+<summary><b>5. "Bạn đo hiệu quả công việc của mình bằng gì?"</b></summary>
+
+Nêu bốn chỉ số DORA, và nói rõ phát hiện quan trọng nhất: **tốc độ và ổn định không đánh đổi nhau**. Đội deploy thường xuyên cũng chính là đội ít sự cố nhất, vì mỗi thay đổi nhỏ hơn.
+
+Nếu đã đo trên dự án của mình thì đưa số thật ra — điều đó hơn hẳn mọi câu trả lời lý thuyết.
+</details>
+
+### 🗓️ Kế hoạch 90 ngày tiếp theo
+
+| Giai đoạn | Việc chính |
+|---|---|
+| **Ngày 1–30** | Lấp các mục chấm 0–1 ở bảng tự đánh giá. Học **Module nâng cao bổ sung** (tracing, Vault, message queue, managed K8s). Ôn CKA. |
+| **Ngày 31–60** | **Thi CKA.** Song song: đóng góp cho một dự án mã nguồn mở (bắt đầu từ sửa tài liệu — cách vào cửa dễ nhất). |
+| **Ngày 61–90** | Dự án thứ hai **khác kiểu** với CloudNote: ví dụ nền tảng dữ liệu, hoặc hệ thống nhiều dịch vụ có tracing. Viết một bài chia sẻ những gì học được. |
+
+**Duy trì nhịp học lâu dài:**
+
+- Mỗi tuần đọc một postmortem công khai ([danluu.com/postmortems](https://danluu.com/postmortems/)) — học từ sự cố thật của người khác là cách học rẻ nhất
+- Theo dõi báo cáo DORA hằng năm và CNCF Landscape
+- Tham gia cộng đồng, trả lời câu hỏi của người mới — dạy lại là cách kiểm tra mình có thật sự hiểu hay không
+
+### 💡 Vài điều thật lòng khi khép lại
+
+- **Bạn sẽ quên phần lớn cú pháp, và điều đó bình thường.** Thứ còn lại là **mô hình tư duy**: khai báo thay vì ra lệnh, vòng điều hoà, đặc quyền tối thiểu, đo trước khi tối ưu. Cú pháp tra được; tư duy thì phải xây.
+- **Công cụ sẽ đổi, nguyên lý thì không.** Năm năm nữa có thể không còn ai dùng đúng những công cụ trong khoá này. Nhưng "mô tả trạng thái mong muốn rồi để hệ thống tự làm cho khớp" thì vẫn đúng.
+- **Đừng chạy theo mọi công nghệ mới.** CNCF Landscape có hàng trăm dự án. Hiểu **danh mục** (điều phối, giám sát, mesh, GitOps...) và **một đại diện mỗi nhóm** là đủ để không lạc đường. Phần còn lại học khi công việc cần.
+- **Việc khó nhất trong nghề này không phải kỹ thuật.** Nó là thuyết phục một tổ chức thay đổi cách làm: bỏ deploy tay, chấp nhận ngân sách lỗi, tôn trọng postmortem không đổ lỗi. Kỹ năng giao tiếp quyết định nhiều hơn bạn nghĩ.
+- **Bạn không cần biết hết mới được bắt đầu đi làm.** Không ai biết hết. Cái cần là **biết cách tìm hiểu và tự gỡ rối** — và 60 ngày qua bạn đã luyện đúng kỹ năng đó, mỗi lần một lab hỏng.
+
+### 🎯 Đúc kết Ngày 60 — Tổng kết cả hành trình
+
+**3 điều mang theo cho chặng đường phía trước:**
+
+1. **Bạn đã đi trọn vòng đời DevOps end-to-end** và dựng lại được nó, không chỉ đọc hiểu. Đó là khác biệt giữa người học qua tài liệu và người đã làm.
+2. **Chứng chỉ mở cửa, dự án thuyết phục.** Làm cả hai, theo thứ tự: dự án trước, chứng chỉ sau. Với nghề này, GitHub chính là CV.
+3. **Học đều thắng học dồn.** Kỹ năng vận hành là thứ tích luỹ qua từng sự cố bạn tự gỡ — không có đường tắt, nhưng cũng không có trần.
+
+> 🧠 **Một câu để nhớ:** thứ bạn mang theo sau 60 ngày không phải danh sách công cụ, mà là **phản xạ**: gặp hệ thống lạ thì biết hỏi gì trước, gặp sự cố thì biết nhìn đâu trước, gặp quyết định thì biết cân đánh đổi nào.
+
+**✅ Tự chấm cuối khoá:**
+
+- [ ] Hoàn thành LAB FINAL, đạt từ 70 điểm trở lên
+- [ ] Điền xong bảng tự đánh giá 48 điểm và biết mình yếu ở đâu
+- [ ] Dự án tốt nghiệp đã lên GitHub, README có sơ đồ và số liệu
+- [ ] Viết xong mục dự án cho CV theo công thức có số liệu
+- [ ] Chọn được chứng chỉ tiếp theo và đặt ngày thi
+- [ ] Lập xong kế hoạch 90 ngày dựa trên các mục còn yếu
+- [ ] Tập trả lời được 5 câu phỏng vấn bằng ví dụ từ dự án của mình
+
+✅ **Kết quả đạt được:** Hết 60 ngày. Bạn có một hệ thống thật đang chạy, một bộ kỹ năng đã tự kiểm chứng, và một kế hoạch rõ ràng cho chặng tiếp theo. 🎓
 
 ---
-
-# 📎 Phụ lục Giai đoạn 4
 
 ## Phụ lục A — Cheat Sheet tổng hợp theo Giai đoạn
 
