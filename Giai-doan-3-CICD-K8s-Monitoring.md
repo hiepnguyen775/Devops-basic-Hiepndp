@@ -2688,197 +2688,465 @@ flowchart LR
 
 > ⏱️ ~90 phút · Loại: Monitoring
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 43 (GitOps) → **Ngày 44 (Prometheus — thu thập số đo hệ thống)** → Ngày 45 (Grafana vẽ dashboard). Đây là trụ cột "Metrics" của observability — biết hệ thống có đang khoẻ không.
+> 🧭 **Bạn đang ở đâu:** Ngày 43 (GitOps) → **Ngày 44 (Prometheus — thu thập số đo hệ thống)** → Ngày 45 (Grafana vẽ dashboard từ chính stack bạn dựng hôm nay).
 >
-> ✅ **Chuẩn bị:** cluster local (hoặc Docker Compose). Cài stack bằng Helm: `helm install monitoring prometheus-community/kube-prometheus-stack`.
+> ✅ **Chuẩn bị:** máy Linux có `docker` và `docker compose` (Ngày 16–20). Kiểm tra nhanh: `docker compose version`. Cần 3 cổng còn trống: **9090** (Prometheus), **9100** (node-exporter), **9093** (Alertmanager).
+>
+> 🎁 **Cuối ngày bạn có gì:** một thư mục `lab44-prometheus/` chạy được bằng 1 lệnh, giám sát chính máy bạn, có 3 cảnh báo thật — và bạn sẽ **tự gây sự cố để thấy cảnh báo bắn**.
 
 ### 📘 Lý thuyết
 
-#### 1. 3 trụ cột observability
+#### 1. Vấn đề có thật trước khi có Prometheus
 
-| Trụ cột | Trả lời | Công cụ |
-|---|---|---|
-| **Metrics** (số đo) | "Có gì đó sai không?" | Prometheus |
-| **Logs** (nhật ký) | "Sai cái gì cụ thể?" | Loki (Ngày 46) |
-| **Traces** (dấu vết) | "Sai ở đâu trong chuỗi service?" | Jaeger/Tempo |
+Bạn có 1 server. Nó chậm. Bạn SSH vào gõ `top`, thấy CPU 90% → khởi động lại dịch vụ → hết chậm. Xong.
 
-#### 2. Prometheus — "máy thu thập số đo" (pull model)
+Giờ bạn có **30 server và 100 container**. Câu hỏi đổi hẳn:
 
-Prometheus **chủ động đi hỏi** (pull/scrape) từng dịch vụ qua `/metrics`, thay vì chờ chúng gửi tới. Lợi: dịch vụ chết → scrape fail → biết ngay là "down"; dễ debug (mở `/metrics` xem trực tiếp).
+- Lúc 2 giờ sáng CPU máy nào tăng? (bạn đang ngủ, `top` không ai gõ)
+- Tuần trước hệ thống chậm — *chậm bao nhiêu*, so với bình thường thì tệ hơn mấy lần?
+- Con số nào cho biết "sắp hỏng" **trước khi** khách hàng gọi điện?
 
-#### 3. Exporter — nguồn metric
+`top` không trả lời được, vì nó chỉ cho biết **ngay lúc này, trên đúng máy này**. Thứ bạn cần là một hệ thống **đi đo liên tục, lưu lại theo thời gian, và tự la lên khi vượt ngưỡng**. Đó chính là Prometheus.
 
-- **node-exporter**: metric hệ thống (CPU/RAM/disk).
-- **cAdvisor**: metric container.
-- **App tự expose `/metrics`**: metric nghiệp vụ (request/s, latency, lỗi).
+#### 2. Metric là gì — nhìn tận mắt cho dễ hiểu
 
-#### 4. 4 loại metric
+Metric chỉ là **một con số, kèm nhãn, gắn với một mốc thời gian**. Một dịch vụ "có metric" nghĩa là nó mở một trang web `/metrics` trả về text như thế này:
 
-| Loại | Ý nghĩa | Ví dụ |
-|---|---|---|
-| **Counter** | Chỉ tăng | Tổng số request → dùng với `rate()` |
-| **Gauge** | Lên xuống | RAM đang dùng, nhiệt độ |
-| **Histogram** | Phân phối theo bucket | Tính p95/p99 latency |
-| **Summary** | Tương tự histogram (quantile phía client) | |
+```text
+# HELP node_memory_MemAvailable_bytes RAM còn trống (byte)
+# TYPE node_memory_MemAvailable_bytes gauge
+node_memory_MemAvailable_bytes 3.221225472e+09
 
-#### 5. PromQL & Alerting
-
-- **PromQL**: `rate(http_requests_total[5m])` = "số request/giây trong 5 phút qua". Counter phải dùng `rate()` mới có nghĩa.
-- **Alertmanager**: gửi cảnh báo khi metric vượt ngưỡng (Slack/Email).
-
-> 🔑 Đừng alert mọi dao động nhỏ → **"alert fatigue"** (nhiều quá hoá nhờn, người ta tắt cả cái thật). Alert dựa trên thứ người dùng *thực sự cảm nhận* (golden signals — Ngày 45).
-
-**Sơ đồ — luồng observability (metric + log → Grafana → alert):**
-```mermaid
-flowchart LR
-    subgraph SRC["📡 Nguồn"]
-        M["Metrics<br/>app /metrics · node-exporter"]
-        L["Logs<br/>container · app"]
-    end
-    M -->|"pull (scrape)"| PROM["📊 Prometheus<br/>time-series + alert rule"]
-    L -->|"push (Promtail)"| LOKI["📜 Loki"]
-    PROM --> GRAF["📈 Grafana<br/>dashboard + alert"]
-    LOKI --> GRAF
-    PROM --> AM["🔔 Alertmanager → Slack/Email"]
-    classDef o fill:#fff3e0,stroke:#f57c00,color:#e65100;
-    class PROM,LOKI,GRAF o;
+# HELP prometheus_http_requests_total Tổng số request HTTP đã nhận
+# TYPE prometheus_http_requests_total counter
+prometheus_http_requests_total{code="200",handler="/graph"} 14
+prometheus_http_requests_total{code="200",handler="/metrics"} 253
 ```
 
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
+Đọc dòng cuối: tên metric là `prometheus_http_requests_total`, **nhãn** (label) là `code="200"` và `handler="/metrics"`, giá trị là `253`. Mỗi tổ hợp nhãn khác nhau = **một chuỗi số riêng biệt** được lưu theo thời gian. Nhớ ý này — mục 💡 cuối bài sẽ cho biết vì sao nó làm sập cả hệ thống nếu đặt nhãn ẩu.
 
-> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
+#### 3. Pull — Prometheus tự đi hỏi, không ngồi chờ
 
-**Ví như đi khám sức khỏe:** Prometheus giống **y tá đi từng phòng đo nhịp tim** cho bệnh nhân (pull — chủ động đi hỏi), thay vì ngồi chờ bệnh nhân tự gọi điện báo (push). Vì y tá tự đi đo, nên **phòng nào không mở cửa là biết ngay bệnh nhân có vấn đề** — đó chính là lợi thế "target chết → scrape fail → biết liền" của pull model.
-
-**3 trụ cột — hiểu theo câu bạn tự hỏi khi có sự cố:** *"Có gì sai không?"* → nhìn **Metrics**. *"Sai cái gì?"* → đọc **Logs**. *"Sai ở khúc nào trong chuỗi service?"* → lần theo **Traces**. Ba câu hỏi đi từ *cảnh báo* → *chi tiết* → *định vị*.
-
-**Vì sao Counter phải bọc `rate()`:** counter chỉ tăng, nên con số thô (vd "đã có 3 triệu request") gần như vô nghĩa. Cái bạn thật sự quan tâm là **tốc độ** — "giờ đang bao nhiêu request/giây" — và đó là việc của `rate()`.
-
-### 🧪 Lab cơ bản
-
-1. Chạy Prometheus + node-exporter bằng Docker Compose (hoặc Helm trên K8s).
-2. Truy cập Prometheus UI, chạy vài truy vấn PromQL cơ bản (`up`, `node_memory...`).
-3. Quan sát metric CPU/RAM của hệ thống.
-4. Cấu hình 1 alert rule đơn giản (vd CPU > 80%).
-5. (K8s) Cài `kube-prometheus-stack` bằng Helm để giám sát cluster.
-
-### 🚀 Lab nâng cao (best-practice)
-
-> Mục tiêu: dựng monitoring stack chuẩn cho cả hệ thống + hiểu PromQL đủ để điều tra.
-
-1. **Cài cả stack bằng Helm** (Prometheus + Grafana + Alertmanager + exporters):
-   ```bash
-   helm install monitoring prometheus-community/kube-prometheus-stack
-   ```
-2. **App tự expose `/metrics`** (instrument bằng client library) — đo metric nghiệp vụ (request/s, latency, lỗi), không chỉ CPU/RAM.
-3. **PromQL điều tra:**
-   ```promql
-   rate(http_requests_total[5m])                          # request/s
-   histogram_quantile(0.95, rate(http_duration_bucket[5m]))  # p95 latency
-   sum(rate(http_requests_total{status=~"5.."}[5m]))     # tỉ lệ lỗi 5xx
-   ```
-4. **Alert rule có ý nghĩa** (dựa trên triệu chứng người dùng thấy, không phải mọi dao động nhỏ).
-
-### 💡 Bổ sung thực tế: những cái đi làm mới thấm (sách cơ bản hay bỏ quên)
-
-- **Cardinality explosion — thứ làm *sập* Prometheus thật sự:** mỗi tổ hợp label tạo ra 1 chuỗi time-series riêng. Nếu bạn đặt label động vô tội vạ (vd `user_id`, `request_id`, `email`) → hàng triệu chuỗi → Prometheus ngốn RAM rồi chết. **Quy tắc vàng:** label chỉ dùng cho giá trị *hữu hạn, ít* (status code, method, service) — TUYỆT ĐỐI không nhét ID/giá trị vô hạn vào label.
-- **Retention & lưu trữ:** Prometheus mặc định chỉ giữ metric ~15 ngày trên đĩa local. Muốn giữ lâu / gộp nhiều cụm → gắn thêm **Thanos** hoặc **Mimir**. Người mới hay tưởng metric được giữ mãi mãi.
-- **Recording rules:** query nặng (nhiều `rate()` lồng nhau) chạy lại mỗi lần mở dashboard rất tốn. **Recording rule** tính sẵn, lưu thành metric mới → dashboard nhẹ và mượt.
-- **Pushgateway chỉ cho job ngắn:** cronjob/batch chạy vài giây rồi tắt thì Prometheus không kịp scrape. CHỈ trường hợp này mới dùng **Pushgateway** để job tự đẩy metric ra — đừng lạm dụng cho service thường.
-- **Khung đặt alert:** dùng **RED** (Rate / Errors / Duration — cho service) hoặc **USE** (Utilization / Saturation / Errors — cho tài nguyên) làm khung nghĩ, thay vì alert theo cảm tính.
-
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
-
-**Trình tự nên làm:** chạy Prometheus + node-exporter → mở UI → query PromQL → xem CPU/RAM → tạo alert rule → (K8s) cài kube-prometheus-stack.
-
-**Giải nghĩa & kết quả mong đợi:**
-- Prometheus **kéo (scrape)** metric từ target qua HTTP `/metrics`. *Kết quả:* UI → Status > Targets tất cả `UP`; query `up` trả về `1`.
-- PromQL: `rate(http_requests_total[5m])` (request/s), `histogram_quantile(0.95, ...)` (p95 latency).
-- `helm install monitoring prometheus-community/kube-prometheus-stack` — cài cả stack 1 lệnh.
-
-**🧪 Thử nghiệm:**
-- Tắt 1 target (dừng node-exporter) → UI thấy target chuyển `DOWN`. **Bài học:** pull model tự biết target chết.
-- Query `node_memory_...` (gauge) vs `rate(...total[5m])` (counter). **Bài học:** counter phải dùng `rate()` mới có nghĩa.
-
-⚠️ **Dễ sai:** alert mọi dao động nhỏ → "alert fatigue", người ta tắt cả alert thật. Alert theo golden signals/SLO.
-
-💡 **Hiểu sâu:** khi `rate()` ra số lạ, nhớ `rate()` chỉ áp cho **counter** (chỉ tăng) — dùng nhầm trên gauge sẽ ra kết quả vô nghĩa. Quên loại metric thì xem lại bảng ở mục 📘.
-
-### 🐛 Gỡ lỗi nhanh
-
-| Triệu chứng | Nguyên nhân | Cách sửa |
+| | **Push** (dịch vụ tự gửi lên) | **Pull** (Prometheus tự đi lấy) ← Prometheus chọn cái này |
 |---|---|---|
-| Target `DOWN` trong Prometheus | App không expose `/metrics` / sai port | Kiểm `/metrics` mở được; đúng scrape config |
-| Query counter ra số vô nghĩa | Counter chỉ tăng | Bọc `rate(counter[5m])` |
-| HPA/metric trống | Prometheus chưa scrape service | Kiểm ServiceMonitor/annotation scrape |
-| Alert bắn liên tục | Ngưỡng quá nhạy | Thêm `for:` (duy trì X phút), dựa golden signals |
-| PromQL `no data` | Sai tên metric/label | Dùng autocomplete UI; kiểm label với `{job=...}` |
+| Ai chủ động | Dịch vụ đẩy metric đi | Prometheus gọi `GET /metrics` mỗi 15 giây |
+| Dịch vụ chết thì sao | Im lặng — không ai biết là chết hay chỉ *đang rảnh* | Gọi không được → biết ngay là **DOWN** |
+| Debug | Phải xem log phía gửi | Mở thẳng `/metrics` bằng `curl` là thấy |
 
-### 📝 Bài ôn tập & Demo đối chiếu
+> 🧠 **Hình dung:** Prometheus như **y tá đi từng phòng đo nhịp tim** đúng giờ, thay vì ngồi chờ bệnh nhân tự gọi điện. Vì y tá tự đi, nên **phòng nào không mở cửa là biết ngay có chuyện** — đó chính là lợi thế lớn nhất của pull.
 
-**✍️ Tự kiểm tra:**
+Việc "đi hỏi" gọi là **scrape**. Nơi bị hỏi gọi là **target**.
 
-<details>
-<summary>1. 3 trụ cột observability là gì?</summary>
+#### 4. Exporter — cầu nối cho thứ không biết nói metric
 
-> Metrics (số đo — "có sai không?"), Logs (nhật ký — "sai gì?"), Traces (dấu vết — "sai ở đâu trong chuỗi service?").
-</details>
+Linux không tự mở trang `/metrics`. Nên cần một chương trình nhỏ đứng cạnh, đọc thông tin hệ thống rồi bày ra dạng metric — gọi là **exporter**:
 
-<details>
-<summary>2. Prometheus dùng pull hay push? Lợi ích?</summary>
+| Exporter | Bày ra metric về | Dùng ở lab hôm nay |
+|---|---|---|
+| **node-exporter** | CPU, RAM, disk, network của máy Linux | ✅ có |
+| **cAdvisor** | Tài nguyên từng container | (Ngày 45) |
+| **App tự expose** | Số request, độ trễ, số lỗi của chính ứng dụng | (dùng chính Prometheus làm ví dụ) |
 
-> **Pull** (scrape `/metrics`). Lợi: tự biết target chết (scrape fail = down), không cần target biết địa chỉ Prometheus, dễ debug.
-</details>
+#### 5. Bốn loại metric — chọn sai là đọc ra số vô nghĩa
 
-<details>
-<summary>3. Counter và gauge khác nhau?</summary>
+| Loại | Đặc điểm | Ví dụ | Cách dùng |
+|---|---|---|---|
+| **Counter** | **Chỉ tăng**, về 0 khi restart | Tổng số request từ lúc khởi động | **Bắt buộc bọc `rate()`** |
+| **Gauge** | Lên xuống tự do | RAM còn trống, số kết nối | Đọc thẳng |
+| **Histogram** | Chia giá trị vào các "xô" (bucket) | Độ trễ request | `histogram_quantile()` tính p95/p99 |
+| **Summary** | Giống histogram nhưng tính sẵn phía app | Ít dùng hơn | — |
 
-> Counter chỉ tăng (tổng request) — phải dùng `rate()`. Gauge lên xuống (RAM đang dùng, số kết nối).
-</details>
+**Vì sao counter phải bọc `rate()`:** biết "hệ thống đã phục vụ 3.000.000 request từ hôm khai trương" thì để làm gì? Cái bạn cần là **tốc độ hiện tại** — "đang 120 request/giây, trong khi bình thường là 40". `rate(x[5m])` chính là phép tính "trung bình mỗi giây tăng bao nhiêu, trong 5 phút qua".
 
-<details>
-<summary>4. "Alert fatigue" là gì và tránh thế nào?</summary>
+#### 6. PromQL tối thiểu đủ dùng hôm nay
 
-> Alert quá nhiều/nhạy → người ta chai lì, tắt cả alert thật. Tránh bằng alert theo triệu chứng người dùng cảm nhận + `for:` duy trì.
-</details>
-
-**🔬 Demo đối chiếu:**
-
-| Demo đối chiếu | Kết quả mong đợi |
+| Câu truy vấn | Đọc là |
 |---|---|
-| Prometheus thu thập metric | Query `up` → `1` cho target |
-| Xem Targets | Status > Targets đều `UP` |
-| PromQL | Trả biểu đồ/giá trị (vd `rate(...)`) |
+| `up` | Mỗi target sống (`1`) hay chết (`0`) |
+| `node_memory_MemAvailable_bytes` | RAM còn trống, đơn vị byte |
+| `rate(prometheus_http_requests_total[1m])` | Số request mỗi giây, tính trên 1 phút qua |
+| `sum by (code) (rate(prometheus_http_requests_total[5m]))` | Gộp lại, tách theo mã HTTP |
+| `100 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100` | % CPU đang bận (lấy 100 trừ đi phần rảnh) |
 
-### 📚 Thuật ngữ Anh–Việt (ngày này)
+#### 7. Alert — biến con số thành tiếng chuông
 
-| Thuật ngữ | Nghĩa |
+Bạn viết **alert rule** trong Prometheus: "nếu `up == 0` **kéo dài 1 phút** thì báo động". Chữ *kéo dài* (`for: 1m`) rất quan trọng — nó lọc bỏ những cú nhấp nháy 5 giây rồi tự khỏi. Prometheus phát hiện, rồi đẩy sang **Alertmanager** — bộ phận lo việc gom nhóm và gửi đi (Slack, email, điện thoại).
+
+Vòng đời một alert: **Inactive** (bình thường) → **Pending** (đã vượt ngưỡng, đang đếm đủ `for:`) → **Firing** (báo động thật, gửi đi). Lát nữa bạn sẽ thấy tận mắt cả 3 trạng thái này.
+
+### 🧪 LAB — Dựng hệ thống giám sát chạy thật
+
+> **Mục tiêu:** 3 container chạy bằng 1 lệnh, giám sát chính máy bạn, có 3 cảnh báo. Toàn bộ file dưới đây **đầy đủ, copy là chạy** — không cắt khúc.
+
+**Cây thư mục sẽ tạo:**
+
+```text
+lab44-prometheus/
+├── docker-compose.yml     # khai báo 3 container
+├── prometheus.yml         # Prometheus đi hỏi những ai, bao lâu một lần
+├── alert.rules.yml        # 3 luật cảnh báo
+└── alertmanager.yml       # nhận cảnh báo rồi làm gì
+```
+
+#### File 1 — `docker-compose.yml`
+
+```yaml
+services:
+  prometheus:
+    image: prom/prometheus:v3.0.1          # cố định phiên bản để lab luôn tái lập được
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro    # :ro = chỉ đọc, container không sửa được
+      - ./alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
+      - prom-data:/prometheus                                 # dữ liệu metric nằm trong volume, xoá container không mất
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'   # giữ metric 15 ngày rồi tự xoá
+      - '--web.enable-lifecycle'              # cho phép nạp lại config không cần restart
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: node-exporter
+    restart: unless-stopped
+    pid: host                     # nhìn được tiến trình của MÁY THẬT, không phải của container
+    ports:
+      - "9100:9100"
+    volumes:
+      - /:/host:ro,rslave         # gắn toàn bộ ổ đĩa máy thật vào /host, chỉ đọc
+    command:
+      - '--path.rootfs=/host'     # bảo node-exporter: gốc hệ thống thật nằm ở /host
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: alertmanager
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+
+volumes:
+  prom-data:
+```
+
+#### File 2 — `prometheus.yml`
+
+```yaml
+global:
+  scrape_interval: 15s        # cứ 15 giây đi hỏi mỗi target một lần
+  evaluation_interval: 15s    # cứ 15 giây kiểm tra lại các luật cảnh báo
+
+rule_files:
+  - /etc/prometheus/alert.rules.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']    # gọi bằng TÊN SERVICE, Docker tự phân giải thành IP
+
+scrape_configs:
+  # Target 1: chính Prometheus tự giám sát mình
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Target 2: máy Linux của bạn, qua node-exporter
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          may: 'may-cua-toi'      # nhãn tự đặt, sau này lọc theo máy rất tiện
+```
+
+#### File 3 — `alert.rules.yml`
+
+```yaml
+groups:
+  - name: canh-bao-he-thong
+    rules:
+      # 1) Một target chết quá 1 phút
+      - alert: TargetChet
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          tom_tat: "Target {{ $labels.job }} không phản hồi"
+          chi_tiet: "{{ $labels.instance }} đã không scrape được hơn 1 phút."
+
+      # 2) RAM còn trống dưới 15%
+      - alert: RamSapCan
+        expr: (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 < 15
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          tom_tat: "RAM còn dưới 15%"
+          chi_tiet: "Chỉ còn ít RAM trống trên {{ $labels.instance }}."
+
+      # 3) CPU bận trên 80% liên tục 5 phút
+      - alert: CpuCao
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          tom_tat: "CPU trên 80%"
+          chi_tiet: "CPU {{ $labels.instance }} bận liên tục suốt 5 phút."
+```
+
+#### File 4 — `alertmanager.yml`
+
+```yaml
+route:
+  receiver: 'mac-dinh'
+  group_wait: 10s         # gom các alert nổ cùng lúc, chờ 10s rồi gửi 1 lần
+  group_interval: 1m
+  repeat_interval: 1h     # cùng 1 alert chưa khỏi thì 1 tiếng nhắc lại, không spam
+
+receivers:
+  - name: 'mac-dinh'      # lab này chưa gắn Slack/email — alert chỉ hiện trên UI cổng 9093
+```
+
+> 📌 **Vì sao chưa gắn Slack ngay:** để bạn tập trung hiểu *alert sinh ra như thế nào* trước. Gắn kênh gửi thật là việc của Ngày 45 — và chỉ là thêm vài dòng vào đúng file này.
+
+### 🧭 Hướng dẫn làm LAB — step by step
+
+> Làm **tuần tự**. Sau mỗi bước, đối chiếu khối *"Bạn sẽ thấy"* rồi mới đi tiếp. Gặp lỗi thì đọc dòng ⚠️ ngay dưới bước đó.
+
+#### Bước 1 — Tạo thư mục và 4 file
+
+```bash
+mkdir -p ~/lab44-prometheus && cd ~/lab44-prometheus
+```
+
+Tạo lần lượt 4 file ở trên bằng trình soạn thảo (`nano docker-compose.yml`, dán nội dung, `Ctrl+O` → `Enter` → `Ctrl+X`). Rồi kiểm tra:
+
+```bash
+ls -1
+```
+
+**Bạn sẽ thấy:**
+```text
+alert.rules.yml
+alertmanager.yml
+docker-compose.yml
+prometheus.yml
+```
+
+✅ **Checkpoint:** đủ 4 file, đúng tên (sai một ký tự là container không lên).
+
+⚠️ **Rất hay sai:** YAML **cấm dùng Tab** để thụt dòng — chỉ được dùng dấu cách. Nếu dán từ nơi khác vào rồi lỗi, chạy `cat -A docker-compose.yml | head`; thấy `^I` nghĩa là có Tab, phải thay bằng dấu cách.
+
+#### Bước 2 — Khởi động cả stack bằng 1 lệnh
+
+```bash
+docker compose up -d
+```
+
+**Bạn sẽ thấy:**
+```text
+[+] Running 4/4
+ ✔ Network lab44-prometheus_default  Created
+ ✔ Container node-exporter           Started
+ ✔ Container alertmanager            Started
+ ✔ Container prometheus              Started
+```
+
+✅ **Checkpoint:** 3 container `Started`, không có dòng `Error`.
+
+⚠️ **Nếu báo `port is already allocated`:** cổng đang bị chiếm. Tìm thủ phạm bằng `sudo ss -tlnp | grep 9090`, rồi hoặc tắt nó, hoặc đổi cổng trong `docker-compose.yml` thành `"9091:9090"`.
+
+💡 *`-d` = detached:* chạy nền, trả lại terminal cho bạn. Bỏ `-d` sẽ thấy log chạy thẳng ra màn hình — hữu ích khi debug.
+
+#### Bước 3 — Xác nhận cả 3 container thực sự sống
+
+```bash
+docker compose ps
+```
+
+**Bạn sẽ thấy:**
+```text
+NAME            IMAGE                        STATUS         PORTS
+alertmanager    prom/alertmanager:v0.27.0    Up 30 seconds  0.0.0.0:9093->9093/tcp
+node-exporter   prom/node-exporter:v1.8.2    Up 30 seconds  0.0.0.0:9100->9100/tcp
+prometheus      prom/prometheus:v3.0.1       Up 30 seconds  0.0.0.0:9090->9090/tcp
+```
+
+✅ **Checkpoint:** cả 3 đều `Up`.
+
+⚠️ **Nếu một container `Restarting` liên tục** — gần như chắc chắn sai cú pháp file config. Xem lý do thật:
+```bash
+docker compose logs prometheus | tail -20
+```
+Dòng `error parsing YAML` sẽ chỉ đúng số dòng bị sai.
+
+#### Bước 4 — Nhìn tận mắt metric thô (bước quan trọng nhất để "vỡ ra")
+
+```bash
+curl -s localhost:9100/metrics | grep -A2 "^# HELP node_memory_MemAvailable_bytes"
+```
+
+**Bạn sẽ thấy:**
+```text
+# HELP node_memory_MemAvailable_bytes Memory information field MemAvailable_bytes.
+# TYPE node_memory_MemAvailable_bytes gauge
+node_memory_MemAvailable_bytes 3.221225472e+09
+```
+
+✅ **Checkpoint:** thấy đúng 3 dòng: mô tả, kiểu metric, và con số.
+
+💡 **Đây chính là toàn bộ "phép màu":** không có giao thức bí ẩn nào cả — chỉ là một trang text mà Prometheus đi `GET` mỗi 15 giây rồi lưu lại kèm thời điểm. Muốn biết node-exporter bày ra bao nhiêu metric: `curl -s localhost:9100/metrics | grep -c "^node_"`.
+
+#### Bước 5 — Mở giao diện và kiểm tra target
+
+Mở trình duyệt vào **http://localhost:9090** → menu **Status → Target health**.
+
+**Bạn sẽ thấy:** 2 mục `prometheus (1/1 up)` và `node (1/1 up)`, cả hai nền xanh, cột *Last Scrape* nhỏ hơn 15 giây.
+
+✅ **Checkpoint:** cả 2 target đều **UP**.
+
+⚠️ **Nếu target `node` báo DOWN** kèm `connection refused`: bạn đang khai `localhost:9100` thay vì `node-exporter:9100` trong `prometheus.yml`. Bên trong container, `localhost` là **chính container đó**, không phải máy thật — các container phải gọi nhau bằng **tên service**. Sửa xong thì nạp lại config không cần restart:
+```bash
+curl -X POST localhost:9090/-/reload
+```
+
+#### Bước 6 — Truy vấn đầu tiên: ai còn sống?
+
+Vào tab **Query**, gõ `up` rồi bấm **Execute**.
+
+**Bạn sẽ thấy:**
+```text
+up{instance="localhost:9090", job="prometheus"}                     1
+up{instance="node-exporter:9100", job="node", may="may-cua-toi"}    1
+```
+
+✅ **Checkpoint:** 2 dòng, đều bằng `1`. Để ý nhãn `may="may-cua-toi"` — đúng cái bạn tự đặt trong `prometheus.yml`.
+
+💡 `up` là metric **Prometheus tự sinh**, không exporter nào cung cấp: `1` = lần scrape vừa rồi thành công, `0` = thất bại.
+
+#### Bước 7 — Thấy tận mắt vì sao counter phải bọc `rate()`
+
+Chạy truy vấn này, ghi lại con số:
+```promql
+prometheus_http_requests_total{handler="/api/v1/query"}
+```
+Bấm **Execute** thêm 3–4 lần nữa. Con số **chỉ tăng, không bao giờ giảm** — vì mỗi lần bấm chính là một request.
+
+Giờ đổi sang:
+```promql
+rate(prometheus_http_requests_total{handler="/api/v1/query"}[1m])
+```
+
+**Bạn sẽ thấy:** một số nhỏ có phần thập phân, ví dụ `0.0666`.
+
+✅ **Checkpoint:** hiểu được `0.0666` nghĩa là **~0,067 request mỗi giây** (khoảng 4 request trong 1 phút vừa rồi).
+
+💡 **Chốt lại:** số thô = "tổng từ lúc khởi động" (gần như vô dụng khi trực hệ thống). `rate()` = "**đang** nhanh chậm thế nào" — đây mới là thứ đưa lên dashboard và đặt cảnh báo.
+
+#### Bước 8 — Đọc gauge: RAM còn trống bao nhiêu
+
+```promql
+node_memory_MemAvailable_bytes / 1024 / 1024
+```
+
+**Bạn sẽ thấy:** ví dụ `3072.5` — tức còn khoảng 3 GB RAM trống.
+
+Rồi đổi sang dạng phần trăm (chính là biểu thức dùng trong alert của bạn):
+```promql
+(node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100
+```
+
+✅ **Checkpoint:** ra một số trong khoảng 0–100, khớp với `free -h` chạy ở terminal.
+
+💡 Gauge **đọc thẳng được**, không cần `rate()`. Bọc `rate()` vào gauge sẽ ra số vô nghĩa — lỗi kinh điển của người mới.
+
+#### Bước 9 — Xác nhận 3 luật cảnh báo đã được nạp
+
+Vào menu **Alerts** trên giao diện Prometheus.
+
+**Bạn sẽ thấy:** 3 luật `TargetChet`, `RamSapCan`, `CpuCao`, tất cả đang màu xanh **Inactive**.
+
+✅ **Checkpoint:** đủ 3 luật, không luật nào báo lỗi cú pháp.
+
+⚠️ **Nếu trang Alerts trống rỗng:** Prometheus chưa nạp được file rule. Kiểm tra bằng chính công cụ có sẵn trong container:
+```bash
+docker compose exec prometheus promtool check rules /etc/prometheus/alert.rules.yml
+```
+Kết quả đúng: `SUCCESS: 3 rules found`.
+
+#### Bước 10 — Tự gây sự cố để thấy cảnh báo bắn thật
+
+Đây là bước đáng giá nhất cả buổi. Giết node-exporter đi:
+
+```bash
+docker compose stop node-exporter
+```
+
+Bây giờ **quan sát theo mốc thời gian**, mở sẵn tab **Alerts**:
+
+| Sau khoảng | Bạn sẽ thấy |
 |---|---|
-| **Observability** | Khả năng quan sát hệ thống |
-| **Metric / time-series** | Số đo theo thời gian |
-| **Prometheus** | Hệ thu thập metric (pull) |
-| **Exporter** | Nguồn expose metric (node-exporter...) |
-| **PromQL** | Ngôn ngữ truy vấn metric |
-| **Counter/Gauge/Histogram** | Các loại metric |
-| **Alertmanager** | Gửi cảnh báo khi vượt ngưỡng |
+| ~15 giây | **Status → Target health**: target `node` chuyển đỏ **DOWN** |
+| ~15 giây | Query `up` trả về `0` cho `node-exporter:9100` |
+| ~30 giây | Trang **Alerts**: `TargetChet` chuyển vàng **PENDING** (đã vượt ngưỡng, đang đếm đủ `for: 1m`) |
+| **sau 1 phút** | `TargetChet` chuyển đỏ **FIRING** |
+| thêm ~10 giây | Mở **http://localhost:9093** — alert đã sang tới Alertmanager |
+
+✅ **Checkpoint:** bạn nhìn thấy đủ chuỗi **Inactive → Pending → Firing** và alert xuất hiện ở cổng 9093.
+
+💡 **Đây chính là lý do tồn tại của `for:`.** Không có nó, một cú nhấp nháy mạng 5 giây lúc 3 giờ sáng cũng đủ dựng bạn dậy. Có `for: 1m`, sự cố phải *thật sự kéo dài* mới đánh thức người trực.
+
+Hồi sinh lại và xem alert tự tắt:
+```bash
+docker compose start node-exporter
+```
+Sau khoảng 30 giây, `TargetChet` tự quay về **Inactive** — không cần ai bấm nút "đã xử lý".
+
+#### Bước 11 — Dọn dẹp (khi đã xong)
+
+```bash
+docker compose down        # tắt container, GIỮ lại dữ liệu metric
+# docker compose down -v   # thêm -v để xoá luôn volume prom-data (mất sạch metric đã thu)
+```
+
+✅ **Checkpoint:** `docker compose ps` không còn container nào.
+
+⚠️ Giữ nguyên thư mục `lab44-prometheus/` — **Ngày 45 sẽ cắm Grafana vào đúng stack này**.
+
+### 💡 Đi làm mới thấm (sách cơ bản hay bỏ quên)
+
+- **Cardinality explosion — thứ thật sự làm sập Prometheus.** Mỗi tổ hợp nhãn khác nhau = 1 chuỗi time-series riêng, nằm trong RAM. Đặt nhãn `user_id`, `request_id` hay `email` → mỗi người dùng đẻ ra một chuỗi mới → vài triệu chuỗi → Prometheus ngốn hết RAM rồi chết. **Quy tắc vàng:** nhãn chỉ dành cho giá trị **hữu hạn và ít** (mã HTTP, tên service, môi trường). Tuyệt đối không nhét ID vào nhãn.
+- **Metric không được giữ mãi mãi.** Mặc định ~15 ngày trên đĩa local (chính là `--storage.tsdb.retention.time` trong file bạn vừa viết). Muốn giữ hàng năm hoặc gộp nhiều cụm → gắn thêm **Thanos** hoặc **Mimir**. Rất nhiều người mới đinh ninh metric còn mãi.
+- **Recording rule cho truy vấn nặng.** Dashboard có query lồng nhiều `rate()` sẽ tính lại từ đầu mỗi lần ai đó mở trang. **Recording rule** tính sẵn theo chu kỳ và lưu thành metric mới → dashboard nhẹ hẳn.
+- **Pushgateway chỉ dành cho job siêu ngắn.** Cronjob chạy 3 giây rồi tắt thì Prometheus không kịp scrape — *chỉ* trường hợp này mới dùng Pushgateway. Dùng cho service thường trực là sai kiến trúc.
+- **Khung để nghĩ khi đặt alert:** **RED** (Rate / Errors / Duration — cho service) hoặc **USE** (Utilization / Saturation / Errors — cho tài nguyên). Có khung thì bạn đặt alert theo hệ thống, không theo cảm tính.
+- **Cảnh báo về chính cảnh báo — "alert fatigue".** Báo nhiều quá hoá nhờn, đến lúc có sự cố thật thì không ai buồn nhìn nữa. Chỉ alert vào thứ **người dùng thực sự cảm nhận được** (chậm, lỗi, không vào được) — không alert mọi dao động CPU.
 
 ### 🎯 Đúc kết Ngày 44
 
 **3 điều phải mang theo:**
-1. **Metrics trả lời "có sai không?"** — trụ cột đầu trong 3 trụ cột (Metrics → Logs → Traces: cảnh báo → chi tiết → định vị).
-2. **Prometheus = pull model:** tự đi scrape `/metrics`, nên target chết là biết ngay.
-3. **Chọn đúng loại metric + bọc `rate()` cho counter**, và đặt label cẩn thận (tránh *cardinality explosion*).
 
-> 🧠 **Một câu để nhớ:** đừng alert mọi dao động nhỏ → *"alert fatigue"* (báo nhiều quá hoá nhờn, người ta tắt cả cái thật). Chỉ alert theo thứ người dùng **thực sự cảm nhận**.
+1. **Metric chỉ là một trang text** ở `/metrics` gồm tên + nhãn + số. Prometheus đi `GET` nó mỗi 15 giây rồi lưu theo thời gian — không có gì huyền bí.
+2. **Pull nên target chết là biết ngay** (`up == 0`). Đây cũng là alert giá trị nhất mà gần như hệ thống nào cũng nên có.
+3. **Counter bọc `rate()`, gauge đọc thẳng.** Và nhãn chỉ dùng cho giá trị hữu hạn — nhét ID vào nhãn là con đường ngắn nhất làm sập Prometheus.
 
-**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
-- [ ] Giải thích được pull vs push và vì sao Prometheus chọn pull
-- [ ] Phân biệt Counter / Gauge / Histogram và biết khi nào dùng cái nào
-- [ ] Viết được 1 query `rate(...)` và 1 query `histogram_quantile(...)`
-- [ ] Cài được `kube-prometheus-stack` và thấy Targets `UP`
-- [ ] Nói được 1 lý do khiến Prometheus "nổ" (cardinality) và cách tránh
+> 🧠 **Một câu để nhớ:** con số thô trả lời *"từ trước tới nay bao nhiêu"*, `rate()` trả lời *"ngay lúc này đang thế nào"* — trực hệ thống thì chỉ câu thứ hai mới có ích.
 
-✅ **Kết quả đạt được:** Thu thập và truy vấn metric với Prometheus — nền tảng giám sát.
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+
+- [ ] Dựng lại được stack 3 container từ đầu bằng `docker compose up -d`
+- [ ] Giải thích được pull vs push và vì sao `up == 0` phát hiện được dịch vụ chết
+- [ ] Đọc được một dòng metric thô: đâu là tên, đâu là nhãn, đâu là giá trị
+- [ ] Viết được `rate(...)` cho counter và nói rõ vì sao không dùng cho gauge
+- [ ] Gây sự cố và kể lại đủ chuỗi **Inactive → Pending → Firing**, giải thích tác dụng của `for:`
+- [ ] Nói được 1 nguyên nhân làm Prometheus "nổ" (cardinality) và cách tránh
+
+✅ **Kết quả đạt được:** Một hệ thống giám sát chạy thật trên máy bạn — thu metric, truy vấn bằng PromQL, và cảnh báo đã được kiểm chứng bằng sự cố do chính bạn tạo ra.
 
 ---
 
