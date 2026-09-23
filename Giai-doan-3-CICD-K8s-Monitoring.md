@@ -1959,203 +1959,464 @@ flowchart TD
 
 > ⏱️ ~90 phút · Loại: Kubernetes
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 35 (CI/CD hoàn chỉnh) → **Ngày 36 (Kubernetes — nhạc trưởng điều phối container)** → Ngày 37 (chạy app bằng Deployment). Docker chạy vài container 1 máy; K8s quản hàng trăm container trên nhiều máy, tự phục hồi & scale.
-> ☸️ *Học trên Minikube/kind/k3s (local); production dùng managed: **EKS** (AWS) / **GKE** (GCP) / **AKS** (Azure).*
+> 🧭 **Bạn đang ở đâu:** Ngày 35 (CI/CD hoàn chỉnh trên một máy) → **Ngày 36 (Kubernetes — bộ não điều phối container trên nhiều máy)** → Ngày 37 (chạy app bằng Deployment). Hôm nay chỉ tập trung vào **cách K8s nghĩ**; Ngày 37 mới đi sâu vào triển khai ứng dụng.
 >
-> ✅ **Chuẩn bị:** cài `kubectl` + Minikube (hoặc kind/k3s). RAM tối thiểu ~4GB cho cluster local.
+> ☸️ *Học trên **Minikube** (miễn phí, ngay trên máy bạn). Cùng một kiến thức áp dụng được cho **kind**, **k3s**, và cluster thật: **EKS** (AWS) / **GKE** (GCP) / **AKS** (Azure).*
+>
+> ✅ **Chuẩn bị:** máy Linux có Docker đang chạy, còn trống ít nhất **4 GB RAM** và ~10 GB đĩa.
+>
+> 🎁 **Cuối ngày bạn có gì:** một cluster Kubernetes chạy trên máy, và bạn sẽ **tự tay giết pod nhiều lần để thấy nó tự hồi sinh** — hiểu được thứ làm nên toàn bộ sức mạnh của K8s.
 
 ### 📘 Lý thuyết
 
-#### 1. Vấn đề K8s giải quyết
+#### 1. Vấn đề: hôm qua bạn deploy 1 container lên 1 máy
 
-Docker chạy được vài container trên 1 máy. Nhưng khi có *hàng trăm* container trên *nhiều máy*, cần tự động: máy nào chạy gì, container chết thì tạo lại, tải cao thì thêm bản sao, cập nhật không downtime. Đó là **điều phối (orchestrate)** — việc của Kubernetes.
+Ngày 34 pipeline của bạn chạy `docker compose up -d` trên một máy. Nó hoạt động tốt. Giờ hãy hỏi tiếp:
 
-#### 2. Kiến trúc — như một công ty
+| Tình huống | Với Docker Compose một máy | Ai sẽ xử lý? |
+|---|---|---|
+| Container chết lúc 3 giờ sáng | `restart: unless-stopped` cứu được nếu tiến trình chết, nhưng app "treo mà chưa chết" thì không | **Bạn** |
+| Cả máy chủ hỏng | Toàn bộ dịch vụ chết | **Bạn**, bằng tay, lúc nửa đêm |
+| Lượng truy cập tăng gấp 10 | Phải tự thêm máy, tự chia tải | **Bạn** |
+| Cập nhật không được gián đoạn | Compose thay container → có khoảng chết | **Bạn** |
+| 40 dịch vụ trên 8 máy | Ai nhớ nổi cái gì đang chạy ở đâu? | **Không ai** |
 
-| Thành phần | Vai trò |
+Kubernetes sinh ra để những ô đó ghi **"hệ thống tự lo"**. Nó là phần mềm làm thay đúng công việc mà một người trực đêm phải làm: theo dõi, khởi động lại, phân bổ, thay thế.
+
+#### 2. Điểm cốt lõi nhất: khai báo thay vì ra lệnh
+
+Đây là chỗ khác biệt lớn nhất so với mọi thứ bạn đã học, và cũng là chỗ khó chuyển đổi tư duy nhất:
+
+| | **Ra lệnh** (imperative) — Docker, Bash | **Khai báo** (declarative) — Kubernetes |
+|---|---|---|
+| Bạn nói gì | *"Chạy container này lên"* | *"Tôi muốn **luôn luôn** có 3 bản đang chạy"* |
+| Ai chịu trách nhiệm giữ đúng | Bạn | **Hệ thống** |
+| Container chết | Nó chết, đến khi bạn phát hiện | K8s tạo cái mới, **trong vài giây** |
+| Tài liệu hệ thống nằm đâu | Trong đầu người vận hành | **Trong file YAML**, đọc là biết |
+
+Bạn nộp cho K8s một bản mô tả **trạng thái mong muốn**. K8s nhận lấy và tự xoay xở để biến nó thành sự thật — rồi **giữ mãi như vậy**.
+
+#### 3. Vòng điều hoà — trái tim của Kubernetes
+
+Tất cả sức mạnh của K8s nằm trong một vòng lặp đơn giản đến bất ngờ, chạy không ngừng:
+
+```text
+        ┌──────────────────────────────────────────┐
+        │                                          │
+        ▼                                          │
+  Đọc "mong muốn"  ──>  So với "thực tế"  ──>  Khác nhau?
+  (bạn khai: 3 pod)     (đang có: 2 pod)      → Tạo thêm 1 pod
+        ▲                                          │
+        └──────────── lặp lại mỗi vài giây ────────┘
+```
+
+Không có phép màu nào cả. Chỉ là một vòng lặp **so sánh mong muốn với thực tế rồi sửa cho khớp**, chạy suốt 24/7. "Tự phục hồi", "tự mở rộng", "cập nhật không gián đoạn" — tất cả đều chỉ là vòng lặp này áp vào các tình huống khác nhau.
+
+#### 4. Kiến trúc — hình dung như một công ty
+
+| Thành phần | Vai trò trong "công ty" |
 |---|---|
-| **Control Plane** (ban giám đốc) | Ra quyết định, ghi nhớ trạng thái |
-| ├ API Server | Lễ tân nhận mọi lệnh (`kubectl` nói chuyện với cái này) |
-| ├ etcd | Sổ cái ghi "mọi thứ đang thế nào" |
-| ├ Scheduler | Xếp pod cho máy nào chạy |
-| └ Controller Manager | Vòng điều hoà — giữ thực tế khớp mong muốn |
-| **Worker Node** (nhân viên) | Nơi container thật sự chạy (kubelet, kube-proxy, runtime) |
+| **Control Plane** | Ban giám đốc — ra quyết định, không trực tiếp chạy app |
+| ├ **API Server** | Lễ tân: mọi yêu cầu đều đi qua đây. `kubectl` nói chuyện với chính nó |
+| ├ **etcd** | Sổ cái: ghi *"mọi thứ đang phải như thế nào"*. Mất etcd = mất trí nhớ cluster |
+| ├ **Scheduler** | Người xếp việc: pod mới nên chạy trên máy nào (còn RAM? còn CPU?) |
+| └ **Controller Manager** | Quản đốc: chạy các **vòng điều hoà** ở mục 3 |
+| **Worker Node** | Nhân viên — nơi container thật sự chạy |
+| ├ **kubelet** | Tổ trưởng tại chỗ: nhận lệnh từ API Server, bảo Docker chạy container |
+| └ **kube-proxy** | Bưu tá: lo đường mạng cho pod |
 
-#### 3. Đối tượng cơ bản
+> 🔑 **Điểm mấu chốt:** `kubectl` của bạn **không bao giờ** nói chuyện trực tiếp với container. Nó chỉ ghi "mong muốn" vào sổ cái qua lễ tân (API Server). Phần còn lại do các vòng điều hoà tự xử lý. Đây là lý do K8s vẫn tiếp tục hoạt động ngay cả khi bạn tắt máy tính đi ngủ.
 
-- **Pod**: đơn vị nhỏ nhất, chứa 1+ container.
-- **Node**: một máy (VM/vật lý) trong cluster.
-- **Cluster**: tập hợp control plane + các node.
+#### 5. Ba danh từ phải phân biệt được
 
-#### 4. Declarative — điểm cốt lõi cần "ngấm"
+- **Pod** — đơn vị nhỏ nhất K8s quản lý. Chứa 1 (thường là vậy) hoặc vài container dùng chung mạng và ổ đĩa. **Pod là thứ dùng một lần rồi bỏ** — chết là thay cái mới, không cứu chữa.
+- **Node** — một máy (ảo hoặc vật lý) trong cluster, nơi pod chạy.
+- **Cluster** — control plane + toàn bộ node.
 
-Bạn không ra lệnh từng bước. Bạn **mô tả trạng thái mong muốn** ("tôi muốn 3 bản sao app") trong YAML. K8s tự lo *làm sao đạt* và *giữ* nó.
+> ⚠️ Người mới hay coi pod như "một cái máy nhỏ" cần chăm sóc. Sai. Hãy coi pod như **cốc giấy dùng một lần**: bẩn thì vứt, lấy cái mới. Mọi thiết kế trên K8s đều dựa vào giả định này.
 
-#### 5. Self-healing & kubectl
-
-- **Self-healing**: pod chết → K8s tự tạo lại để luôn đủ số mong muốn (vòng điều hoà liên tục so sánh thực tế ↔ etcd).
-- **kubectl**: công cụ dòng lệnh điều khiển cluster.
-
-> 🔑 Học K8s trên máy mình trước bằng **Minikube/kind/k3s** (miễn phí) — đừng vội thuê cluster cloud (tốn tiền) khi chưa vững cơ bản.
-
-**Sơ đồ — kiến trúc Kubernetes (Control Plane + Worker Nodes):**
+**Sơ đồ — kiến trúc Kubernetes:**
 ```mermaid
 flowchart TB
-    kubectl["💻 kubectl"] --> API
+    kubectl["💻 kubectl<br/>(khai báo mong muốn)"] --> API
     subgraph CP["🧠 Control Plane"]
-        API["API Server"] --> ETCD[("etcd · trạng thái cluster")]
-        API --> SCH["Scheduler"]
-        API --> CM["Controller Manager<br/>(vòng điều hòa)"]
+        API["API Server<br/>(lễ tân)"] --> ETCD[("etcd<br/>sổ cái")]
+        API --> SCH["Scheduler<br/>(xếp việc)"]
+        API --> CM["Controller Manager<br/>(vòng điều hoà)"]
     end
-    subgraph N1["⚙️ Worker Node 1"]
-        K1["kubelet"] --> P1["Pod"]
+    subgraph N1["⚙️ Worker Node"]
+        KUBELET["kubelet"] --> POD1["Pod A"]
+        KUBELET --> POD2["Pod B"]
+        PROXY["kube-proxy"]
     end
-    subgraph N2["⚙️ Worker Node 2"]
-        K2["kubelet"] --> P2["Pod"]
-    end
-    API --> K1
-    API --> K2
-    classDef cp fill:#ede7f6,stroke:#5e35b1,color:#311b92;
+    CM -.->|"thiếu pod → tạo thêm"| KUBELET
+    SCH -.->|"xếp pod vào node này"| KUBELET
+    classDef cp fill:#e3f2fd,stroke:#1976d2;
+    classDef wk fill:#e8f5e9,stroke:#2e7d32;
     class API,ETCD,SCH,CM cp;
+    class KUBELET,POD1,POD2,PROXY wk;
 ```
-> Controller liên tục so sánh *thực tế* với *mong muốn* (trong etcd) → tự điều chỉnh = **self-healing**.
 
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
+### 🧪 LAB — Dựng cluster và tự tay kiểm chứng vòng điều hoà
 
-> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
+> **Mục tiêu:** có cluster chạy, hiểu các thành phần bằng cách **nhìn thấy chúng**, rồi giết pod nhiều kiểu để thấy K8s phản ứng.
 
-**Bước nhảy từ "chạy" sang "giữ cho luôn đúng".** Docker trả lời câu *"làm sao chạy 1 container?"*. Nhưng khi bạn có 200 container trên chục máy, câu hỏi đổi thành *"làm sao giữ cho tất cả luôn đúng như ý — dù máy hỏng, tải tăng, hay đang deploy bản mới?"*. Kubernetes sinh ra cho đúng câu hỏi thứ hai. Đây không phải "Docker phiên bản to hơn", mà là một mối bận tâm khác: không phải *khởi động*, mà là *duy trì*.
+**File sẽ tạo:**
 
-**Declarative giống như đặt điều hoà, không phải bấm công tắc.** Với điều hoà, bạn không ngồi bật/tắt máy nén liên tục — bạn đặt "25°C" rồi máy tự điều chỉnh mãi để giữ mức đó. K8s hệt vậy: bạn khai *"tôi muốn 3 bản app"* rồi thôi, nó tự tạo/xoá để luôn giữ đúng 3. Cách cũ (imperative — `kubectl run`, `kubectl scale`) là bạn tự bấm từng nút; cách K8s (declarative — `apply -f`) là bạn đặt nhiệt độ rồi để máy lo.
+```text
+lab36-k8s/
+├── pod-tran.yaml          # Pod trần — để thấy nó KHÔNG tự hồi sinh
+└── deployment-web.yaml    # Deployment — để thấy nó CÓ tự hồi sinh
+```
 
-**Ý tưởng đáng giá nhất: vòng lặp "so sánh thực tế ↔ mong muốn".** K8s không cần bạn viết kịch bản "nếu pod chết thì làm gì". Nó chỉ chạy một vòng lặp không nghỉ: *đọc mong muốn trong etcd → nhìn thực tế → có lệch thì sửa*. Pod chết, thực tế thành 2≠3, nó tạo lại. Gần như **mọi thứ trong K8s đều là biến thể của vòng lặp này** — hiểu nó là hiểu được linh hồn của hệ thống.
+#### File 1 — `pod-tran.yaml`
 
-### 🧪 Lab cơ bản
+```yaml
+apiVersion: v1
+kind: Pod                      # Pod "trần" — không ai quản lý nó
+metadata:
+  name: web-tran
+  labels:
+    app: thu-nghiem
+spec:
+  containers:
+    - name: web
+      image: nginx:1.27        # tag cụ thể, KHÔNG dùng :latest
+      ports:
+        - containerPort: 80
+      resources:               # xin tài nguyên vừa đủ, tránh chiếm hết máy
+        requests:
+          memory: "64Mi"
+          cpu: "50m"
+        limits:
+          memory: "128Mi"
+```
 
-1. Cài Minikube (hoặc kind) và kubectl, khởi động: `minikube start`.
-2. Kiểm tra: `kubectl get nodes`, `kubectl cluster-info`.
-3. Chạy pod đầu tiên: `kubectl run nginx --image=nginx`, xem `kubectl get pods`.
-4. Mô tả pod: `kubectl describe pod <tên>`, xem log: `kubectl logs <tên>`.
-5. Xóa pod và quan sát (nếu là deployment thì K8s tạo lại).
+#### File 2 — `deployment-web.yaml`
 
-### 🚀 Lab nâng cao (best-practice)
+```yaml
+apiVersion: apps/v1
+kind: Deployment               # Deployment = có "quản đốc" trông chừng
+metadata:
+  name: web
+  labels:
+    app: web
+spec:
+  replicas: 3                  # ĐÂY là "mong muốn": luôn có 3 bản chạy
+  selector:
+    matchLabels:
+      app: web                 # quản lý những pod mang nhãn app=web
+  template:                    # khuôn để đúc ra pod
+    metadata:
+      labels:
+        app: web               # PHẢI khớp selector ở trên
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.27
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+```
 
-> Mục tiêu: làm quen kubectl đúng cách và hiểu mô hình declarative ngay từ đầu.
+### 🧭 Hướng dẫn làm LAB — step by step
 
-1. **Declarative ngay từ đầu — không dùng lệnh imperative:** thay vì `kubectl run`, viết YAML và `kubectl apply -f`. Mọi thứ trong file = version hóa được, review được.
-2. **`kubectl` thiết yếu:**
-   ```bash
-   kubectl get all -A              # xem mọi thứ ở mọi namespace
-   kubectl describe pod <name>     # điều tra: events, lý do crash
-   kubectl logs -f <pod>           # theo dõi log
-   kubectl get events --sort-by=.lastTimestamp   # chuyện gì vừa xảy ra
-   ```
-3. **Dùng `--dry-run=client -o yaml`** để sinh YAML mẫu nhanh:
-   ```bash
-   kubectl create deployment web --image=nginx --dry-run=client -o yaml > deploy.yaml
-   ```
-4. **Đặt alias `k=kubectl`** và bật autocomplete — bạn sẽ gõ nó hàng nghìn lần.
+#### Bước 1 — Cài `kubectl`
 
-### 💡 Bổ sung thực tế: những cái đi làm mới thấm
+```bash
+curl -LO "https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+rm kubectl
+kubectl version --client
+```
 
-- **"Xoá tay" pod là vô ích — và đó chính là điểm mấu chốt của declarative:** `kubectl delete pod X` của một Deployment thì pod *mọc lại* ngay, vì mong muốn trong etcd vẫn là "phải có N bản". Muốn tắt thật phải sửa *mong muốn*: `kubectl scale --replicas=0` hoặc xoá Deployment. Người mới hay hoảng vì "xoá mãi không chết".
-- **etcd là toàn bộ cluster:** mất etcd = mất cluster. Ở production, backup etcd định kỳ là việc sống còn — và managed K8s (EKS/GKE/AKS) lo hộ bạn phần này, đây là một lý do lớn để dùng managed thay vì tự dựng.
-- **Tự dựng control plane khó hơn tưởng nhiều:** chạy thật cần control plane nhiều bản (HA), backup etcd, nâng phiên bản, xoay chứng chỉ TLS... Học thì nên tự dựng bằng `kubeadm` một lần cho biết ruột gan; chạy production thì dùng managed.
-- **Mọi thứ đi qua API Server:** nó là cửa duy nhất — `kubectl`, controller, kubelet đều nói chuyện qua đây. Nên đây cũng là nơi RBAC (ai được làm gì) và audit log bám vào. API Server nghẽn/chết thì cả cluster "mù".
-- **Node `NotReady` không đồng nghĩa pod chết ngay:** khi kubelet mất liên lạc, node chuyển `NotReady`; K8s chờ một khoảng (eviction timeout) rồi mới dời pod sang node khác — nên "app biến mất vài phút khi một node lỗi" là hành vi bình thường, không phải bug.
+**Bạn sẽ thấy:**
+```text
+Client Version: v1.31.x
+Kustomize Version: v5.x.x
+```
 
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
+✅ **Checkpoint:** in ra được `Client Version`.
 
-**Trình tự nên làm:** cài Minikube + kubectl → `minikube start` → xem nodes → chạy pod đầu tiên → describe/logs → xóa & quan sát.
+💡 `kubectl` chỉ là **cái điều khiển từ xa** — nó chưa cần cluster nào để cài. Bước sau mới dựng cluster cho nó điều khiển.
 
-**Giải nghĩa & kết quả mong đợi:**
-- `minikube start` — dựng cluster K8s local. *Kết quả:* `kubectl get nodes` → STATUS `Ready`.
-- `kubectl cluster-info` — in URL control plane; `kubectl run nginx --image=nginx` — tạo pod nhanh (imperative).
-- `kubectl describe pod <tên>` — chi tiết + **Events** (lý do lỗi ở cuối); `kubectl logs <tên>` — log app.
+#### Bước 2 — Cài Minikube và khởi động cluster
 
-**🧪 Thử nghiệm:**
-- `kubectl create deployment web --image=nginx --dry-run=client -o yaml` → sinh YAML mẫu mà KHÔNG tạo thật. **Bài học:** cách viết manifest nhanh + hiểu declarative.
-- Xóa 1 pod do Deployment quản → K8s tự tạo lại. **Bài học:** self-healing (vòng điều hòa).
+```bash
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+sudo install minikube-linux-amd64 /usr/local/bin/minikube
+rm minikube-linux-amd64
 
-⚠️ **Dễ sai:** quen lệnh imperative (`kubectl run`) → không lưu vết. Chuẩn production: viết YAML + `kubectl apply -f`.
+minikube start --driver=docker --memory=3072 --cpus=2
+```
 
-💡 **Hiểu sâu:** linh hồn K8s là **vòng điều hòa** — controller so sánh "thực tế" với "mong muốn" (trong etcd) và tự sửa. Bạn khai báo *cái muốn*, K8s lo *cách đạt*.
+**Bạn sẽ thấy** (mất 2–5 phút lần đầu vì phải tải image):
+```text
+😄  minikube v1.34.0 on Ubuntu 24.04
+✨  Using the docker driver based on user configuration
+🔥  Creating docker container (CPUs=2, Memory=3072MB) ...
+🐳  Preparing Kubernetes v1.31.0 on Docker 27.x ...
+🏄  Done! kubectl is now configured to use "minikube" cluster
+```
 
-### 🐛 Gỡ lỗi nhanh
+✅ **Checkpoint:** dòng `Done! kubectl is now configured...`.
 
-| Triệu chứng | Nguyên nhân | Cách sửa |
-|---|---|---|
-| `minikube start` treo/lỗi | Thiếu driver / RAM | Chỉ định driver (`--driver=docker`); tăng RAM |
-| `kubectl` báo `connection refused` | Cluster chưa chạy / sai context | `minikube start`; `kubectl config current-context` |
-| `kubectl get nodes` không có node | Cluster chưa lên | Chờ `minikube start` xong; `minikube status` |
-| Pod kẹt `Pending` | Node hết tài nguyên | `kubectl describe pod` đọc Events; tăng tài nguyên |
-| Lệnh áp nhầm cluster | Sai context (nhiều cluster) | `kubectl config use-context minikube` |
+⚠️ **Nếu lỗi `Exiting due to RSRC_INSUFFICIENT_MEMORY`:** máy không đủ RAM trống. Hạ xuống `--memory=2048`, đóng bớt ứng dụng khác.
 
-### 📝 Bài ôn tập & Demo đối chiếu
+⚠️ **Nếu lỗi `permission denied ... docker.sock`:** user chưa vào nhóm docker (Ngày 34 Bước 2): `sudo usermod -aG docker $USER` rồi đăng xuất/đăng nhập lại.
 
-**✍️ Tự kiểm tra:**
+💡 Minikube dựng **cả một cluster Kubernetes bên trong một container Docker**. Kiểm chứng ngay: `docker ps` sẽ thấy một container tên `minikube` — cả cluster của bạn nằm trong đó.
 
-<details>
-<summary>1. Pod là gì và khác container thế nào?</summary>
+#### Bước 3 — Nhìn thấy cluster và node
 
-> Pod là đơn vị nhỏ nhất K8s chạy, bọc 1+ container dùng chung mạng & ổ đĩa. K8s quản lý Pod (không quản container trực tiếp).
-</details>
+```bash
+kubectl get nodes -o wide
+```
 
-<details>
-<summary>2. Control Plane và Worker Node mỗi bên làm gì?</summary>
+**Bạn sẽ thấy:**
+```text
+NAME       STATUS   ROLES           AGE   VERSION   INTERNAL-IP    OS-IMAGE
+minikube   Ready    control-plane   62s   v1.31.0   192.168.49.2   Ubuntu 22.04
+```
 
-> Control Plane ra quyết định + ghi nhớ trạng thái (API server, etcd, scheduler, controller). Worker Node là nơi container thật sự chạy (kubelet, runtime).
-</details>
+✅ **Checkpoint:** `STATUS` là `Ready`.
 
-<details>
-<summary>3. "Declarative" trong K8s nghĩa là gì?</summary>
+⚠️ **Nếu `The connection to the server ... was refused`:** cluster chưa lên. Kiểm tra `minikube status`; nếu `Stopped` thì `minikube start`.
 
-> Bạn mô tả *trạng thái mong muốn* (YAML), K8s tự điều chỉnh để đạt và giữ nó — không ra lệnh từng bước.
-</details>
+💡 Ở đây chỉ có **một** node và nó vừa là control plane vừa là worker (cluster học tập). Cluster thật thường 3 control plane + N worker — nhưng mọi khái niệm hoàn toàn giống nhau.
 
-<details>
-<summary>4. Self-healing hoạt động nhờ đâu?</summary>
+#### Bước 4 — Nhìn thấy chính các thành phần ở phần Lý thuyết
 
-> Vòng điều hoà (reconciliation loop): controller liên tục so thực tế với mong muốn (trong etcd), pod chết thì tạo lại cho đủ.
-</details>
+Đây là bước làm lý thuyết trở nên có thật. Các thành phần control plane cũng chỉ là... pod:
 
-**🔬 Demo đối chiếu:**
+```bash
+kubectl get pods -n kube-system
+```
 
-| Demo đối chiếu | Kết quả mong đợi |
-|---|---|
-| `kubectl get nodes` | STATUS `Ready` |
-| `kubectl cluster-info` | In control plane URL |
-| Chạy pod đầu tiên | `kubectl get pods` → Running |
+**Bạn sẽ thấy:**
+```text
+NAME                               READY   STATUS    RESTARTS   AGE
+coredns-7db6d8ff4d-x8k2n           1/1     Running   0          2m
+etcd-minikube                      1/1     Running   0          2m
+kube-apiserver-minikube            1/1     Running   0          2m
+kube-controller-manager-minikube   1/1     Running   0          2m
+kube-proxy-9lhdw                   1/1     Running   0          2m
+kube-scheduler-minikube            1/1     Running   0          2m
+storage-provisioner                1/1     Running   0          2m
+```
 
-### 📚 Thuật ngữ Anh–Việt (ngày này)
+✅ **Checkpoint:** nhận ra đủ 4 thành phần control plane: `etcd`, `kube-apiserver`, `kube-controller-manager`, `kube-scheduler`.
 
-| Thuật ngữ | Nghĩa |
-|---|---|
-| **Kubernetes (K8s)** | Hệ điều phối container |
-| **Control Plane** | Bộ não cluster (API server, etcd...) |
-| **Node** | Máy trong cluster |
-| **Pod** | Đơn vị nhỏ nhất chạy container |
-| **kubectl** | CLI điều khiển cluster |
-| **Declarative** | Khai báo trạng thái mong muốn |
-| **Self-healing** | Tự tạo lại pod chết |
+💡 **Đây chính là bảng ở mục Lý thuyết #4, bằng xương bằng thịt.** `-n kube-system` nghĩa là "trong namespace kube-system" — namespace là cách chia ngăn cluster; phần của bạn mặc định nằm ở namespace `default`.
+
+Xem địa chỉ lễ tân (API Server) mà `kubectl` đang gọi:
+```bash
+kubectl cluster-info
+```
+**Bạn sẽ thấy:** `Kubernetes control plane is running at https://192.168.49.2:8443`.
+
+#### Bước 5 — Pod đầu tiên, và chứng minh pod trần rất mong manh
+
+```bash
+mkdir -p ~/lab36-k8s && cd ~/lab36-k8s
+# tạo pod-tran.yaml theo phần LAB
+kubectl apply -f pod-tran.yaml
+kubectl get pods
+```
+
+**Bạn sẽ thấy:**
+```text
+pod/web-tran created
+
+NAME       READY   STATUS    RESTARTS   AGE
+web-tran   1/1     Running   0          8s
+```
+
+✅ **Checkpoint:** `STATUS` là `Running`, cột `READY` là `1/1`.
+
+Giờ giết nó đi:
+
+```bash
+kubectl delete pod web-tran
+kubectl get pods
+```
+
+**Bạn sẽ thấy:**
+```text
+pod "web-tran" deleted
+
+No resources found in default namespace.
+```
+
+✅ **Checkpoint:** pod biến mất **vĩnh viễn**, không có gì tạo lại.
+
+💡 **Vì sao:** pod trần không có ai "mong muốn" nó tồn tại cả. Bạn bảo tạo thì K8s tạo; bạn bảo xoá thì nó xoá; nó chết thì cũng chẳng ai quan tâm. **Đây là lý do thực tế gần như không ai tạo Pod trần** — luôn dùng Deployment.
+
+#### Bước 6 — Deployment: giờ mới có người trông chừng
+
+```bash
+# tạo deployment-web.yaml theo phần LAB
+kubectl apply -f deployment-web.yaml
+kubectl get deployments
+kubectl get pods -o wide
+```
+
+**Bạn sẽ thấy:**
+```text
+NAME   READY   UP-TO-DATE   AVAILABLE   AGE
+web    3/3     3            3           12s
+
+NAME                   READY   STATUS    RESTARTS   AGE   IP           NODE
+web-6f8d9c7b5d-2xk4p   1/1     Running   0          12s   10.244.0.5   minikube
+web-6f8d9c7b5d-7mnwq   1/1     Running   0          12s   10.244.0.6   minikube
+web-6f8d9c7b5d-k9zlt   1/1     Running   0          12s   10.244.0.7   minikube
+```
+
+✅ **Checkpoint:** đúng **3 pod**, tên đều bắt đầu bằng `web-` kèm hai đoạn mã ngẫu nhiên.
+
+💡 Bạn chỉ viết `replicas: 3` — **không hề ra lệnh tạo pod nào**. Vòng điều hoà đọc thấy "mong muốn 3, thực tế 0" nên tự tạo đủ 3.
+
+#### Bước 7 — Giết pod và bấm giờ xem nó hồi sinh
+
+Đây là bước quan trọng nhất cả ngày. Mở **hai terminal**.
+
+**Terminal 1** — theo dõi trực tiếp:
+```bash
+kubectl get pods -w
+```
+
+**Terminal 2** — giết một pod (thay tên bằng pod thật của bạn):
+```bash
+kubectl delete pod web-6f8d9c7b5d-2xk4p
+```
+
+**Bạn sẽ thấy ở Terminal 1:**
+```text
+web-6f8d9c7b5d-2xk4p   1/1     Terminating         0     3m
+web-6f8d9c7b5d-vv8qr   0/1     Pending             0     0s
+web-6f8d9c7b5d-vv8qr   0/1     ContainerCreating   0     0s
+web-6f8d9c7b5d-vv8qr   1/1     Running             0     2s
+```
+
+✅ **Checkpoint:** pod mới (tên khác) đạt `Running` trong khoảng **2–3 giây**.
+
+💡 **Hãy dừng lại và ngẫm điều vừa xảy ra:** bạn phá, hệ thống tự sửa, trong 2 giây, lúc 3 giờ sáng cũng vậy, không ai phải thức dậy. **Toàn bộ giá trị của Kubernetes gói gọn ở đây.** Và nó chỉ là vòng lặp ở Lý thuyết #3 đang làm việc: "mong muốn 3, thực tế 2 → tạo thêm 1".
+
+Thử ác hơn — giết sạch cả 3:
+```bash
+kubectl delete pods --all
+kubectl get pods
+```
+
+**Bạn sẽ thấy:** 3 pod **mới toanh** đang được tạo. Không cách nào "giết chết" một Deployment bằng cách xoá pod.
+
+#### Bước 8 — Thử cãi lại hệ thống (và thua)
+
+Hãy thử sửa trực tiếp thực tế xem K8s phản ứng ra sao:
+
+```bash
+kubectl scale deployment web --replicas=5      # ra lệnh trực tiếp: 5 bản
+kubectl get pods --no-headers | wc -l          # đếm: 5
+```
+
+Nhưng file YAML của bạn vẫn ghi `replicas: 3`. Giờ áp lại file:
+
+```bash
+kubectl apply -f deployment-web.yaml
+sleep 3
+kubectl get pods --no-headers | wc -l
+```
+
+**Bạn sẽ thấy:** quay về `3`.
+
+✅ **Checkpoint:** hiểu rằng **file YAML là nguồn sự thật**, lệnh gõ tay chỉ là sửa tạm.
+
+💡 **Bài học lớn:** nếu ai đó `kubectl scale` lúc nửa đêm để chữa cháy mà không sửa file, thì lần deploy sau con số sẽ âm thầm quay lại — sự cố tái diễn và **không ai hiểu vì sao**. Đây chính là lý do Ngày 43 (GitOps) tồn tại: bắt buộc mọi thay đổi phải đi qua Git.
+
+#### Bước 9 — Ba lệnh điều tra dùng suốt đời làm K8s
+
+```bash
+POD=$(kubectl get pods -l app=web -o jsonpath='{.items[0].metadata.name}')
+
+kubectl describe pod $POD | tail -20      # 1) chuyện gì đã xảy ra với pod này
+kubectl logs $POD                          # 2) app bên trong nói gì
+kubectl get events --sort-by=.lastTimestamp | tail -10   # 3) cluster vừa làm gì
+```
+
+**Bạn sẽ thấy ở `describe`** phần `Events` cuối cùng:
+```text
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  2m    default-scheduler  Successfully assigned default/web-... to minikube
+  Normal  Pulled     2m    kubelet            Container image "nginx:1.27" already present
+  Normal  Created    2m    kubelet            Created container web
+  Normal  Started    2m    kubelet            Started container web
+```
+
+✅ **Checkpoint:** đọc được dòng `Scheduled` (Scheduler xếp việc) rồi `Started` (kubelet chạy container) — đúng luồng ở mục Lý thuyết #4.
+
+💡 **Ghi nhớ thứ tự điều tra này:** `describe` (vì sao pod ở trạng thái đó) → `logs` (app nói gì) → `events` (cluster vừa làm gì). 90% sự cố K8s được khoanh vùng chỉ bằng ba lệnh này.
+
+#### Bước 10 — Mở thử trang web và dọn dẹp
+
+```bash
+kubectl port-forward deployment/web 8081:80 &
+sleep 2
+curl -s localhost:8081 | head -5
+kill %1
+```
+
+**Bạn sẽ thấy:** đoạn HTML `<title>Welcome to nginx!</title>`.
+
+✅ **Checkpoint:** truy cập được vào pod.
+
+💡 `port-forward` chỉ là **đường hầm tạm cho lập trình viên**, không phải cách người dùng thật vào ứng dụng. Cách đúng là **Service** và **Ingress** — học ở Ngày 38.
+
+Dọn dẹp:
+```bash
+kubectl delete -f deployment-web.yaml
+minikube stop            # dừng cluster, GIỮ nguyên mọi thứ cho Ngày 37
+# minikube delete        # chỉ dùng khi muốn xoá sạch cluster làm lại từ đầu
+```
+
+⚠️ Dùng `minikube stop`, **đừng** `minikube delete` — Ngày 37 sẽ dùng lại chính cluster này.
+
+### 💡 Đi làm mới thấm (sách cơ bản hay bỏ quên)
+
+- **K8s không tự làm app bạn đáng tin cậy.** Nó chỉ đảm bảo *có đủ số pod đang chạy*. Nếu app khởi động mất 60 giây, hoặc treo mà tiến trình vẫn sống, K8s vẫn tưởng mọi thứ ổn. Muốn nó hiểu đúng thế nào là "khoẻ" thì phải khai **probe** (Ngày 41).
+- **`kubectl get` nói *cái gì*, `describe` nói *vì sao*.** Người mới hay dán ảnh `kubectl get pods` rồi hỏi "sao pod lỗi?". Câu trả lời gần như luôn nằm ở phần `Events` cuối `kubectl describe`.
+- **Namespace không chỉ để cho gọn.** Nó là ranh giới để đặt **quota tài nguyên** và **phân quyền RBAC**. Ở công ty, mỗi đội/môi trường thường một namespace riêng — một đội không thể vô tình xoá đồ của đội khác.
+- **Luôn khai `resources.requests`.** Không khai thì Scheduler không biết pod cần bao nhiêu → xếp nhầm chỗ → các pod tranh nhau RAM → node lăn ra chết kéo theo mọi thứ trên đó. Đây là nguyên nhân sự cố cực kỳ phổ biến ở cluster của đội mới dùng K8s.
+- **etcd là thứ phải backup.** Mất etcd = cluster mất trí nhớ hoàn toàn. Với managed K8s (EKS/GKE/AKS), nhà cung cấp lo giúp — đây là một lý do rất chính đáng để **không tự dựng cluster** khi chưa có đội chuyên trách.
+- **Đừng vội lên K8s.** Nếu bạn chỉ có 2–3 dịch vụ trên một máy, Docker Compose (Ngày 20) đơn giản hơn nhiều và **hoàn toàn đủ dùng**. K8s bắt đầu đáng giá khi có nhiều dịch vụ, nhiều máy, và yêu cầu không gián đoạn. Chọn công cụ theo bài toán, không theo mốt.
 
 ### 🎯 Đúc kết Ngày 36
 
 **3 điều phải mang theo:**
-1. **K8s = bước nhảy từ "chạy container" (Docker) sang "giữ hàng trăm container luôn đúng như ý"** — điều phối + tự phục hồi (self-healing).
-2. **Declarative:** bạn khai *đích* (YAML), K8s lo *cách đạt & giữ* qua vòng điều hoà liên tục so sánh thực tế ↔ mong muốn (etcd).
-3. **Kiến trúc:** Control Plane (API Server + etcd + Scheduler + Controller) ra quyết định; Worker Node (kubelet) chạy container thật.
 
-> 🧠 **Một câu để nhớ:** học K8s trên máy mình trước bằng **Minikube/kind/k3s** (miễn phí) — đừng vội thuê cluster cloud khi chưa vững cơ bản.
+1. **Khai báo, không ra lệnh.** Bạn mô tả trạng thái mong muốn vào YAML; K8s tự làm cho khớp và **giữ mãi**. File YAML là nguồn sự thật, không phải lệnh bạn gõ tay.
+2. **Mọi phép màu chỉ là một vòng lặp** so mong muốn với thực tế rồi sửa. Tự phục hồi, tự mở rộng, cập nhật không gián đoạn — cùng một cơ chế.
+3. **Pod là đồ dùng một lần.** Đừng chăm sóc pod; hãy mô tả đúng cái bạn muốn có và để Deployment lo phần thay thế.
 
-**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
-- [ ] Dựng được cluster local và `kubectl get nodes` thấy `Ready`
-- [ ] Giải thích declarative vs imperative và vì sao `apply -f` là chuẩn production
-- [ ] Mô tả được vòng điều hoà (reconciliation) và self-healing
-- [ ] Kể vai trò API Server / etcd / Scheduler / Controller / kubelet
-- [ ] Hiểu vì sao `delete pod` của một Deployment lại "mọc lại"
+> 🧠 **Một câu để nhớ:** Kubernetes không chạy container giùm bạn — nó **liên tục sửa cho thực tế khớp với điều bạn đã khai**.
 
-✅ **Kết quả đạt được:** Hiểu kiến trúc Kubernetes, chạy được cluster local và pod đầu tiên.
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+
+- [ ] Dựng được cluster local và giải thích `kubectl` nói chuyện với thành phần nào
+- [ ] Kể tên 4 thành phần control plane và nhìn thấy chúng bằng `kubectl get pods -n kube-system`
+- [ ] Giải thích vòng điều hoà bằng lời của mình
+- [ ] Chứng minh Pod trần không tự hồi sinh còn Deployment thì có
+- [ ] Giết pod và giải thích vì sao pod mới xuất hiện sau 2 giây
+- [ ] Nói được vì sao `kubectl scale` bằng tay là nguy hiểm nếu không sửa file
+- [ ] Dùng đúng thứ tự điều tra: `describe` → `logs` → `events`
+
+✅ **Kết quả đạt được:** Một cluster Kubernetes chạy trên máy bạn, và quan trọng hơn — bạn đã tận mắt thấy cơ chế tự phục hồi hoạt động, nền tảng cho mọi thứ học trong 14 ngày tới.
 
 ---
 
@@ -2604,196 +2865,508 @@ Quy tắc: `get` để *thấy triệu chứng* → `describe` để *biết vì
 
 > ⏱️ ~90 phút · Loại: Kubernetes
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 37 (chạy app bằng Deployment) → **Ngày 38 (cho app có địa chỉ ổn định + nhận request từ ngoài)** → Ngày 39 (ConfigMap/Secret/Storage). Pod đổi IP liên tục — Service giải bài toán "làm sao gọi nhau ổn định".
+> 🧭 **Bạn đang ở đâu:** Ngày 37 (Deployment chạy nhiều bản sao) → **Ngày 38 (làm sao gọi tới chúng — Service, DNS, Ingress)** → Ngày 39 (ConfigMap, Secret, lưu trữ). Hôm qua bạn có 3 pod nhưng chưa ai vào được; hôm nay mở đường.
 >
-> ✅ **Chuẩn bị:** cluster local + đã có 1 Deployment chạy (Ngày 37). Bật ingress addon: `minikube addons enable ingress`.
+> ✅ **Chuẩn bị:** cluster đang chạy (`minikube start`) và `kubectl get nodes` ra `Ready`.
+>
+> 🎁 **Cuối ngày bạn có gì:** một app truy cập được bằng **tên miền** thật (`shop.local`) qua Ingress, hiểu rõ khi nào dùng ClusterIP / NodePort / Ingress — và tự chứng minh được vì sao **không bao giờ gọi pod bằng IP**.
 
 ### 📘 Lý thuyết
 
-#### 1. Vấn đề: pod có IP "sớm nắng chiều mưa"
+#### 1. Vấn đề: IP của pod biến mất liên tục
 
-Pod chết & tạo lại liên tục, mỗi lần 1 IP mới. Làm sao các thành phần gọi nhau ổn định? → **Service** cho một **tên + IP ổn định** cho 1 nhóm pod, và tự **chia tải**.
+Ngày 36 bạn đã thấy `kubectl get pods -o wide` hiện IP từng pod, ví dụ `10.244.0.5`. Cám dỗ đầu tiên là dùng luôn IP đó để gọi. Đừng.
 
-#### 2. Ba loại Service — chọn đúng
+Pod là đồ dùng một lần: nó chết, bản mới sinh ra với **IP hoàn toàn khác**. Mà pod chết thì xảy ra suốt: cập nhật phiên bản, node bảo trì, tự mở rộng, hết RAM. Ghi IP pod vào cấu hình là tự đặt bom hẹn giờ.
 
-| Loại | Phạm vi | Dùng khi |
-|---|---|---|
-| **ClusterIP** (mặc định) | Nội bộ cluster | Hầu hết (backend, db) — an toàn |
-| **NodePort** | Mở cổng trên node | Test nhanh dev — không dùng production |
-| **LoadBalancer** | IP công khai từ cloud | Mỗi service 1 IP (tốn) |
+Thêm nữa: có **3 pod** thì gọi cái nào? Ai chia đều tải?
 
-#### 3. Service tìm pod bằng label selector
+**Service** giải quyết cả hai: nó là **một địa chỉ cố định đứng trước một nhóm pod hay thay đổi**, và tự chia đều yêu cầu cho các pod còn sống.
 
-Service định tuyến tới các pod có nhãn khớp `selector`. Nếu selector sai (không khớp label pod) → Service không có endpoint → không tới pod nào.
-
-#### 4. DNS nội bộ — phép màu microservice
-
-Pod gọi service qua **tên**: `db-svc:5432` (đầy đủ: `service.namespace.svc.cluster.local`). K8s tự phân giải tên → IP pod hiện tại, kể cả khi pod đổi IP.
-
-#### 5. Ingress — 1 cửa vào cho nhiều service
-
-Thay vì mỗi service 1 LoadBalancer (tốn), **Ingress** là 1 điểm vào duy nhất, định tuyến theo host/path: `/` → frontend, `/api` → backend.
-- Cần **Ingress Controller** (nginx-ingress, traefik) để hoạt động — thường chính là **nginx** (kiến thức Ngày 23 dùng lại).
-- **Port:** `port` (của service), `targetPort` (cổng container), `nodePort` (cổng trên node).
-
-> 🔑 Chuẩn production: **ClusterIP + 1 Ingress** cho nhiều service (không NodePort/LoadBalancer tràn lan). TLS qua Ingress + cert-manager (Let's Encrypt tự động).
-
-**Sơ đồ — Ingress định tuyến → Service → Pod:**
-```mermaid
-flowchart TB
-    User(("🌐 Người dùng")) -->|"app.example.com"| ING["🚪 Ingress · nginx-ingress"]
-    ING -->|"/"| SF["Service: frontend (ClusterIP)"]
-    ING -->|"/api"| SB["Service: backend (ClusterIP)"]
-    SF --> F1["Pod fe"]
-    SF --> F2["Pod fe"]
-    SB --> B1["Pod be"]
-    SB --> B2["Pod be"]
-    B1 -->|"db-svc:5432"| DB[("Service: db → Postgres")]
-    classDef svc fill:#e3f2fd,stroke:#1976d2;
-    class SF,SB,DB svc;
+```text
+                    ┌──────────────┐
+  Người gọi  ───>   │   Service    │  tên: web-svc, IP không đổi
+                    │  (cửa trước) │
+                    └──────┬───────┘
+                     chia đều tải
+              ┌────────────┼────────────┐
+              ▼            ▼            ▼
+           Pod A        Pod B        Pod C     ← IP thay đổi liên tục, không sao cả
 ```
-> Service cho **IP/DNS ổn định** dù pod đổi IP liên tục; Ingress = 1 điểm vào cho nhiều service.
 
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
+#### 2. Service tìm pod bằng nhãn, không bằng IP
 
-> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
+Đây là ý tưởng thanh lịch nhất của Kubernetes. Service không giữ danh sách IP nào cả. Nó chỉ khai:
 
-**Pod là "phù du", Service là số tổng đài không đổi.** Trong K8s, pod sinh ra và chết đi liên tục, mỗi lần một IP mới — nếu app A phải *nhớ IP* của app B thì cứ vài phút lại mất liên lạc. Service là một địa chỉ ảo **bất biến** đứng trước một nhóm pod luôn thay đổi, hệt như số tổng đài công ty: số không đổi, còn ai nhấc máy / ngồi đâu là chuyện bên trong. Bạn gọi `db-svc:5432`, K8s tự nối tới một pod database đang sống.
+```yaml
+selector:
+  app: web        # "khách hàng của tôi là MỌI pod mang nhãn app=web"
+```
 
-**Điểm hay ngầm: Service tìm pod bằng NHÃN, không phải IP.** Service không "trỏ" tới một pod cụ thể — nó nói *"chuyển cho bất kỳ ai đang đeo thẻ `app=web`"*. Pod mới sinh, đeo đúng thẻ, là **tự động** được xếp vào nhóm nhận traffic; pod chết thì rơi ra. Đây cũng là lý do lỗi phổ biến nhất là *selector đeo nhầm thẻ*: Service vẫn "có đó" nhưng không khớp pod nào → gọi vào hư không.
+Pod mới sinh ra mang nhãn `app: web` → **tự động** được nhận vào nhóm. Pod chết → tự động bị loại. Không ai phải cập nhật danh sách gì hết.
 
-**Service lo "bên trong gọi nhau", Ingress lo "bên ngoài đi vào".** Đừng để mỗi service xin một IP công khai riêng (như mỗi phòng ban một số hotline — vừa tốn vừa loạn). Ingress là một *lễ tân* đọc địa chỉ ghi trên phong bì (host/path: `/` → frontend, `/api` → backend) rồi chuyển đúng phòng. Bản thân lễ tân này thường chính là **nginx** — kiến thức Ngày 23 quay lại.
+> ⚠️ **Lỗi số một khi làm việc với Service:** `selector` của Service không khớp `labels` của pod → Service không tìm thấy ai, gọi vào là treo hoặc lỗi kết nối. Bước 4 phần thực hành sẽ dạy bạn cách phát hiện chỉ trong 5 giây.
 
-### 🧪 Lab cơ bản
+#### 3. Ba loại Service — chọn đúng loại
 
-1. Tạo Service ClusterIP cho deployment, test truy cập nội bộ từ pod khác.
-2. Tạo Service NodePort và truy cập app qua `minikube service <tên>`.
-3. Bật ingress addon trong minikube và cài ingress controller.
-4. Viết Ingress định tuyến theo path tới service của bạn.
-5. Test truy cập app qua Ingress host/path.
-
-### 🚀 Lab nâng cao (best-practice)
-
-> Mục tiêu: hiểu khi nào dùng loại Service nào, expose app đúng chuẩn qua Ingress.
-
-1. **ClusterIP + Ingress là chuẩn production** (không NodePort):
-   ```yaml
-   apiVersion: networking.k8s.io/v1
-   kind: Ingress
-   metadata: { name: web, annotations: { nginx.ingress.kubernetes.io/rewrite-target: / } }
-   spec:
-     rules:
-       - host: app.example.com
-         http:
-           paths:
-             - path: /api
-               pathType: Prefix
-               backend: { service: { name: api-svc, port: { number: 80 } } }
-   ```
-2. **Service nội bộ dùng ClusterIP** — DB/backend không bao giờ expose ra ngoài.
-3. **TLS qua Ingress + cert-manager** — tự động cấp/gia hạn chứng chỉ Let's Encrypt.
-4. **Đặt tên service rõ ràng** (`api-svc`, `db-svc`) vì pod gọi nhau qua tên này.
-
-### 💡 Bổ sung thực tế: những cái đi làm mới thấm
-
-- **Service rỗng? Xem `kubectl get endpoints <svc>` NGAY:** nếu cột ENDPOINTS trống thì hoặc `selector` không khớp label pod, hoặc pod chưa `Ready`. Đây là lỗi networking số 1 của người mới — Service "có đó" nhưng gọi vào không tới đâu.
-- **Chỉ pod *Ready* mới được nhận traffic:** K8s tự loại pod chưa qua readiness probe khỏi danh sách endpoint của Service. Đây là mắt xích nối Service với rolling update an toàn (Ngày 37, 41) — pod đang khởi động sẽ không bị dội request vào.
-- **ClusterIP không phải một "máy trung gian":** nó chỉ là các luật iptables/IPVS do kube-proxy cài trên *mọi* node → không có điểm chết đơn lẻ, traffic không đi vòng qua một proxy tập trung mà được viết lại địa chỉ ngay tại node gọi.
-- **LoadBalancer tự động chỉ có trên cloud:** trên cloud, Service `type: LoadBalancer` tự gọi API tạo LB thật; cluster on-prem (bare-metal) không có cơ chế đó → cần **MetalLB** hoặc NodePort + LB ngoài. Đừng ngạc nhiên khi LoadBalancer trên máy nhà kẹt `<pending>` mãi.
-- **Ingress đang dần nhường chỗ cho Gateway API:** Ingress vẫn phổ biến, nhưng chuẩn mới **Gateway API** biểu đạt định tuyến (nhất là gRPC, chia tải theo tỉ lệ) rõ và mạnh hơn. Học Ingress trước, rồi để mắt tới Gateway API.
-
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
-
-**Trình tự nên làm:** tạo Service ClusterIP → test nội bộ → NodePort → bật ingress addon → viết Ingress định tuyến path → test qua host.
-
-**Giải nghĩa & kết quả mong đợi:**
-- Service ClusterIP — IP/DNS ổn định nội bộ cho 1 nhóm pod (qua label selector). *Kết quả:* `kubectl get svc` hiện ClusterIP.
-- `kubectl port-forward svc/web 8080:80` — đẩy service ra localhost để test (bỏ qua Ingress).
-- Ingress — định tuyến `/` → frontend, `/api` → backend qua 1 điểm vào.
-
-**🧪 Thử nghiệm:**
-- `kubectl get svc,endpoints` — nếu Service không có endpoint → **selector sai** (không khớp label pod). **Bài học:** cách debug "service không tới pod".
-- Gửi nhiều request → quan sát phân phối tới các pod khác nhau. **Bài học:** Service tự cân bằng tải.
-
-⚠️ **Dễ sai:** dùng NodePort/LoadBalancer cho mọi service ở production (tốn, khó quản). Chuẩn: ClusterIP + 1 Ingress cho nhiều service.
-
-💡 **Hiểu sâu:** pod đổi IP liên tục → không gọi trực tiếp được. Service cho **tên DNS ổn định** (`db-svc:5432`); K8s tự phân giải tên → IP pod hiện tại. Nền tảng microservice.
-
-### 🐛 Gỡ lỗi nhanh
-
-| Triệu chứng | Nguyên nhân | Cách sửa |
+| Loại | Ai gọi được | Dùng khi nào |
 |---|---|---|
-| Service không tới pod nào | Selector không khớp label pod | `kubectl get endpoints <svc>` (rỗng?); sửa selector = label pod |
-| Ingress trả 404 | Path/host sai, hoặc chưa có controller | Kiểm rule Ingress; `minikube addons enable ingress` |
-| `curl db-svc` không phân giải | Sai tên/namespace | Dùng đúng `svc.namespace`; kiểm `kubectl get svc` |
-| NodePort không vào được | Cổng ngoài dải/SG chặn | `minikube service <svc>`; kiểm firewall |
-| Ingress 503 | Backend service không có pod healthy | Kiểm Deployment/pod của service |
+| **ClusterIP** *(mặc định)* | **Chỉ bên trong cluster** | Backend, database, mọi dịch vụ nội bộ — **90% trường hợp** |
+| **NodePort** | Bên ngoài, qua `IP-của-node:30000-32767` | Thử nghiệm, lab. Cổng xấu, khó quản |
+| **LoadBalancer** | Bên ngoài, qua IP công cộng | Production trên cloud (cloud tự cấp bộ cân bằng tải, **có tính phí**) |
 
-### 📝 Bài ôn tập & Demo đối chiếu
+> 🔑 Quy tắc thực tế: **mặc định luôn dùng ClusterIP**. Chỉ mở ra ngoài đúng những gì cần mở, và mở qua **Ingress** (mục 5) thay vì cấp cho mỗi dịch vụ một LoadBalancer riêng.
 
-**✍️ Tự kiểm tra:**
+#### 4. DNS nội bộ — gọi nhau bằng tên
 
-<details>
-<summary>1. Phân biệt ClusterIP, NodePort, LoadBalancer.</summary>
+Cluster có sẵn máy chủ DNS riêng (chính là pod `coredns` bạn thấy ở Ngày 36). Nhờ nó, mọi Service đều có một cái **tên** gọi được:
 
-> ClusterIP: nội bộ cluster (mặc định). NodePort: mở cổng trên node (test dev). LoadBalancer: IP công khai từ cloud (mỗi service 1 cái, tốn).
-</details>
+```text
+web-svc                          ← cùng namespace, gọi ngắn gọn thế này
+web-svc.default                  ← nói rõ namespace
+web-svc.default.svc.cluster.local ← tên đầy đủ
+```
 
-<details>
-<summary>2. Service giải quyết vấn đề gì của IP pod?</summary>
+Nghĩa là trong code backend, bạn viết `http://api-svc:8080` — **không IP, không cấu hình, không cần biết pod nằm đâu**. Đây là thứ khiến kiến trúc nhiều dịch vụ trên K8s trở nên dễ chịu.
 
-> Pod đổi IP liên tục; Service cho một tên/IP **ổn định** trỏ tới nhóm pod đang sống + chia tải, nên các thành phần gọi nhau ổn định.
-</details>
+#### 5. Ingress — một cửa vào cho tất cả
 
-<details>
-<summary>3. Ingress khác Service LoadBalancer thế nào?</summary>
+Có 10 dịch vụ cần mở ra Internet. Cấp 10 LoadBalancer? Đắt và rối.
 
-> LoadBalancer: mỗi service 1 IP ngoài (tốn). Ingress: 1 điểm vào + định tuyến host/path cho nhiều service (tiết kiệm) → chuẩn production.
-</details>
+**Ingress** là **một cửa duy nhất** biết định tuyến theo tên miền và đường dẫn:
 
-<details>
-<summary>4. Service không có endpoint thì nguyên nhân thường là gì?</summary>
+```text
+                          ┌─────────────────────┐
+  shop.local/       ───>  │                     │ ───>  Service web
+  shop.local/api    ───>  │  Ingress Controller │ ───>  Service api
+  blog.local/       ───>  │   (một cửa vào)     │ ───>  Service blog
+                          └─────────────────────┘
+```
 
-> `selector` của Service không khớp `labels` của pod → không "gom" được pod nào. Sửa cho nhãn khớp.
-</details>
+Nó cũng là nơi tập trung lo **HTTPS/chứng chỉ** — thay vì cấu hình TLS ở từng dịch vụ.
 
-**🔬 Demo đối chiếu:**
+> 📌 **Phân biệt hai thứ hay bị lẫn:** *Ingress* chỉ là **tờ khai luật định tuyến** (một object YAML). *Ingress Controller* mới là **phần mềm thật sự chạy** và thực thi các luật đó (thường là nginx). Khai Ingress mà chưa cài Controller thì **không có gì xảy ra cả** — đây là bẫy kinh điển của người mới.
 
-| Demo đối chiếu | Kết quả mong đợi |
-|---|---|
-| Tạo Service | `kubectl get svc` hiện ClusterIP |
-| `kubectl get endpoints <svc>` | Có IP các pod (không rỗng) |
-| Truy cập qua Ingress/port-forward | App phản hồi |
+### 🧪 LAB — Từ pod kín tới tên miền truy cập được
 
-### 📚 Thuật ngữ Anh–Việt (ngày này)
+**File sẽ tạo:**
 
-| Thuật ngữ | Nghĩa |
-|---|---|
-| **Service** | Địa chỉ/DNS ổn định cho nhóm pod |
-| **ClusterIP / NodePort / LoadBalancer** | 3 loại Service |
-| **Endpoint** | Danh sách IP pod mà Service trỏ tới |
-| **Ingress** | 1 cửa vào định tuyến host/path |
-| **Ingress Controller** | Bộ chạy Ingress (nginx/traefik) |
-| **targetPort** | Cổng container mà Service trỏ tới |
-| **cert-manager** | Tự cấp/gia hạn TLS trong K8s |
+```text
+lab38-network/
+├── app-web.yaml        # Deployment + Service ClusterIP (trang chủ)
+├── app-api.yaml        # Deployment + Service ClusterIP (dịch vụ thứ hai)
+└── ingress.yaml        # Luật định tuyến theo tên miền/đường dẫn
+```
+
+#### File 1 — `app-web.yaml`
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web                      # nhãn này là thứ Service sẽ tìm
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.27
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+          # Ghi tên pod vào trang chủ để LÁT NỮA THẤY RÕ việc chia tải
+          command: ["/bin/sh", "-c"]
+          args:
+            - echo "Xin chào từ pod $HOSTNAME" > /usr/share/nginx/html/index.html
+              && nginx -g 'daemon off;'
+          env:
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-svc
+spec:
+  type: ClusterIP                     # mặc định — chỉ gọi được từ trong cluster
+  selector:
+    app: web                          # PHẢI khớp labels của pod ở trên
+  ports:
+    - port: 80                        # cổng của Service (người khác gọi vào đây)
+      targetPort: 80                  # cổng của container
+```
+
+#### File 2 — `app-api.yaml`
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+        - name: api
+          image: hashicorp/http-echo:1.0    # image nhỏ, trả về đúng một chuỗi
+          args:
+            - "-text=Đây là dịch vụ API"
+            - "-listen=:5678"
+          ports:
+            - containerPort: 5678
+          resources:
+            requests:
+              memory: "16Mi"
+              cpu: "20m"
+            limits:
+              memory: "64Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-svc
+spec:
+  type: ClusterIP
+  selector:
+    app: api
+  ports:
+    - port: 8080          # bên ngoài gọi cổng 8080...
+      targetPort: 5678    # ...Service chuyển tới cổng 5678 của container
+```
+
+#### File 3 — `ingress.yaml`
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cong-vao
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: shop.local                # truy cập bằng tên miền này
+      http:
+        paths:
+          - path: /api                # shop.local/api  -> api-svc
+            pathType: Prefix
+            backend:
+              service:
+                name: api-svc
+                port:
+                  number: 8080
+          - path: /                   # shop.local/     -> web-svc
+            pathType: Prefix
+            backend:
+              service:
+                name: web-svc
+                port:
+                  number: 80
+```
+
+> 📌 Thứ tự `paths` có ý nghĩa: đường dẫn **cụ thể hơn phải đứng trước**. Để `/` lên đầu thì nó nuốt hết mọi yêu cầu, `/api` không bao giờ tới lượt.
+
+### 🧭 Hướng dẫn làm LAB — step by step
+
+#### Bước 1 — Chứng minh vì sao không được dùng IP pod
+
+```bash
+mkdir -p ~/lab38-network && cd ~/lab38-network
+# tạo app-web.yaml theo phần LAB
+kubectl apply -f app-web.yaml
+kubectl get pods -o wide
+```
+
+Ghi lại IP của một pod bất kỳ, rồi giết nó:
+
+```bash
+POD=$(kubectl get pods -l app=web -o jsonpath='{.items[0].metadata.name}')
+kubectl get pod $POD -o jsonpath='{.status.podIP}'; echo      # IP cũ
+kubectl delete pod $POD
+sleep 5
+kubectl get pods -l app=web -o wide
+```
+
+**Bạn sẽ thấy:** pod mới có **IP hoàn toàn khác** IP bạn vừa ghi.
+
+✅ **Checkpoint:** tự mắt thấy IP pod là thứ không bền.
+
+💡 Giờ hãy tưởng tượng bạn đã ghi IP cũ đó vào cấu hình backend. Ứng dụng sẽ chết vào đúng lần cập nhật tiếp theo — và vào lúc 3 giờ sáng thì rất khó đoán ra nguyên nhân.
+
+#### Bước 2 — Service: địa chỉ không bao giờ đổi
+
+Service đã nằm sẵn trong `app-web.yaml`. Xem nó:
+
+```bash
+kubectl get svc web-svc
+kubectl get endpoints web-svc
+```
+
+**Bạn sẽ thấy:**
+```text
+NAME      TYPE        CLUSTER-IP      PORT(S)   AGE
+web-svc   ClusterIP   10.102.33.178   80/TCP    1m
+
+NAME      ENDPOINTS
+web-svc   10.244.0.11:80,10.244.0.12:80,10.244.0.13:80
+```
+
+✅ **Checkpoint:** `ENDPOINTS` liệt kê đúng **3 địa chỉ** — chính là 3 pod đang sống.
+
+💡 **`kubectl get endpoints` là lệnh chẩn đoán quan trọng nhất về Service.** Nó trả lời: *"Service này có thực sự tìm thấy pod nào không?"* Danh sách trống nghĩa là selector sai — và đó là nguyên nhân của phần lớn lỗi "gọi Service không được".
+
+#### Bước 3 — Gọi Service từ bên trong cluster và thấy chia tải
+
+ClusterIP chỉ gọi được từ trong cluster, nên ta tạo một pod tạm để đứng bên trong mà gọi ra:
+
+```bash
+kubectl run thu-nghiem --rm -it --image=curlimages/curl:8.11.0 --restart=Never -- sh
+```
+
+Bên trong pod đó, gõ:
+
+```sh
+for i in 1 2 3 4 5 6; do curl -s http://web-svc; done
+exit
+```
+
+**Bạn sẽ thấy:**
+```text
+Xin chào từ pod web-5d9f7c8b6-k2xqp
+Xin chào từ pod web-5d9f7c8b6-vv8qr
+Xin chào từ pod web-5d9f7c8b6-t7m3n
+Xin chào từ pod web-5d9f7c8b6-k2xqp
+...
+```
+
+✅ **Checkpoint:** tên pod **thay đổi giữa các lần gọi** — Service đang chia đều tải thật.
+
+💡 Chú ý bạn gọi bằng **`http://web-svc`**, không phải IP. Đó là DNS nội bộ của cluster đang làm việc. Trong code ứng dụng thật, bạn cũng viết đúng như vậy.
+
+#### Bước 4 — Cố ý làm sai selector để học cách chẩn đoán
+
+Đây là lỗi bạn chắc chắn sẽ gặp, nên hãy gặp nó **ngay bây giờ, có chủ đích**:
+
+```bash
+kubectl patch svc web-svc -p '{"spec":{"selector":{"app":"web-sai-ten"}}}'
+kubectl get endpoints web-svc
+```
+
+**Bạn sẽ thấy:**
+```text
+NAME      ENDPOINTS
+web-svc   <none>            ← không tìm thấy pod nào!
+```
+
+✅ **Checkpoint:** `ENDPOINTS` là `<none>`.
+
+💡 **Ghi nhớ phản xạ này:** khi "gọi Service mà không được", đừng đoán — chạy `kubectl get endpoints <ten-svc>`. Thấy `<none>` là biết ngay: selector của Service không khớp labels của pod. So hai bên bằng:
+```bash
+kubectl get svc web-svc -o jsonpath='{.spec.selector}'; echo
+kubectl get pods --show-labels | head -3
+```
+
+Sửa lại cho đúng:
+```bash
+kubectl patch svc web-svc -p '{"spec":{"selector":{"app":"web"}}}'
+kubectl get endpoints web-svc        # 3 địa chỉ trở lại
+```
+
+#### Bước 5 — Dịch vụ nói chuyện với dịch vụ
+
+Triển khai dịch vụ thứ hai và gọi chéo:
+
+```bash
+# tạo app-api.yaml theo phần LAB
+kubectl apply -f app-api.yaml
+kubectl get pods -l app=api
+
+kubectl run thu-nghiem --rm -it --image=curlimages/curl:8.11.0 --restart=Never -- sh
+```
+
+Bên trong:
+```sh
+curl -s http://api-svc:8080        # gọi dịch vụ khác bằng TÊN
+nslookup api-svc                   # xem DNS cluster phân giải ra gì
+exit
+```
+
+**Bạn sẽ thấy:**
+```text
+Đây là dịch vụ API
+
+Name:   api-svc.default.svc.cluster.local
+Address: 10.108.71.24
+```
+
+✅ **Checkpoint:** gọi được dịch vụ khác bằng tên, và DNS trả về tên đầy đủ `.default.svc.cluster.local`.
+
+💡 Chú ý cổng: bạn gọi `:8080` nhưng container thật sự nghe ở `:5678`. Service đã dịch giúp (`port` → `targetPort`). Nhờ vậy đổi cổng bên trong app không ảnh hưởng người gọi.
+
+#### Bước 6 — NodePort: mở ra ngoài kiểu thô sơ
+
+```bash
+kubectl expose deployment web --type=NodePort --port=80 --name=web-nodeport
+kubectl get svc web-nodeport
+```
+
+**Bạn sẽ thấy:**
+```text
+NAME           TYPE       CLUSTER-IP     PORT(S)        AGE
+web-nodeport   NodePort   10.98.44.201   80:31673/TCP   3s
+```
+
+Số `31673` là cổng được cấp trên node. Mở thử:
+
+```bash
+minikube service web-nodeport --url
+curl -s $(minikube service web-nodeport --url)
+```
+
+**Bạn sẽ thấy:** `Xin chào từ pod web-...`.
+
+✅ **Checkpoint:** truy cập được từ ngoài cluster.
+
+💡 **Vì sao NodePort không dùng cho production:** cổng bị giới hạn trong dải 30000–32767 (không ai muốn địa chỉ web là `example.com:31673`), mỗi dịch vụ chiếm một cổng riêng trên **mọi** node, và không có HTTPS. Nó tiện cho lab, thế thôi.
+
+```bash
+kubectl delete svc web-nodeport
+```
+
+#### Bước 7 — Bật Ingress Controller
+
+Nhớ mục Lý thuyết #5: khai Ingress mà chưa có Controller thì vô nghĩa. Bật trước:
+
+```bash
+minikube addons enable ingress
+kubectl get pods -n ingress-nginx
+```
+
+**Bạn sẽ thấy** (chờ khoảng 1 phút):
+```text
+NAME                                      READY   STATUS      RESTARTS   AGE
+ingress-nginx-controller-7d4b9f8c-x9k2m   1/1     Running     0          58s
+```
+
+✅ **Checkpoint:** pod controller ở trạng thái `Running` (không phải `Pending` hay `ContainerCreating`).
+
+⚠️ Nếu mãi `ContainerCreating` — nó đang tải image, chờ thêm. Theo dõi: `kubectl get pods -n ingress-nginx -w`.
+
+#### Bước 8 — Định tuyến theo tên miền
+
+```bash
+# tạo ingress.yaml theo phần LAB
+kubectl apply -f ingress.yaml
+kubectl get ingress
+```
+
+**Bạn sẽ thấy:**
+```text
+NAME       CLASS   HOSTS        ADDRESS          PORTS   AGE
+cong-vao   nginx   shop.local   192.168.49.2     80      20s
+```
+
+✅ **Checkpoint:** cột `ADDRESS` **có IP** (chờ ~30 giây nếu đang trống).
+
+Trỏ tên miền `shop.local` về cluster bằng file hosts của máy bạn:
+
+```bash
+echo "$(minikube ip) shop.local" | sudo tee -a /etc/hosts
+cat /etc/hosts | tail -2
+```
+
+Giờ thử cả hai đường dẫn:
+
+```bash
+curl -s http://shop.local
+curl -s http://shop.local/api
+```
+
+**Bạn sẽ thấy:**
+```text
+Xin chào từ pod web-5d9f7c8b6-k2xqp
+Đây là dịch vụ API
+```
+
+✅ **Checkpoint:** cùng **một tên miền, một cổng 80**, nhưng hai đường dẫn đi tới hai dịch vụ khác nhau.
+
+💡 **Đây chính là mô hình dùng ở production thật:** một cửa vào, định tuyến theo host/path, và cũng là nơi gắn chứng chỉ HTTPS (Module nâng cao — cert-manager). So với NodePort thì khác một trời một vực.
+
+⚠️ **Nếu nhận `404 Not Found` từ nginx:** thường là sai `ingressClassName` hoặc Service không có endpoint. Kiểm tra theo thứ tự:
+```bash
+kubectl describe ingress cong-vao | tail -15     # xem phần Rules và Events
+kubectl get endpoints web-svc api-svc            # cả hai phải có địa chỉ
+```
+
+#### Bước 9 — Nhìn toàn cảnh rồi dọn dẹp
+
+```bash
+kubectl get all
+```
+
+**Bạn sẽ thấy** đủ bộ: 5 pod, 3 service, 2 deployment, 2 replicaset — toàn bộ hệ thống nhỏ bạn vừa dựng.
+
+Dọn dẹp:
+```bash
+kubectl delete -f ingress.yaml -f app-api.yaml -f app-web.yaml
+sudo sed -i '/shop.local/d' /etc/hosts
+minikube stop
+```
+
+⚠️ Nhớ xoá dòng trong `/etc/hosts` — để lại sẽ gây bối rối vào một ngày nào đó rất xa.
+
+### 💡 Đi làm mới thấm (sách cơ bản hay bỏ quên)
+
+- **`kubectl get endpoints` là bạn thân lúc sự cố.** Trước khi nghi ngờ mạng, firewall hay DNS, hãy hỏi câu đơn giản nhất: Service này có tìm thấy pod nào không? `<none>` trả lời được 70% ca "gọi không được".
+- **Service chia tải ở tầng 4 (TCP), không phải tầng 7 (HTTP).** Nghĩa là nó không hiểu HTTP, không định tuyến theo đường dẫn, và với **kết nối giữ lâu** (gRPC, WebSocket, HTTP keep-alive) thì một kết nối dính chặt vào một pod — tải có thể lệch hẳn. Đây là lý do người ta cần Ingress hoặc service mesh (Ngày 54).
+- **Headless Service (`clusterIP: None`) cho database.** Khi bạn cần gọi *đúng một bản* cụ thể (ví dụ node primary của cơ sở dữ liệu) thay vì bản ngẫu nhiên, Service thường không dùng được. Headless trả về IP của từng pod — đây là nền của StatefulSet.
+- **Mỗi LoadBalancer trên cloud là một hoá đơn.** 10 dịch vụ mở kiểu `type: LoadBalancer` = 10 bộ cân bằng tải tính tiền theo giờ. Một Ingress đứng trước tất cả rẻ hơn rất nhiều — và đây là lỗi tốn tiền phổ biến của đội mới lên cloud.
+- **NetworkPolicy mặc định KHÔNG bật.** Nhiều người tưởng namespace là bức tường bảo mật. Không phải: mặc định **mọi pod gọi được mọi pod**, kể cả khác namespace. Muốn chặn phải khai `NetworkPolicy` (và CNI phải hỗ trợ).
+- **DNS trong cluster có bộ nhớ đệm.** Khi Service vừa đổi mà ứng dụng vẫn gọi vào địa chỉ cũ, thủ phạm thường là cache DNS phía client (nhiều thư viện HTTP tự cache). Không phải lúc nào cũng tại K8s.
 
 ### 🎯 Đúc kết Ngày 38
 
 **3 điều phải mang theo:**
-1. **Pod đổi IP liên tục → Service cho một tên + IP ổn định + chia tải** cho cả nhóm pod.
-2. **Service tìm pod bằng label selector, không phải IP** — selector sai = Service rỗng (dò bằng `kubectl get endpoints`).
-3. **ClusterIP + DNS `svc.namespace` lo gọi nhau nội bộ; Ingress lo một cửa vào cho nhiều service từ ngoài** — chuẩn production, không NodePort/LoadBalancer tràn lan.
 
-> 🧠 **Một câu để nhớ:** Service giải bài toán "pod đổi IP liên tục" bằng một tên DNS ổn định — nền tảng để các microservice tìm thấy nhau.
+1. **Không bao giờ gọi pod bằng IP.** Gọi qua Service — một địa chỉ cố định đứng trước nhóm pod, tự chia tải, tự cập nhật thành viên qua **nhãn**.
+2. **ClusterIP là mặc định, Ingress là cửa ra.** Giữ mọi thứ kín bên trong; chỉ mở ra ngoài qua một cửa duy nhất biết định tuyến theo tên miền/đường dẫn.
+3. **Ingress là tờ khai, Ingress Controller là phần mềm thực thi.** Thiếu Controller thì khai bao nhiêu cũng không có gì xảy ra.
 
-**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
-- [ ] Tạo Service ClusterIP và gọi được qua tên DNS từ pod khác
-- [ ] Giải thích 3 loại Service + khi nào dùng cái nào
-- [ ] Debug được Service rỗng bằng `kubectl get endpoints`
-- [ ] Viết Ingress định tuyến theo host/path tới service
-- [ ] Nói được vì sao production dùng ClusterIP + Ingress thay vì NodePort/LB tràn lan
+> 🧠 **Một câu để nhớ:** Service không giữ danh sách IP — nó giữ **một câu hỏi** ("pod nào mang nhãn này?") và hỏi lại liên tục. Nhờ vậy pod chết đi sống lại bao nhiêu lần cũng không ai phải sửa cấu hình.
 
-✅ **Kết quả đạt được:** Kết nối & expose ứng dụng trong K8s qua Service (ClusterIP) và Ingress.
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+
+- [ ] Giải thích vì sao IP pod không dùng được, và chứng minh bằng thực nghiệm
+- [ ] Viết Service ClusterIP có selector khớp đúng nhãn pod
+- [ ] Dùng `kubectl get endpoints` để chẩn đoán Service không tìm thấy pod
+- [ ] Gọi dịch vụ khác bằng tên DNS và giải thích `web-svc.default.svc.cluster.local`
+- [ ] Phân biệt ClusterIP / NodePort / LoadBalancer và biết khi nào dùng cái nào
+- [ ] Dựng Ingress định tuyến 2 đường dẫn về 2 dịch vụ trên cùng một tên miền
+- [ ] Nói rõ khác biệt giữa Ingress và Ingress Controller
+
+✅ **Kết quả đạt được:** Hệ thống hai dịch vụ gọi nhau bằng tên trong cluster, và mở ra ngoài qua một tên miền duy nhất — đúng mô hình mạng dùng ở production.
 
 ---
 
@@ -2801,177 +3374,556 @@ flowchart TB
 
 > ⏱️ ~90 phút · Loại: Kubernetes
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 38 (Service) → **Ngày 39 (tách cấu hình/secret khỏi image + lưu trữ bền vững)** → Ngày 40 (Milestone deploy full-stack). Đây là mảnh để app có config linh hoạt và database giữ được dữ liệu.
+> 🧭 **Bạn đang ở đâu:** Ngày 38 (mạng — gọi được tới app) → **Ngày 39 (cấu hình, bí mật và dữ liệu không được phép mất)** → Ngày 40 (Milestone: ghép full-stack lên K8s). Đây là mảnh ghép cuối trước khi bạn chạy được một hệ thống thật có database.
 >
-> ✅ **Chuẩn bị:** cluster local + đã quen Deployment/Service (Ngày 37–38).
+> ✅ **Chuẩn bị:** cluster đang chạy (`minikube start`), đã quen `kubectl apply` (Ngày 36–38).
+>
+> 🎁 **Cuối ngày bạn có gì:** một app đọc cấu hình từ ConfigMap, mật khẩu từ Secret, và một database **giữ nguyên dữ liệu sau khi bạn xoá pod** — cộng một bài học bảo mật khiến bạn không bao giờ nhìn Secret của K8s như cũ nữa.
 
 ### 📘 Lý thuyết
 
-#### 1. ConfigMap vs Secret — tách cấu hình khỏi image
+#### 1. Vấn đề: cấu hình không được nằm trong image
 
-| | ConfigMap | Secret |
+Ngày 33 bạn đóng gói app thành image. Giả sử bạn nhét luôn địa chỉ database vào trong đó. Hậu quả:
+
+- Muốn chạy bản staging trỏ database khác → **phải build image mới**.
+- Đổi mật khẩu → **build lại image**.
+- Ai kéo được image cũng **đọc được mật khẩu** bằng `docker history`.
+
+Nguyên tắc nền tảng (điều số 3 của [12-Factor App](https://12factor.net/config)): **image là bất biến và giống nhau ở mọi môi trường; thứ khác nhau giữa các môi trường phải được tiêm vào lúc chạy**.
+
+Kubernetes cho hai công cụ để tiêm:
+
+| | **ConfigMap** | **Secret** |
 |---|---|---|
-| Lưu gì | Cấu hình **không nhạy cảm** (URL, feature flag) | Thông tin **nhạy cảm** (mật khẩu, token) |
-| Mã hoá | Không | Chỉ **base64** (⚠️ KHÔNG phải mã hoá — ai đọc được là giải ra) |
+| Chứa gì | Cấu hình thường: URL, cổng, tên miền, số lượng | Dữ liệu nhạy cảm: mật khẩu, token, khoá API |
+| Lưu thế nào | Chữ thường, đọc được ngay | **Base64** — *chỉ là mã hoá dạng, KHÔNG phải mã hoá bảo mật* |
+| Dùng thế nào | Hoàn toàn giống nhau: biến môi trường hoặc file |  |
 
-> ⚠️ K8s Secret chỉ base64-encode. An toàn thật cần: RBAC chặt + encryption-at-rest cho etcd + công cụ ngoài (Vault/Sealed Secrets).
+#### 2. Sự thật quan trọng nhất về Secret
 
-#### 2. Đưa config/secret vào pod
+**Secret của Kubernetes mặc định KHÔNG được mã hoá.** Nó chỉ được mã hoá dạng base64 — thứ mà bất kỳ ai cũng giải ngược trong một giây.
 
-- Qua **biến môi trường**: `env` / `envFrom`.
-- Mount thành **file** (volume) — hợp cho file config.
+Vậy nó khác ConfigMap chỗ nào? Ở ba điểm thực tế:
 
-Tách config khỏi image nghĩa là: đổi cấu hình không cần build lại image.
+1. Không bị in ra màn hình khi `kubectl get` (đỡ lộ lúc chia sẻ màn hình).
+2. Có thể **phân quyền RBAC riêng** — cho phép đọc ConfigMap nhưng cấm đọc Secret.
+3. Có thể bật **mã hoá khi lưu trong etcd** (`EncryptionConfiguration`) — nhưng đó là việc quản trị cluster phải làm thêm, không tự có.
 
-#### 3. Lưu trữ trong K8s
+> ⚠️ Bước 5 phần thực hành bạn sẽ tự tay giải mã một Secret. Hãy làm thật — nó sẽ thay đổi cách bạn xử lý bí mật mãi mãi.
 
-| Loại | Đặc điểm |
-|---|---|
-| **emptyDir** | Tạm, mất khi pod xoá |
-| **hostPath** | Gắn thư mục node (ít dùng production) |
-| **PV + PVC** | Lưu trữ **bền vững**: PVC "xin" dung lượng, PV "cấp" |
-| **StorageClass** | Cấp phát storage động (tự tạo PV khi có PVC) |
+#### 3. Hai cách tiêm — khác nhau ở một điểm sống còn
 
-#### 4. StatefulSet — cho ứng dụng có trạng thái
-
-Database cần **danh tính + storage ổn định** cho mỗi pod → dùng **StatefulSet** (không phải Deployment). Mỗi pod có tên cố định (`db-0`, `db-1`) và PVC riêng.
-
-#### 5. Namespace — phân vùng cluster
-
-Chia cluster thành vùng logic (`dev`, `prod`) để tổ chức + phân quyền (RBAC). `kubectl ... -n <namespace>`.
-
-> 🔑 Đừng nhét cấu hình/secret cứng vào image — tách ra ConfigMap/Secret để đổi mà không build lại, và để mỗi môi trường (dev/prod) dùng giá trị khác nhau.
-
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
-
-> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
-
-**Một chiếc áo, nhiều bộ phụ kiện.** Image (Ngày 33) là chiếc áo may sẵn — giống hệt nhau, bất biến. ConfigMap/Secret là phụ kiện gắn *lúc mặc*: dev đeo cà vạt xanh (DB test), prod đeo cà vạt đỏ (DB thật). Nhờ vậy **cùng một image mặc được mọi dịp**, đổi cấu hình không phải may lại áo (build lại image). Đóng cứng config vào image là may riêng một áo cho mỗi môi trường — tốn công và rất dễ mặc nhầm.
-
-**"base64" không phải cái khoá — đây là hiểu lầm nguy hiểm nhất của ngày hôm nay.** Nhiều người thấy Secret hiện ra dạng mã lạ liền yên tâm "đã mã hoá". Không hề: base64 chỉ *dịch* chữ sang một bảng ký tự khác cho gọn khi truyền, ai cũng dịch ngược trong một giây (`base64 -d`). Coi Secret là an toàn *chỉ vì* nó base64 là sai. An toàn thật cần RBAC chặt + mã hoá etcd (encryption-at-rest) + công cụ ngoài như Vault.
-
-**Câu hỏi cốt lõi: "pod này có ký ức không?"** Web *stateless* — pod nào cũng như pod nào, chết thì thay cái mới vô tư, nên dùng **Deployment**. Database có ký ức (dữ liệu trên đĩa + danh tính riêng) — nó cần một ổ đĩa đi theo (**PVC**: pod xoá/tạo lại thì dữ liệu vẫn còn) và một tên cố định (**StatefulSet**: `db-0`, `db-1`). Nhầm hai loại này là con đường ngắn nhất tới mất dữ liệu.
-
-### 🧪 Lab cơ bản
-
-1. Tạo ConfigMap chứa biến cấu hình, inject vào pod qua `env`.
-2. Tạo Secret chứa mật khẩu DB, mount vào pod.
-3. Tạo PersistentVolumeClaim và gắn vào pod để lưu dữ liệu bền vững.
-4. Tạo namespace `dev` và deploy app vào đó: `kubectl apply -n dev`.
-5. Xem tài nguyên theo namespace: `kubectl get all -n dev`.
-
-### 🚀 Lab nâng cao (best-practice)
-
-> Mục tiêu: quản lý cấu hình/secret đúng chuẩn, hiểu giới hạn của Secret base64.
-
-1. **Tách config khỏi image hoàn toàn** — cùng 1 image chạy được mọi môi trường nhờ ConfigMap/Secret khác nhau.
-2. **Secret KHÔNG dùng base64 thuần ở production** — dùng:
-   - **Sealed Secrets / External Secrets Operator** — đồng bộ từ Vault/cloud secret manager.
-   - Bật **encryption at rest** cho etcd.
-3. **StatefulSet cho database** (không phải Deployment) — pod có danh tính ổn định (`db-0`, `db-1`), storage gắn cố định.
-4. **Namespace tách môi trường + ResourceQuota** giới hạn tài nguyên mỗi namespace.
-
-### 💡 Bổ sung thực tế: những cái đi làm mới thấm
-
-- **Đổi ConfigMap KHÔNG tự restart pod:** pod đọc biến môi trường *lúc khởi động* → sửa ConfigMap xong app vẫn chạy giá trị cũ cho tới khi `kubectl rollout restart`. (Config *mount dạng file* thì volume tự cập nhật sau một lúc, nhưng qua `env` thì không.) Đây là bẫy "sửa mãi không ăn" kinh điển.
-- **Với GitOps, secret plaintext KHÔNG được vào Git:** vì manifest nằm trong Git (Ngày 43), bạn không thể commit Secret thường. Giải pháp production: **Sealed Secrets** / **SOPS** (mã hoá được nên commit an toàn) hoặc **External Secrets Operator** kéo từ Vault/cloud secret manager lúc chạy.
-- **`immutable: true` cho ConfigMap/Secret:** đánh dấu bất biến giúp K8s bớt theo dõi thay đổi (nhẹ hơn ở cụm lớn) và tránh sửa nhầm — muốn đổi thì tạo bản mới rồi trỏ Deployment sang, đúng tinh thần "cấu hình bất biến".
-- **Xoá PVC có thể xoá luôn dữ liệu — coi chừng `reclaimPolicy`:** với `Delete` (mặc định của nhiều StorageClass động), xoá PVC là ổ đĩa thật bị xoá theo. Dữ liệu quan trọng nên dùng StorageClass `Retain`; và PVC chỉ nới rộng được, không thu nhỏ.
-- **Nhiều team cố tình KHÔNG chạy database trong K8s:** stateful trong K8s làm được nhưng khó làm đúng (backup, failover, nâng cấp). Thực tế phổ biến: app stateless chạy trong K8s, còn database dùng managed service (RDS/Cloud SQL) bên ngoài. Đừng mặc định "mọi thứ phải vào K8s".
-
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
-
-**Trình tự nên làm:** tạo ConfigMap → inject vào pod qua env → tạo Secret → mount → tạo PVC gắn pod → tạo namespace + deploy vào đó.
-
-**Giải nghĩa & kết quả mong đợi:**
-- `kubectl create configmap app-config --from-literal=KEY=val` — cấu hình không nhạy cảm; inject qua `envFrom`. *Kết quả:* `kubectl exec pod -- env` thấy biến.
-- `kubectl create secret generic db-secret --from-literal=PASS=...` — thông tin nhạy cảm.
-- PVC (PersistentVolumeClaim) — "đơn xin" dung lượng; gắn vào pod để lưu bền vững. *Kết quả:* xóa pod, tạo lại → dữ liệu còn.
-- `kubectl apply -n dev` — deploy vào namespace `dev`.
-
-**🧪 Thử nghiệm:**
-- `kubectl get secret db-secret -o jsonpath='{.data.PASS}' | base64 -d` → ra mật khẩu **plaintext**! **Bài học:** Secret chỉ base64-encode, KHÔNG phải mã hóa.
-- Gắn PVC → ghi dữ liệu → xóa pod → tạo lại → dữ liệu còn (so với `emptyDir` mất khi pod chết). **Bài học:** PV bền vững.
-
-⚠️ **Dễ sai:** tưởng K8s Secret an toàn. Cần thêm RBAC + encryption-at-rest etcd + Vault/Sealed Secrets cho production.
-
-💡 **Hiểu sâu:** stateless (web) → Deployment; stateful (database, cần danh tính + storage) → StatefulSet + PVC. Namespace để cô lập logic (dev/prod) + phân quyền RBAC.
-
-### 🐛 Gỡ lỗi nhanh
-
-| Triệu chứng | Nguyên nhân | Cách sửa |
+| | **Biến môi trường** (`env`) | **Gắn thành file** (`volumeMount`) |
 |---|---|---|
-| Pod không thấy biến từ ConfigMap | Chưa `envFrom`/`env` đúng, hoặc CM sai namespace | Kiểm `kubectl get cm -n <ns>`; sửa tham chiếu |
-| Đổi ConfigMap mà pod không cập nhật | Pod đọc env lúc start | Restart pod (`kubectl rollout restart`) |
-| Pod `Pending` vì PVC | Không có PV/StorageClass phù hợp | `kubectl get pvc` (Pending?); cấu hình StorageClass |
-| Database mất dữ liệu | Dùng Deployment thay StatefulSet, hoặc emptyDir | Dùng StatefulSet + PVC |
-| Tưởng Secret an toàn | Base64 ≠ mã hoá | RBAC + encryption-at-rest + Vault/Sealed Secrets |
+| App đọc thế nào | `process.env.TEN_BIEN` | Đọc file trong thư mục |
+| Sửa ConfigMap thì sao | **KHÔNG tự cập nhật** — phải khởi động lại pod | **Tự cập nhật** sau ~1 phút |
+| Hợp với | Giá trị đơn giản, ngắn | File cấu hình cả khối (`nginx.conf`, `app.yaml`) |
 
-### 📝 Bài ôn tập & Demo đối chiếu
+> 🔑 Đây là câu hỏi phỏng vấn kinh điển và cũng là nguồn gốc của rất nhiều sự bối rối: *"Tôi sửa ConfigMap rồi mà app vẫn chạy giá trị cũ?"* — Vì bạn tiêm bằng `env`. Biến môi trường được ấn định **lúc container khởi động** và không bao giờ đổi sau đó.
 
-**✍️ Tự kiểm tra:**
+#### 4. Lưu trữ: pod chết thì dữ liệu đi đâu?
 
-<details>
-<summary>1. Khi nào dùng ConfigMap, khi nào Secret?</summary>
+Mặc định, mọi thứ container ghi ra đều **mất sạch khi pod chết**. Với app không trạng thái thì tốt. Với database thì là thảm hoạ.
 
-> ConfigMap cho cấu hình không nhạy cảm (URL, log level). Secret cho nhạy cảm (mật khẩu, token). Cùng cách dùng, khác ở ý định + cách xử lý.
-</details>
+| Loại | Sống được bao lâu | Dùng cho |
+|---|---|---|
+| Ổ đĩa của container | Pod chết là mất | File tạm |
+| **emptyDir** | Sống theo pod (các container trong pod dùng chung) | Cache, thư mục làm việc tạm |
+| **PersistentVolume (PV)** | **Sống độc lập với pod** | Database, file người dùng tải lên |
 
-<details>
-<summary>2. PVC và PV quan hệ thế nào?</summary>
+Cách dùng PV có ba phần, hiểu đúng thì mọi thứ sáng ra:
 
-> PVC là "đơn xin dung lượng" của pod; PV là ổ đĩa thật cấp cho đơn đó. StorageClass tự tạo PV khi có PVC (cấp phát động).
-</details>
+```text
+  PVC  (Yêu cầu)          StorageClass (Nhà cung cấp)        PV (Ổ đĩa thật)
+  "Tôi cần 1Gi,      ──>  "Được, để tôi cấp cho"       ──>  Ổ đĩa được tạo
+   đọc-ghi"                 (tự động)                        và gắn vào pod
+```
 
-<details>
-<summary>3. Namespace dùng để làm gì?</summary>
+Bạn **chỉ viết PVC** — phần còn lại cluster tự lo. Trên cloud, StorageClass sẽ tạo ra ổ đĩa thật (EBS trên AWS, Persistent Disk trên GCP).
 
-> Chia cluster thành vùng logic (dev/prod) để tổ chức + phân quyền RBAC + giới hạn tài nguyên. Không phải cô lập mạng (cần NetworkPolicy).
-</details>
+#### 5. Access mode — chi tiết hay làm hỏng việc
 
-<details>
-<summary>4. Vì sao K8s Secret không thực sự an toàn?</summary>
+| Mode | Nghĩa | Thực tế |
+|---|---|---|
+| **RWO** (ReadWriteOnce) | Chỉ **một node** gắn được để ghi | Mặc định của hầu hết ổ đĩa cloud |
+| **ROX** (ReadOnlyMany) | Nhiều node đọc | Ít gặp |
+| **RWX** (ReadWriteMany) | Nhiều node cùng ghi | Cần hệ thống file mạng (NFS...), **không phải ổ đĩa cloud thường** |
 
-> Nó chỉ base64-encode (`base64 -d` là ra plaintext). Cần thêm RBAC chặt + encryption-at-rest cho etcd + Vault/Sealed Secrets.
-</details>
+> ⚠️ Bẫy rất hay gặp: khai `replicas: 3` cho một Deployment gắn PVC kiểu **RWO**. Ba pod rơi vào ba node khác nhau → chỉ pod đầu chạy được, hai pod còn lại kẹt mãi ở trạng thái `ContainerCreating`. Đây là lý do app có trạng thái nên dùng **StatefulSet** (mỗi bản một ổ đĩa riêng), không phải Deployment.
 
-**🔬 Demo đối chiếu:**
+### 🧪 LAB — Cấu hình, bí mật và dữ liệu bền
 
-| Demo đối chiếu | Kết quả mong đợi |
-|---|---|
-| Tạo ConfigMap & Secret | `kubectl get configmap,secret` liệt kê đúng |
-| Pod có config từ env | `kubectl exec ... env` thấy biến |
-| Gắn PVC | Dữ liệu còn sau khi pod bị xoá & tạo lại |
+**File sẽ tạo:**
 
-### 📚 Thuật ngữ Anh–Việt (ngày này)
+```text
+lab39-config/
+├── cau-hinh.yaml       # ConfigMap: dạng biến + dạng file
+├── bi-mat.yaml         # Secret
+├── app.yaml            # Deployment dùng cả ConfigMap lẫn Secret
+└── postgres.yaml       # PVC + Postgres — để kiểm chứng dữ liệu bền
+```
 
-| Thuật ngữ | Nghĩa |
-|---|---|
-| **ConfigMap** | Lưu cấu hình không nhạy cảm |
-| **Secret** | Lưu thông tin nhạy cảm (base64) |
-| **PV / PVC** | Ổ đĩa thật / đơn xin dung lượng |
-| **StorageClass** | Cấp phát storage động |
-| **StatefulSet** | Cho app có trạng thái (database) |
-| **Namespace** | Vùng logic của cluster |
-| **RBAC** | Phân quyền theo vai trò |
+#### File 1 — `cau-hinh.yaml`
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cau-hinh-app
+data:
+  # Kiểu 1: từng cặp khoá-giá trị đơn giản -> hợp để tiêm làm biến môi trường
+  TEN_UNG_DUNG: "Cửa hàng ABC"
+  MOI_TRUONG: "staging"
+  SO_KET_QUA_MOI_TRANG: "20"
+
+  # Kiểu 2: nguyên một file -> hợp để gắn vào thư mục
+  trang-chu.html: |
+    <!DOCTYPE html>
+    <html lang="vi">
+      <head><meta charset="utf-8"><title>Trang từ ConfigMap</title></head>
+      <body>
+        <h1>Nội dung này đến từ ConfigMap</h1>
+        <p>Sửa ConfigMap rồi chờ khoảng 1 phút, trang này tự đổi.</p>
+      </body>
+    </html>
+```
+
+#### File 2 — `bi-mat.yaml`
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: bi-mat-app
+type: Opaque
+stringData:                     # stringData: viết chữ thường, K8s tự mã hoá base64 giúp
+  MAT_KHAU_DB: "MatKhauSieuBiMat123"
+  KHOA_API: "sk-abc123xyz789"
+```
+
+> 📌 Dùng `stringData` thay vì `data` để khỏi phải tự chạy `base64` — dễ đọc và ít sai hơn hẳn.
+
+#### File 3 — `app.yaml`
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-cau-hinh
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-cau-hinh
+  template:
+    metadata:
+      labels:
+        app: app-cau-hinh
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.27
+          ports:
+            - containerPort: 80
+
+          # ---- Cách 1: tiêm thành BIẾN MÔI TRƯỜNG ----
+          envFrom:
+            - configMapRef:
+                name: cau-hinh-app      # lấy TẤT CẢ khoá làm biến môi trường
+          env:
+            - name: MAT_KHAU_DB         # lấy đúng MỘT khoá từ Secret
+              valueFrom:
+                secretKeyRef:
+                  name: bi-mat-app
+                  key: MAT_KHAU_DB
+
+          # ---- Cách 2: gắn thành FILE ----
+          volumeMounts:
+            - name: trang-web
+              mountPath: /usr/share/nginx/html/index.html
+              subPath: trang-chu.html   # chỉ gắn 1 khoá, không đè cả thư mục
+            - name: kho-bi-mat
+              mountPath: /etc/bi-mat
+              readOnly: true
+
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+
+      volumes:
+        - name: trang-web
+          configMap:
+            name: cau-hinh-app
+        - name: kho-bi-mat
+          secret:
+            secretName: bi-mat-app
+```
+
+#### File 4 — `postgres.yaml`
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: du-lieu-postgres
+spec:
+  accessModes:
+    - ReadWriteOnce               # một node gắn để ghi — đúng cho database
+  resources:
+    requests:
+      storage: 1Gi                # xin 1 GB
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  replicas: 1                     # CHỈ 1 — nhiều bản cùng ghi một ổ RWO sẽ hỏng
+  selector:
+    matchLabels:
+      app: postgres
+  strategy:
+    type: Recreate                # xoá pod cũ RỒI mới tạo pod mới (không giành ổ đĩa)
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: bi-mat-app
+                  key: MAT_KHAU_DB
+            - name: POSTGRES_DB
+              value: cuahang
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata   # thư mục con, tránh lỗi "not empty"
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: kho-du-lieu
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+      volumes:
+        - name: kho-du-lieu
+          persistentVolumeClaim:
+            claimName: du-lieu-postgres
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-svc
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+```
+
+### 🧭 Hướng dẫn làm LAB — step by step
+
+#### Bước 1 — Tạo ConfigMap và Secret
+
+```bash
+mkdir -p ~/lab39-config && cd ~/lab39-config
+# tạo cau-hinh.yaml và bi-mat.yaml theo phần LAB
+kubectl apply -f cau-hinh.yaml -f bi-mat.yaml
+kubectl get configmap cau-hinh-app
+kubectl get secret bi-mat-app
+```
+
+**Bạn sẽ thấy:**
+```text
+NAME           DATA   AGE
+cau-hinh-app   4      5s
+
+NAME         TYPE     DATA   AGE
+bi-mat-app   Opaque   2      5s
+```
+
+✅ **Checkpoint:** ConfigMap có `DATA = 4`, Secret có `DATA = 2`.
+
+#### Bước 2 — Xem nội dung: một cái đọc được, một cái "có vẻ" không
+
+```bash
+kubectl get configmap cau-hinh-app -o yaml | head -12
+echo "-----"
+kubectl get secret bi-mat-app -o yaml | grep -A3 "^data:"
+```
+
+**Bạn sẽ thấy:**
+```text
+data:
+  MOI_TRUONG: staging
+  SO_KET_QUA_MOI_TRANG: "20"
+  TEN_UNG_DUNG: Cửa hàng ABC
+-----
+data:
+  KHOA_API: c2stYWJjMTIzeHl6Nzg5
+  MAT_KHAU_DB: TWF0S2hhdVNpZXVCaU1hdDEyMw==
+```
+
+✅ **Checkpoint:** ConfigMap đọc thẳng được; Secret hiện ra chuỗi ký tự lộn xộn.
+
+#### Bước 3 — Triển khai app dùng cả hai
+
+```bash
+# tạo app.yaml theo phần LAB
+kubectl apply -f app.yaml
+kubectl rollout status deployment/app-cau-hinh
+```
+
+**Bạn sẽ thấy:** `deployment "app-cau-hinh" successfully rolled out`.
+
+✅ **Checkpoint:** rollout thành công.
+
+⚠️ **Nếu pod kẹt ở `CreateContainerConfigError`:** hầu như luôn là tên ConfigMap/Secret sai hoặc khoá không tồn tại. Xem nguyên nhân chính xác:
+```bash
+kubectl describe pod -l app=app-cau-hinh | grep -A5 Events
+```
+
+#### Bước 4 — Kiểm chứng cả hai cách tiêm
+
+```bash
+POD=$(kubectl get pods -l app=app-cau-hinh -o jsonpath='{.items[0].metadata.name}')
+
+echo "--- Tiêm dạng BIẾN MÔI TRƯỜNG ---"
+kubectl exec $POD -- printenv TEN_UNG_DUNG MOI_TRUONG MAT_KHAU_DB
+
+echo "--- Tiêm dạng FILE ---"
+kubectl exec $POD -- ls -l /etc/bi-mat
+kubectl exec $POD -- cat /etc/bi-mat/KHOA_API; echo
+kubectl exec $POD -- head -6 /usr/share/nginx/html/index.html
+```
+
+**Bạn sẽ thấy:**
+```text
+--- Tiêm dạng BIẾN MÔI TRƯỜNG ---
+Cửa hàng ABC
+staging
+MatKhauSieuBiMat123
+
+--- Tiêm dạng FILE ---
+total 0
+lrwxrwxrwx 1 root root 15 ... KHOA_API -> ..data/KHOA_API
+lrwxrwxrwx 1 root root 18 ... MAT_KHAU_DB -> ..data/MAT_KHAU_DB
+sk-abc123xyz789
+<!DOCTYPE html>
+<html lang="vi">
+...
+```
+
+✅ **Checkpoint:** giá trị đến được bên trong container bằng **cả hai** đường, và nội dung trang chủ đúng là HTML từ ConfigMap.
+
+💡 Chú ý: bên trong container, Secret hiện ra là **chữ thường**, không phải base64. Base64 chỉ là cách lưu trong etcd — K8s tự giải mã khi đưa vào pod.
+
+#### Bước 5 — Bài học bảo mật: tự tay giải mã Secret
+
+Làm thật bước này.
+
+```bash
+kubectl get secret bi-mat-app -o jsonpath='{.data.MAT_KHAU_DB}' | base64 -d; echo
+```
+
+**Bạn sẽ thấy:**
+```text
+MatKhauSieuBiMat123
+```
+
+✅ **Checkpoint:** bạn vừa đọc mật khẩu bằng **một lệnh, không cần quyền gì đặc biệt**.
+
+💡 **Đây là điều phải khắc cốt ghi tâm:** `base64` là **mã hoá dạng**, không phải **mã hoá bảo mật**. Hệ quả thực tế:
+
+- **Không bao giờ commit file Secret vào Git.** Cả thế giới đọc được. Nếu buộc phải để Secret trong Git thì dùng **Sealed Secrets** hoặc **SOPS** (mã hoá thật).
+- **Ai có quyền `get secret` trên namespace là có mọi mật khẩu ở đó.** Phải siết bằng RBAC.
+- Ở công ty làm nghiêm túc, người ta thường **không lưu bí mật trong K8s** mà dùng **HashiCorp Vault** hoặc dịch vụ bí mật của cloud (Module nâng cao — bài NC2).
+
+#### Bước 6 — Chứng minh `env` KHÔNG tự cập nhật, còn file thì có
+
+Đây là điểm ở Lý thuyết #3. Sửa ConfigMap:
+
+```bash
+kubectl patch configmap cau-hinh-app --type merge \
+  -p '{"data":{"MOI_TRUONG":"production","trang-chu.html":"<h1>NỘI DUNG ĐÃ ĐỔI</h1>"}}'
+```
+
+Kiểm tra ngay lập tức:
+
+```bash
+kubectl exec $POD -- printenv MOI_TRUONG            # biến môi trường
+kubectl exec $POD -- cat /usr/share/nginx/html/index.html   # file
+```
+
+**Bạn sẽ thấy ngay lúc này:**
+```text
+staging                  ← VẪN GIÁ TRỊ CŨ (biến môi trường không đổi)
+<!DOCTYPE html>...       ← file cũng chưa đổi (cần chờ)
+```
+
+Chờ khoảng 60–90 giây rồi kiểm tra lại:
+
+```bash
+sleep 75
+kubectl exec $POD -- printenv MOI_TRUONG
+kubectl exec $POD -- cat /usr/share/nginx/html/index.html
+```
+
+**Bạn sẽ thấy:**
+```text
+staging                  ← VẪN CŨ, mãi mãi cũ
+<h1>NỘI DUNG ĐÃ ĐỔI</h1> ← file ĐÃ TỰ CẬP NHẬT
+```
+
+✅ **Checkpoint:** thấy rõ sự khác biệt — file tự đổi, biến môi trường thì không.
+
+💡 **Cách sửa đúng khi cần biến môi trường mới:** khởi động lại pod theo kiểu cuốn chiếu, không gián đoạn:
+```bash
+kubectl rollout restart deployment/app-cau-hinh
+kubectl rollout status deployment/app-cau-hinh
+POD=$(kubectl get pods -l app=app-cau-hinh -o jsonpath='{.items[0].metadata.name}')
+kubectl exec $POD -- printenv MOI_TRUONG      # giờ mới ra: production
+```
+
+**Bạn sẽ thấy:** `production`.
+
+💡 Ở công ty, người ta thường gắn **hash của ConfigMap vào annotation của pod template** — ConfigMap đổi thì hash đổi, K8s tự coi đó là phiên bản mới và tự khởi động lại. Helm (Ngày 42) có sẵn mẹo này.
+
+#### Bước 7 — Dữ liệu bền: dựng Postgres có PVC
+
+```bash
+# tạo postgres.yaml theo phần LAB
+kubectl apply -f postgres.yaml
+kubectl get pvc
+kubectl rollout status deployment/postgres
+```
+
+**Bạn sẽ thấy:**
+```text
+NAME               STATUS   VOLUME          CAPACITY   ACCESS MODES   STORAGECLASS
+du-lieu-postgres   Bound    pvc-a3f2...     1Gi        RWO            standard
+```
+
+✅ **Checkpoint:** `STATUS` là **`Bound`** (đã được cấp ổ đĩa thật).
+
+⚠️ **Nếu PVC kẹt ở `Pending`:** không có StorageClass nào cấp ổ. Trên minikube thì addon `storage-provisioner` lo việc này — kiểm tra: `kubectl get storageclass`. Không có dòng nào `(default)` thì bật: `minikube addons enable default-storageclass`.
+
+#### Bước 8 — Ghi dữ liệu, giết pod, và kiểm tra dữ liệu còn không
+
+Đây là bước đáng giá nhất hôm nay.
+
+```bash
+PG=$(kubectl get pods -l app=postgres -o jsonpath='{.items[0].metadata.name}')
+
+kubectl exec $PG -- psql -U postgres -d cuahang -c \
+  "CREATE TABLE khach (id serial primary key, ten text);"
+kubectl exec $PG -- psql -U postgres -d cuahang -c \
+  "INSERT INTO khach (ten) VALUES ('Chị An'), ('Anh Bình');"
+kubectl exec $PG -- psql -U postgres -d cuahang -c "SELECT * FROM khach;"
+```
+
+**Bạn sẽ thấy:**
+```text
+ id |   ten
+----+----------
+  1 | Chị An
+  2 | Anh Bình
+(2 rows)
+```
+
+Giờ giết pod database:
+
+```bash
+kubectl delete pod $PG
+kubectl rollout status deployment/postgres
+PG=$(kubectl get pods -l app=postgres -o jsonpath='{.items[0].metadata.name}')
+kubectl exec $PG -- psql -U postgres -d cuahang -c "SELECT * FROM khach;"
+```
+
+**Bạn sẽ thấy:**
+```text
+ id |   ten
+----+----------
+  1 | Chị An
+  2 | Anh Bình
+(2 rows)
+```
+
+✅ **Checkpoint:** **pod hoàn toàn mới, dữ liệu vẫn nguyên.**
+
+💡 **Đây chính là ý nghĩa của "bền vững":** pod là đồ dùng một lần, nhưng ổ đĩa thì không. PVC sống độc lập — pod chết, ổ đĩa vẫn nằm đó chờ pod mới gắn vào.
+
+Để so sánh, hãy xem điều gì xảy ra **nếu không có PVC**:
+```bash
+kubectl run tam-thoi --image=postgres:16-alpine --env="POSTGRES_PASSWORD=abc" --restart=Never
+sleep 15
+kubectl exec tam-thoi -- psql -U postgres -c "CREATE TABLE t (x int); INSERT INTO t VALUES (42);"
+kubectl delete pod tam-thoi
+# Pod mất -> dữ liệu mất theo, không có đường lấy lại
+```
+
+#### Bước 9 — Dọn dẹp (và một cái bẫy nhỏ)
+
+```bash
+kubectl delete -f app.yaml -f postgres.yaml -f cau-hinh.yaml -f bi-mat.yaml
+kubectl get pvc
+```
+
+**Bạn sẽ thấy:** PVC `du-lieu-postgres` **vẫn còn đó**!
+
+✅ **Checkpoint:** hiểu rằng xoá Deployment **không** xoá PVC.
+
+💡 Đây là **thiết kế có chủ đích** — để bạn không mất database chỉ vì lỡ tay xoá nhầm Deployment. Muốn xoá thật thì phải nói rõ:
+```bash
+kubectl delete pvc du-lieu-postgres
+minikube stop
+```
+
+⚠️ Ở công ty, PVC mồ côi (không còn ai dùng nhưng vẫn tồn tại) là **khoản tiền chảy âm thầm** trên hoá đơn cloud. Nên có thói quen rà soát định kỳ.
+
+### 💡 Đi làm mới thấm (sách cơ bản hay bỏ quên)
+
+- **Secret của K8s không phải giải pháp quản lý bí mật.** Nó chỉ là chỗ chứa. Giải pháp thật là Vault / AWS Secrets Manager / GCP Secret Manager, có xoay vòng khoá tự động và nhật ký truy cập. Với Git thì dùng **Sealed Secrets** hoặc **SOPS**.
+- **`kubectl rollout restart` là lệnh nên thuộc lòng.** Nó khởi động lại pod theo kiểu cuốn chiếu, **không gián đoạn dịch vụ** — dùng khi đổi ConfigMap dạng `env`, hoặc khi cần pod lấy lại chứng chỉ/khoá mới.
+- **PVC `ReadWriteOnce` + `replicas > 1` = kẹt.** Nếu bạn thấy pod đứng mãi ở `ContainerCreating` kèm lỗi `Multi-Attach error`, gần như chắc chắn là lỗi này. App có trạng thái phải dùng **StatefulSet**, mỗi bản một PVC riêng.
+- **`strategy: Recreate` cho database, không phải `RollingUpdate`.** Mặc định K8s tạo pod mới trước rồi mới xoá pod cũ — nhưng hai pod database không thể cùng gắn một ổ RWO, nên pod mới sẽ kẹt vĩnh viễn. File `postgres.yaml` ở trên đã xử lý sẵn điều này.
+- **PVC không tự thu nhỏ, và thường không tự phình.** Mở rộng được (nếu StorageClass cho phép `allowVolumeExpansion`) nhưng **không bao giờ thu nhỏ lại được**. Xin dung lượng phải tính trước.
+- **Đừng để database trong K8s nếu chưa có đội vận hành mạnh.** Đây là lời khuyên thật lòng: sao lưu, khôi phục, nâng cấp phiên bản, chuyển đổi dự phòng — database quản lý bởi cloud (RDS, Cloud SQL) đáng đồng tiền hơn nhiều so với tự vận hành trên K8s. Lab thì cứ làm để hiểu; production thì hãy cân nhắc rất kỹ.
 
 ### 🎯 Đúc kết Ngày 39
 
 **3 điều phải mang theo:**
-1. **Tách config/secret khỏi image:** cùng một image chạy mọi môi trường, đổi cấu hình không cần build lại.
-2. **K8s Secret chỉ base64, KHÔNG phải mã hoá** — an toàn thật cần RBAC + encryption-at-rest cho etcd + Vault/Sealed Secrets.
-3. **Stateless (web) → Deployment; stateful (database: cần danh tính + đĩa cố định) → StatefulSet + PVC.** Nhầm = mất dữ liệu.
 
-> 🧠 **Một câu để nhớ:** **Namespace** = chia cluster thành "phòng" riêng (dev/prod) để tổ chức + phân quyền; gom mọi thứ của một app vào một namespace.
+1. **Image bất biến, cấu hình tiêm vào lúc chạy.** Một image duy nhất chạy được ở mọi môi trường — chỉ ConfigMap/Secret thay đổi.
+2. **`env` cố định lúc khởi động, file thì tự cập nhật.** Sửa ConfigMap dạng biến môi trường thì phải `kubectl rollout restart`.
+3. **Secret chỉ là base64.** Bất kỳ ai có quyền đọc đều lấy được bí mật. Bí mật thật phải nằm ở Vault hoặc dịch vụ bí mật của cloud.
 
-**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
-- [ ] Tạo ConfigMap + Secret và inject vào pod (qua `env` / mount file)
-- [ ] Chứng minh Secret chỉ base64 (`base64 -d` ra plaintext)
-- [ ] Gắn PVC, ghi dữ liệu, xoá pod rồi thấy dữ liệu còn
-- [ ] Phân biệt Deployment (stateless) vs StatefulSet (stateful)
-- [ ] Biết vì sao sửa ConfigMap xong thường phải `rollout restart`
+> 🧠 **Một câu để nhớ:** pod là đồ dùng một lần, **PVC thì không** — đó là ranh giới giữa "mất dữ liệu" và "chỉ mất một cái pod".
 
-✅ **Kết quả đạt được:** Quản lý cấu hình, secret và lưu trữ bền vững (PVC/StatefulSet) trong Kubernetes.
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+
+- [ ] Giải thích vì sao cấu hình không được nằm trong image
+- [ ] Tiêm ConfigMap theo cả hai cách: biến môi trường và file
+- [ ] Giải mã một Secret bằng `base64 -d` và nói rõ hệ quả bảo mật
+- [ ] Chứng minh `env` không tự cập nhật còn file mount thì có
+- [ ] Tạo PVC, ghi dữ liệu, xoá pod và xác nhận dữ liệu còn nguyên
+- [ ] Nói được vì sao database cần `strategy: Recreate` và `replicas: 1` với ổ RWO
+- [ ] Biết rằng xoá Deployment không xoá PVC, và vì sao thiết kế như vậy
+
+✅ **Kết quả đạt được:** Ứng dụng nhận cấu hình và bí mật từ bên ngoài, cùng một database giữ được dữ liệu qua các lần pod sinh-diệt — đủ mảnh ghép để ghép hệ thống full-stack ở Ngày 40.
 
 ---
 
