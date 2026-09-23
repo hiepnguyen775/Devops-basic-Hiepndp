@@ -4073,181 +4073,514 @@ flowchart TB
 
 > ⏱️ ~90 phút · Loại: Kubernetes
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 40 (deploy full-stack) → **Ngày 41 (làm pod "khoẻ mạnh": probe, tài nguyên, tự scale)** → Ngày 42 (Helm). Đây là các mảnh biến app "chạy được" thành app "vận hành production được".
+> 🧭 **Bạn đang ở đâu:** Ngày 40 (Milestone full-stack) → **Ngày 41 (dạy K8s biết thế nào là "app khoẻ", và tự co giãn theo tải)** → Ngày 42 (Helm đóng gói). Ngày 36 có nhắc: K8s chỉ đảm bảo *đủ số pod*, chứ chưa biết app bên trong có thật sự phục vụ được không. Hôm nay vá đúng lỗ hổng đó.
 >
-> ✅ **Chuẩn bị:** cluster local + 1 Deployment. Bật metrics-server: `minikube addons enable metrics-server`.
+> ✅ **Chuẩn bị:** cluster đang chạy (`minikube start`). Bật sẵn bộ đo tài nguyên: `minikube addons enable metrics-server`.
+>
+> 🎁 **Cuối ngày bạn có gì:** app có 3 loại probe hoạt động (bạn sẽ **tự làm nó "ốm"** để xem K8s phản ứng), và một HPA tự nhân bản pod khi bạn đổ tải vào — rồi tự thu lại khi hết tải.
 
 ### 📘 Lý thuyết
 
-#### 1. Probe — cách K8s "bắt mạch" pod
+#### 1. Vấn đề: "Running" không có nghĩa là "phục vụ được"
 
-| Probe | Hỏi gì | Fail thì sao |
+Pod hiện `Running` chỉ nghĩa là **tiến trình chưa chết**. Nhưng app có thể:
+
+- đang khởi động, chưa nạp xong cấu hình (30 giây nữa mới sẵn sàng);
+- mất kết nối tới database, nhận request nào lỗi request đó;
+- treo hoàn toàn (deadlock) nhưng tiến trình vẫn còn sống nhăn.
+
+Trong cả ba trường hợp, K8s vẫn thản nhiên gửi người dùng vào — vì với nó, pod đang `Running`. **Probe** chính là cách bạn dạy K8s phân biệt "còn thở" với "phục vụ được".
+
+#### 2. Ba loại probe — mỗi loại một câu hỏi khác nhau
+
+| Probe | Câu hỏi | Trả lời SAI thì K8s làm gì |
 |---|---|---|
-| **readinessProbe** | "Sẵn sàng nhận traffic chưa?" | Tạm gỡ pod khỏi Service (ngừng gửi request), **KHÔNG restart** |
-| **livenessProbe** | "Còn sống không, hay treo?" | **Restart pod** |
-| **startupProbe** | "Khởi động xong chưa?" | Hoãn 2 probe kia cho app khởi động chậm |
+| **startupProbe** | *"Khởi động xong chưa?"* | Chờ tiếp, **tạm hoãn** hai probe kia |
+| **readinessProbe** | *"Nhận khách được chưa?"* | **Rút pod khỏi Service** (ngừng gửi request), pod vẫn sống |
+| **livenessProbe** | *"Còn cứu được không?"* | **Giết và tạo lại container** |
 
-> ⚠️ Lỗi kinh điển: liveness probe quá gắt → app đang bận bị tưởng "chết" → restart lặp vô tận (**CrashLoopBackOff**). Readiness mới là cái để "tạm ngừng nhận traffic".
+> 🔑 Phân biệt hai cái hay nhầm nhất:
+> - **readiness** = *"tạm thời đừng gửi khách vào"* — pod vẫn được giữ lại, khoẻ lại thì tự nhận khách trở lại.
+> - **liveness** = *"hết cứu, khai sinh lại từ đầu"* — container bị giết.
+>
+> Đặt nhầm liveness ở chỗ đáng lẽ dùng readiness là một lỗi **rất nguy hiểm**: database chậm 10 giây → liveness fail → K8s giết toàn bộ pod → khởi động lại đồng loạt → database càng quá tải → giết tiếp. Một sự cố nhỏ biến thành sập dây chuyền.
 
-#### 2. Resource requests & limits
+#### 3. Ba cách hỏi
 
-| | Nghĩa | Vượt thì sao |
+```yaml
+# 1) Gọi HTTP — phổ biến nhất cho web/API
+httpGet:
+  path: /health
+  port: 3000
+
+# 2) Thử mở cổng TCP — cho database, dịch vụ không nói HTTP
+tcpSocket:
+  port: 5432
+
+# 3) Chạy lệnh trong container — linh hoạt nhất
+exec:
+  command: ["cat", "/tmp/san-sang"]
+```
+
+Các tham số đi kèm, hiểu đúng để không tự bắn vào chân:
+
+| Tham số | Nghĩa | Gợi ý |
 |---|---|---|
-| **requests** | Tối thiểu pod cần (K8s dùng để **xếp pod** vào máy đủ chỗ) | — |
-| **limits** | Trần tối đa | Vượt RAM → **OOMKilled**; vượt CPU → bị **throttle** (chậm) |
+| `initialDelaySeconds` | Chờ bao lâu rồi mới bắt đầu hỏi | Nên dùng `startupProbe` thay cho việc đoán con số này |
+| `periodSeconds` | Bao lâu hỏi lại một lần | 10s là hợp lý |
+| `timeoutSeconds` | Chờ trả lời bao lâu thì coi là trượt | 1–3s |
+| `failureThreshold` | Trượt mấy lần liên tiếp mới xử lý | 3 |
 
-Không đặt limits → 1 pod ngốn RAM có thể làm chết cả node.
+#### 4. requests và limits — hai con số hoàn toàn khác vai trò
 
-#### 3. Horizontal Pod Autoscaler (HPA)
-
-Tự tăng/giảm **số pod** theo tải: "CPU > 60% → tăng pod (2→5), tải giảm → giảm lại". Cần cài **Metrics Server** trước, nếu không HPA hiện `<unknown>`.
-
-- **Horizontal scaling** = thêm **pod** (K8s giỏi việc này).
-- **Vertical scaling** = tăng CPU/RAM cho 1 pod.
-
-#### 4. Điều khiển pod chạy ở node nào (giới thiệu)
-
-**Node affinity** (ưu tiên node), **taints & tolerations** (node "đuổi" pod trừ khi pod chịu được) — dùng để xếp pod đúng loại node (vd pod GPU chỉ chạy node có GPU).
-
-> 🔑 Nhớ khác biệt: **liveness fail = restart**; **readiness fail = ngừng nhận traffic (không restart)**. Hiểu điều này tránh được CrashLoopBackOff.
-
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
-
-> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
-
-**Hai probe là hai người hỏi hai câu khác nhau.** **livenessProbe** là bác sĩ hỏi *"còn thở không?"* — không thở thì hồi sức (restart). **readinessProbe** là lễ tân hỏi *"tiếp khách được chưa?"* — chưa sẵn sàng thì treo biển "đang bận", ngừng đưa khách vào (gỡ khỏi Service) *nhưng không đuổi đi* (không restart). Lẫn lộn hai câu hỏi này chính là gốc rễ của **CrashLoopBackOff**: dùng liveness để hỏi "sẵn sàng chưa" thì một app chỉ đang bận sẽ bị "hồi sức" oan → restart mãi mãi.
-
-**requests và limits như đặt bàn ở nhà hàng.** `requests` là số ghế bạn đặt trước — nhà hàng (scheduler) dùng con số này để xếp bạn vào bàn còn đủ chỗ. `limits` là trần bạn không được vượt: ăn quá phần RAM thì bị mời ra ngay (**OOMKilled**), dùng quá CPU thì bị phục vụ chậm lại (**throttle**, không chết). Không đặt `limits` chẳng khác nào để một khách ăn sạch đồ cả nhà hàng — một pod ngốn RAM có thể làm đói cả node.
-
-**HPA là thuê thêm người vào giờ cao điểm.** Tải tăng thì tự thêm pod, tải giảm thì cho bớt. Nhưng muốn "thuê theo nhu cầu" thì phải có **đồng hồ đo** (Metrics Server) và phải biết *mức chuẩn của một pod* (`requests`) để tính đang dùng bao nhiêu phần trăm. Thiếu một trong hai, HPA "mù" và chỉ hiện `<unknown>`.
-
-### 🧪 Lab cơ bản
-
-1. Thêm liveness & readiness probe vào deployment, test bằng cách làm pod fail.
-2. Đặt resource requests/limits cho container.
-3. Cài metrics-server trong minikube (`minikube addons enable metrics-server`).
-4. Tạo HPA: `kubectl autoscale deployment <tên> --cpu-percent=50 --min=1 --max=5`.
-5. Tạo tải giả để quan sát HPA tự scale pod lên.
-
-### 🚀 Lab nâng cao (best-practice)
-
-> Mục tiêu: cấu hình pod "khỏe mạnh" đúng chuẩn — probe đúng, tài nguyên hợp lý, tự scale.
-
-1. **3 loại probe dùng đúng vai trò:**
-   ```yaml
-   startupProbe:   { httpGet: { path: /health, port: 8080 }, failureThreshold: 30, periodSeconds: 2 }
-   readinessProbe: { httpGet: { path: /ready,  port: 8080 }, periodSeconds: 5 }
-   livenessProbe:  { httpGet: { path: /health, port: 8080 }, periodSeconds: 10 }
-   ```
-2. **Luôn đặt requests/limits** — không có thì 1 pod ngốn RAM có thể làm chết cả node:
-   ```yaml
-   resources:
-     requests: { cpu: 100m, memory: 128Mi }   # scheduler dùng để đặt pod
-     limits:   { cpu: 500m, memory: 256Mi }   # trần, vượt RAM → OOMKilled
-   ```
-3. **HPA dựa trên metric thật** (CPU, hoặc custom metric như request/s).
-4. **PodDisruptionBudget** để khi bảo trì node không tắt quá nhiều pod cùng lúc.
-
-### 💡 Bổ sung thực tế: những cái đi làm mới thấm
-
-- **livenessProbe KHÔNG nên phụ thuộc DB hay service ngoài:** nếu `/health` của liveness kiểm luôn cả database, thì DB chập chờn → liveness fail → K8s restart app (dù app chẳng sao) → biến sự cố nhỏ thành bão restart. Quy tắc: **liveness chỉ hỏi "tiến trình này còn tự phục vụ được không"; readiness mới được phép kiểm dependency**.
-- **`requests` đặt sai theo cả hai hướng đều hại:** đặt cao thì node "đầy ảo" trong khi thực tế còn rảnh → tốn tiền; đặt thấp thì pod bị dồn, tranh CPU, throttle. Chỉnh theo số liệu quan sát thật (VPA có thể gợi ý mức phù hợp), đừng đoán.
-- **Trường phái phổ biến: luôn đặt memory limit, cân nhắc bỏ CPU limit:** vượt RAM là bị giết ngay (OOMKilled) nên *phải* có memory limit; nhưng CPU limit dễ gây throttle oan khi node đang rảnh, nên nhiều team production chỉ đặt CPU *requests*. (Tuỳ hệ thống — biết đánh đổi này để chọn.)
-- **HPA theo CPU không phải lúc nào cũng đúng "tải":** app nghẽn ở I/O hay hàng đợi thì CPU vẫn thấp trong khi user đã chờ dài. Khi đó scale theo **custom metric** (độ dài hàng đợi, request/s, p95 latency) mới đúng. HPA lại phản ứng có độ trễ → spike dốc cần đệm sẵn `minReplicas` cao hơn.
-- **PodDisruptionBudget cứu bạn lúc bảo trì:** khi drain node để nâng cấp, không có PDB thì K8s có thể tắt *cùng lúc* mọi pod của một app → downtime. PDB đặt "luôn giữ tối thiểu N pod sống" trong các thao tác tự nguyện.
-
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
-
-**Trình tự nên làm:** thêm liveness/readiness probe → đặt requests/limits → cài metrics-server → tạo HPA → tạo tải để xem scale.
-
-**Giải nghĩa & kết quả mong đợi:**
-- `livenessProbe` (còn sống?) + `readinessProbe` (sẵn sàng nhận traffic?). *Kết quả:* `kubectl describe pod` hiện probe; pod chỉ nhận traffic khi Ready.
-- `resources.requests/limits` — đặt chỗ + trần CPU/RAM. *Kết quả:* `describe` hiện limits.
-- `minikube addons enable metrics-server` rồi `kubectl autoscale deployment app --cpu-percent=50 --min=1 --max=5`. *Kết quả:* `kubectl get hpa`.
-
-**🧪 Thử nghiệm:**
-- Tạo tải (vòng lặp `curl`) → `kubectl get hpa -w` thấy số replica tự tăng khi CPU vượt ngưỡng, rồi giảm khi hết tải. **Bài học:** autoscale thực sự.
-- Đặt liveness probe quá gắt (timeout 1s) cho app khởi động chậm → pod restart liên tục (CrashLoopBackOff). **Bài học:** dùng startupProbe cho app chậm.
-
-⚠️ **Dễ sai:** quên cài Metrics Server → HPA hiện `<unknown>`, không scale. Lỗi đầu tiên ai cũng gặp.
-
-💡 **Hiểu sâu:** readiness fail = gỡ khỏi Service (ngừng nhận traffic, KHÔNG restart); liveness fail = **restart pod**. Vượt limit RAM = OOMKilled; vượt limit CPU = throttle (chậm, không chết).
-
-### 🐛 Gỡ lỗi nhanh
-
-| Triệu chứng | Nguyên nhân | Cách sửa |
+| | `requests` | `limits` |
 |---|---|---|
-| Pod `CrashLoopBackOff` | Liveness probe quá gắt / app chậm khởi động | Dùng `startupProbe`; nới `initialDelaySeconds`/`failureThreshold` |
-| Pod `OOMKilled` | Vượt limit RAM | Tăng `limits.memory`; tối ưu app |
-| HPA hiện `<unknown>` | Chưa cài Metrics Server | `minikube addons enable metrics-server` |
-| HPA không scale dù tải cao | Chưa đặt `resources.requests` | HPA cần requests để tính % → đặt requests |
-| Pod không nhận traffic dù Running | readiness chưa pass | Kiểm endpoint `/ready`; xem `describe pod` |
+| Nghĩa | *"Pod này **cần tối thiểu** ngần này"* | *"Không được vượt quá ngần này"* |
+| Ai dùng | **Scheduler** — để chọn node còn đủ chỗ | **Kernel** — để cưỡng chế lúc chạy |
+| Vượt ngưỡng | — | RAM: **bị giết (OOMKilled)** · CPU: **bị bóp chậm lại (throttle)** |
 
-### 📝 Bài ôn tập & Demo đối chiếu
+Ba lớp ưu tiên (**QoS**) sinh ra từ hai con số này, quyết định **ai bị hy sinh trước khi node hết RAM**:
 
-**✍️ Tự kiểm tra:**
+| Lớp | Điều kiện | Khi node cạn RAM |
+|---|---|---|
+| **Guaranteed** | requests = limits (cả CPU lẫn RAM) | Bị giết **cuối cùng** |
+| **Burstable** | Có requests, limits khác hoặc thiếu | Ở giữa |
+| **BestEffort** | Không khai gì cả | **Bị giết đầu tiên** |
 
-<details>
-<summary>1. Liveness và readiness probe khác nhau thế nào?</summary>
+> ⚠️ Không khai `requests` nghĩa là pod của bạn tự nguyện xếp hàng đầu tiên trong danh sách hy sinh. Đây là lý do Ngày 36 đã nhấn mạnh: **luôn khai requests**.
 
-> Liveness fail → **restart pod**. Readiness fail → **gỡ pod khỏi Service** (ngừng nhận traffic), không restart.
-</details>
+#### 5. Một điểm gây tranh cãi: có nên đặt `limits` cho CPU?
 
-<details>
-<summary>2. requests và limits khác nhau?</summary>
+Đặt **limits RAM** thì gần như luôn đúng — RAM là tài nguyên không nén được, một pod rò rỉ bộ nhớ có thể kéo sập cả node.
 
-> requests = mức tối thiểu (K8s dùng để xếp pod). limits = trần cứng (vượt RAM → OOMKilled, vượt CPU → throttle).
-</details>
+Nhưng **limits CPU** thì khác. CPU là tài nguyên **nén được**: vượt ngưỡng không bị giết, chỉ bị **bóp chậm lại**. Thực tế nhiều đội đã bỏ CPU limit vì nó gây độ trễ bất thường ngay cả khi node đang rảnh rỗi — pod bị bóp trong khi CPU còn thừa.
 
-<details>
-<summary>3. HPA làm gì khi CPU tăng cao?</summary>
+Khuyến nghị thực dụng hiện nay:
 
-> Tự tăng số pod (trong khoảng min–max) để chia tải; khi tải giảm thì giảm pod lại. Cần Metrics Server + requests.
-</details>
+- **Luôn** đặt `requests` cho cả CPU và RAM.
+- **Luôn** đặt `limits` cho RAM.
+- **Cân nhắc** với `limits` CPU: nên có ở môi trường dùng chung/nhiều khách thuê; có thể bỏ ở dịch vụ nhạy cảm về độ trễ — nhưng khi đó phải giám sát chặt.
 
-<details>
-<summary>4. App khởi động chậm bị restart liên tục — sửa thế nào?</summary>
+#### 6. HPA — tự tăng giảm số pod theo tải
 
-> Thêm `startupProbe` để hoãn liveness/readiness cho tới khi app khởi động xong; nới `failureThreshold`/`initialDelaySeconds`.
-</details>
+**HPA** (Horizontal Pod Autoscaler) theo dõi mức sử dụng và tự điều chỉnh `replicas`:
 
-**🔬 Demo đối chiếu:**
+```text
+  CPU trung bình > mục tiêu   →  thêm pod
+  CPU trung bình < mục tiêu   →  bớt pod (sau thời gian chờ ổn định)
+```
 
-| Demo đối chiếu | Kết quả mong đợi |
-|---|---|
-| Cấu hình probe | `describe pod` hiện probe; pod nhận traffic khi Ready |
-| Đặt requests/limits | `describe` hiện CPU/Memory limits |
-| Bật HPA + tạo tải | `kubectl get hpa`; số pod tự tăng |
+Công thức nó dùng, đơn giản đến bất ngờ:
 
-### 📚 Thuật ngữ Anh–Việt (ngày này)
+```text
+số pod mong muốn = ceil( số pod hiện tại × (mức đo được / mức mục tiêu) )
+```
 
-| Thuật ngữ | Nghĩa |
-|---|---|
-| **liveness / readiness / startup probe** | Bắt mạch: còn sống / sẵn sàng / khởi động xong |
-| **requests / limits** | Tài nguyên tối thiểu / trần |
-| **OOMKilled** | Bị giết vì vượt limit RAM |
-| **Throttle** | Bị bóp CPU khi vượt limit |
-| **HPA** | Tự scale số pod theo tải |
-| **Metrics Server** | Nguồn số liệu cho HPA |
-| **Taints & tolerations** | Điều khiển pod chạy ở node nào |
+Ví dụ: 2 pod, CPU trung bình 90%, mục tiêu 50% → `ceil(2 × 90/50)` = `ceil(3.6)` = **4 pod**.
+
+> ⚠️ **HPA tính phần trăm theo `requests`, không theo dung lượng của node.** Pod khai `requests: 100m` mà đang dùng `90m` thì HPA hiểu là **90%** — dù node còn rảnh 90%. Không khai `requests` thì HPA **không hoạt động được**.
+
+### 🧪 LAB — Làm app "ốm" và xem K8s tự chữa
+
+**File sẽ tạo:**
+
+```text
+lab41-health/
+├── app-probe.yaml      # Deployment đủ 3 probe + Service
+└── hpa-demo.yaml       # App tốn CPU + HPA
+```
+
+#### File 1 — `app-probe.yaml`
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-khoe
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web-khoe
+  template:
+    metadata:
+      labels:
+        app: web-khoe
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.27
+          ports:
+            - containerPort: 80
+
+          # Tạo 2 file làm "công tắc sức khoẻ" để lát nữa ta tự tay tắt
+          command: ["/bin/sh", "-c"]
+          args:
+            - echo "OK" > /usr/share/nginx/html/khoe.html
+              && echo "SAN SANG" > /usr/share/nginx/html/san-sang.html
+              && echo "Xin chào từ $HOSTNAME" > /usr/share/nginx/html/index.html
+              && nginx -g 'daemon off;'
+
+          # 1) Khởi động xong chưa? Cho tối đa 30 x 2 = 60 giây
+          startupProbe:
+            httpGet:
+              path: /khoe.html
+              port: 80
+            periodSeconds: 2
+            failureThreshold: 30
+
+          # 2) Nhận khách được chưa? Trượt -> RÚT KHỎI SERVICE (không giết)
+          readinessProbe:
+            httpGet:
+              path: /san-sang.html
+              port: 80
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+
+          # 3) Còn cứu được không? Trượt -> GIẾT VÀ TẠO LẠI
+          livenessProbe:
+            httpGet:
+              path: /khoe.html
+              port: 80
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"      # limits RAM: có. limits CPU: cố ý không đặt (mục 5)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-khoe-svc
+spec:
+  selector:
+    app: web-khoe
+  ports:
+    - port: 80
+      targetPort: 80
+```
+
+#### File 2 — `hpa-demo.yaml`
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tinh-nang
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tinh-nang
+  template:
+    metadata:
+      labels:
+        app: tinh-nang
+    spec:
+      containers:
+        - name: tinh-nang
+          image: registry.k8s.io/hpa-example    # app mẫu chính thức: mỗi request tính toán nặng
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "100m"        # BẮT BUỘC có — HPA tính % dựa trên con số này
+              memory: "64Mi"
+            limits:
+              memory: "128Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tinh-nang-svc
+spec:
+  selector:
+    app: tinh-nang
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: tinh-nang-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: tinh-nang
+  minReplicas: 1
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50      # giữ CPU trung bình quanh 50% của requests
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 60  # chờ 60s ổn định rồi mới thu bớt, tránh giật cục
+```
+
+### 🧭 Hướng dẫn làm LAB — step by step
+
+#### Bước 1 — Bật bộ đo tài nguyên
+
+```bash
+minikube addons enable metrics-server
+kubectl -n kube-system rollout status deployment/metrics-server
+kubectl top nodes
+```
+
+**Bạn sẽ thấy** (chờ ~1 phút để có số liệu đầu tiên):
+```text
+NAME       CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%
+minikube   243m         12%    1420Mi          46%
+```
+
+✅ **Checkpoint:** `kubectl top nodes` ra số, không báo lỗi.
+
+⚠️ **Nếu báo `Metrics API not available`:** metrics-server chưa sẵn sàng, chờ thêm 1 phút. Không có nó thì **HPA không chạy được** — nó không biết lấy số ở đâu.
+
+#### Bước 2 — Triển khai app có đủ 3 probe
+
+```bash
+mkdir -p ~/lab41-health && cd ~/lab41-health
+# tạo app-probe.yaml theo phần LAB
+kubectl apply -f app-probe.yaml
+kubectl get pods -l app=web-khoe
+kubectl get endpoints web-khoe-svc
+```
+
+**Bạn sẽ thấy:**
+```text
+NAME                        READY   STATUS    RESTARTS   AGE
+web-khoe-6b7d8f9c4-h2xk9    1/1     Running   0          20s
+web-khoe-6b7d8f9c4-p8mlt    1/1     Running   0          20s
+
+NAME           ENDPOINTS
+web-khoe-svc   10.244.0.21:80,10.244.0.22:80
+```
+
+✅ **Checkpoint:** `READY` là `1/1` cho cả hai pod, và Service có **2 endpoint**.
+
+💡 Cột `READY 1/1` nghĩa là **readinessProbe đang đạt**. Nếu readiness trượt, cột này thành `0/1` dù `STATUS` vẫn là `Running` — hai cột nói hai chuyện khác nhau.
+
+#### Bước 3 — Tắt công tắc "sẵn sàng" và xem pod bị rút khỏi Service
+
+Đây là bước làm rõ ranh giới readiness/liveness.
+
+```bash
+POD=$(kubectl get pods -l app=web-khoe -o jsonpath='{.items[0].metadata.name}')
+kubectl exec $POD -- rm /usr/share/nginx/html/san-sang.html
+sleep 12
+kubectl get pods -l app=web-khoe
+kubectl get endpoints web-khoe-svc
+```
+
+**Bạn sẽ thấy:**
+```text
+NAME                        READY   STATUS    RESTARTS   AGE
+web-khoe-6b7d8f9c4-h2xk9    0/1     Running   0          2m      ← READY tụt xuống 0/1
+web-khoe-6b7d8f9c4-p8mlt    1/1     Running   0          2m
+
+NAME           ENDPOINTS
+web-khoe-svc   10.244.0.22:80                                    ← chỉ còn 1 địa chỉ
+```
+
+✅ **Checkpoint:** pod vẫn `Running`, `RESTARTS` vẫn `0`, nhưng đã **bị loại khỏi danh sách nhận khách**.
+
+💡 **Đây chính xác là điều bạn muốn khi app tạm thời bận:** người dùng không bị ném vào pod đang có vấn đề, nhưng pod không bị giết oan — khoẻ lại là tự động nhận khách trở lại.
+
+Bật lại công tắc:
+```bash
+kubectl exec $POD -- sh -c 'echo "SAN SANG" > /usr/share/nginx/html/san-sang.html'
+sleep 8
+kubectl get endpoints web-khoe-svc        # 2 địa chỉ trở lại
+```
+
+✅ **Checkpoint:** pod tự quay lại Service mà không cần ai can thiệp.
+
+#### Bước 4 — Tắt công tắc "còn sống" và xem container bị khai sinh lại
+
+```bash
+kubectl exec $POD -- rm /usr/share/nginx/html/khoe.html
+
+# Theo dõi trực tiếp — sẽ mất khoảng 30 giây (3 lần trượt x 10 giây)
+kubectl get pods -l app=web-khoe -w
+```
+
+**Bạn sẽ thấy** (bấm `Ctrl+C` để thoát sau khi quan sát xong):
+```text
+web-khoe-6b7d8f9c4-h2xk9   1/1   Running   0     3m
+web-khoe-6b7d8f9c4-h2xk9   0/1   Running   1     3m30s     ← RESTARTS nhảy lên 1
+web-khoe-6b7d8f9c4-h2xk9   1/1   Running   1     3m35s     ← khoẻ lại, nhận khách tiếp
+```
+
+Xem K8s nói gì:
+```bash
+kubectl describe pod $POD | grep -A6 Events
+```
+
+**Bạn sẽ thấy:**
+```text
+  Warning  Unhealthy  35s   kubelet  Liveness probe failed: HTTP probe failed with statuscode: 404
+  Normal   Killing    35s   kubelet  Container web failed liveness probe, will be restarted
+```
+
+✅ **Checkpoint:** `RESTARTS` tăng lên `1`, và log ghi rõ lý do là liveness probe trượt.
+
+💡 **So sánh hai bước vừa rồi — đây là bài học cốt lõi hôm nay:**
+
+| | Bước 3 (readiness trượt) | Bước 4 (liveness trượt) |
+|---|---|---|
+| Pod bị làm gì | Rút khỏi Service | **Container bị giết và tạo lại** |
+| `RESTARTS` | 0 | 1 |
+| Trạng thái bên trong | Giữ nguyên | **Mất sạch** (bộ nhớ, kết nối, file tạm) |
+
+💡 Chú ý pod tự khoẻ lại sau khi restart — vì container mới chạy lại `args` và tạo lại file. Đó cũng là điều xảy ra ngoài đời: khởi động lại thường chữa được lỗi tạm thời.
+
+#### Bước 5 — Nhìn thấy `limits` RAM cưỡng chế thật
+
+```bash
+kubectl run an-ram --image=polinux/stress --restart=Never \
+  --overrides='{"spec":{"containers":[{"name":"an-ram","image":"polinux/stress","resources":{"limits":{"memory":"64Mi"}},"command":["stress","--vm","1","--vm-bytes","200M","--vm-hang","1"]}]}}'
+
+sleep 20
+kubectl get pod an-ram
+kubectl describe pod an-ram | grep -E "Reason|Exit Code|OOM"
+```
+
+**Bạn sẽ thấy:**
+```text
+NAME     READY   STATUS      RESTARTS   AGE
+an-ram   0/1     OOMKilled   0          20s
+
+      Reason:       OOMKilled
+      Exit Code:    137
+```
+
+✅ **Checkpoint:** thấy đúng chữ **`OOMKilled`** và mã thoát **137**.
+
+💡 **Ghi nhớ cặp dấu hiệu này** — `OOMKilled` + `Exit Code 137` là một trong những sự cố K8s phổ biến nhất bạn sẽ gặp. Nó có nghĩa: container xin 200MB trong khi limits chỉ cho 64MB → kernel giết ngay lập tức, không thương lượng.
+
+```bash
+kubectl delete pod an-ram
+```
+
+#### Bước 6 — Dựng app cho HPA và xem trạng thái ban đầu
+
+```bash
+# tạo hpa-demo.yaml theo phần LAB
+kubectl apply -f hpa-demo.yaml
+kubectl rollout status deployment/tinh-nang
+sleep 45                      # chờ metrics-server thu số liệu đầu tiên
+kubectl get hpa
+```
+
+**Bạn sẽ thấy:**
+```text
+NAME            REFERENCE              TARGETS        MINPODS   MAXPODS   REPLICAS
+tinh-nang-hpa   Deployment/tinh-nang   cpu: 0%/50%    1         8         1
+```
+
+✅ **Checkpoint:** cột `TARGETS` hiện **số phần trăm**, không phải `<unknown>`.
+
+⚠️ **Nếu là `<unknown>`:** hoặc metrics-server chưa sẵn sàng, hoặc **pod chưa khai `requests.cpu`**. Không có `requests` thì HPA không có mẫu số để tính phần trăm.
+
+#### Bước 7 — Đổ tải vào và xem pod tự nhân lên
+
+Mở **hai terminal**.
+
+**Terminal 1** — theo dõi:
+```bash
+kubectl get hpa tinh-nang-hpa -w
+```
+
+**Terminal 2** — tạo tải liên tục:
+```bash
+kubectl run tao-tai --rm -it --image=busybox:1.36 --restart=Never -- \
+  /bin/sh -c "while true; do wget -q -O- http://tinh-nang-svc > /dev/null; done"
+```
+
+**Bạn sẽ thấy ở Terminal 1** (sau khoảng 1–3 phút):
+```text
+NAME            TARGETS         REPLICAS
+tinh-nang-hpa   cpu: 0%/50%     1
+tinh-nang-hpa   cpu: 178%/50%   1        ← tải tăng vọt
+tinh-nang-hpa   cpu: 178%/50%   4        ← HPA nhân lên 4 pod
+tinh-nang-hpa   cpu: 89%/50%    4
+tinh-nang-hpa   cpu: 89%/50%    7        ← vẫn cao, tăng tiếp
+tinh-nang-hpa   cpu: 47%/50%    7        ← ổn định quanh mục tiêu
+```
+
+```bash
+kubectl get pods -l app=tinh-nang
+```
+
+✅ **Checkpoint:** số pod tăng từ 1 lên nhiều pod, và CPU trung bình hạ dần về gần 50%.
+
+💡 Đối chiếu với công thức ở Lý thuyết #6: 1 pod × (178/50) = 3,56 → làm tròn lên **4 pod**. Con số HPA chọn không hề bí ẩn — bạn tính tay ra được.
+
+#### Bước 8 — Ngắt tải và quan sát chiều ngược lại
+
+Ở Terminal 2, bấm `Ctrl+C` để dừng tạo tải. Tiếp tục nhìn Terminal 1.
+
+**Bạn sẽ thấy** (sau khoảng 1–2 phút, chậm hơn lúc tăng):
+```text
+tinh-nang-hpa   cpu: 0%/50%    7
+tinh-nang-hpa   cpu: 0%/50%    3
+tinh-nang-hpa   cpu: 0%/50%    1
+```
+
+✅ **Checkpoint:** số pod giảm dần về `minReplicas: 1`.
+
+💡 **Vì sao thu lại chậm hơn lúc tăng:** đó là chủ ý (`stabilizationWindowSeconds: 60`). Tải thật thường lên xuống thất thường; nếu thu ngay thì hệ thống sẽ liên tục tạo-xoá pod (hiện tượng *thrashing*). Nguyên tắc: **tăng nhanh để cứu người dùng, giảm chậm để chắc chắn**.
+
+#### Bước 9 — Dọn dẹp
+
+```bash
+kubectl delete -f hpa-demo.yaml -f app-probe.yaml
+minikube stop
+```
+
+### 💡 Đi làm mới thấm (sách cơ bản hay bỏ quên)
+
+- **livenessProbe đặt sai còn tệ hơn không đặt.** Kịch bản thật hay xảy ra: database chậm → mọi pod trượt liveness cùng lúc → K8s giết sạch → khởi động lại đồng loạt → database càng ngộp → vòng xoáy chết. Quy tắc an toàn: **liveness chỉ kiểm tra chính tiến trình đó còn sống hay không**, tuyệt đối **không** gọi sang database hay dịch vụ ngoài. Việc kiểm tra phụ thuộc là của *readiness*.
+- **`startupProbe` sinh ra để bạn khỏi phải đoán `initialDelaySeconds`.** App khởi động chậm (JVM, nạp mô hình) mà đặt delay quá ngắn thì bị giết ngay khi đang khởi động; đặt quá dài thì lỗi thật cũng chậm phát hiện. `startupProbe` cho một khoảng rộng lúc khởi động, sau đó trả lại nhịp kiểm tra bình thường.
+- **HPA và VPA xung đột nhau trên cùng một chỉ số.** HPA thêm *số lượng* pod, VPA đổi *kích cỡ* pod. Cùng nhìn CPU thì hai cái đánh nhau. Dùng chung phải tách chỉ số rõ ràng.
+- **HPA không cứu được nghẽn ở database.** Nhân pod lên 10 lần chỉ khiến 10 lần số kết nối đổ vào cùng một database đang ngộp. Trước khi bật HPA, hãy biết **điểm nghẽn thật sự nằm ở đâu**.
+- **Cluster Autoscaler là tầng khác.** HPA thêm pod; nếu node không còn chỗ, pod mới nằm `Pending` mãi. Muốn tự thêm **máy** thì cần Cluster Autoscaler (cloud) hoặc Karpenter. Nhiều người tưởng HPA lo cả hai.
+- **PodDisruptionBudget bảo vệ bạn lúc bảo trì.** Khi node được nâng cấp, K8s sẽ dồn pod đi nơi khác — không có PDB thì nó có thể xoá cùng lúc mọi bản sao của bạn. Khai `minAvailable: 1` là đủ tránh một sự cố rất vô duyên.
 
 ### 🎯 Đúc kết Ngày 41
 
 **3 điều phải mang theo:**
-1. **Ba probe, hai câu hỏi:** liveness ("còn sống?" → restart) vs readiness ("sẵn sàng nhận traffic?" → gỡ khỏi Service, KHÔNG restart); startup cho app khởi động chậm. Lẫn lộn = CrashLoopBackOff.
-2. **requests = đặt chỗ để scheduler xếp pod; limits = trần cứng** (vượt RAM → OOMKilled, vượt CPU → throttle). Luôn đặt để một pod không làm chết node.
-3. **HPA tự co giãn số pod theo tải**, nhưng cần Metrics Server + `requests` để tính phần trăm.
 
-> 🧠 **Một câu để nhớ:** liveness fail = **restart**; readiness fail = **ngừng nhận traffic** (không restart). Hiểu khác biệt này tránh được lỗi CrashLoopBackOff.
+1. **`Running` ≠ phục vụ được.** Probe là cách duy nhất để K8s hiểu app bạn thật sự khoẻ hay không.
+2. **readiness rút khỏi Service, liveness giết container.** Nhầm hai cái này có thể biến một sự cố nhỏ thành sập dây chuyền.
+3. **`requests` là nền của mọi thứ** — Scheduler dùng nó để xếp chỗ, HPA dùng nó làm mẫu số, QoS dùng nó để quyết định ai bị hy sinh trước.
 
-**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
-- [ ] Thêm đúng liveness / readiness / startup probe và giải thích fail mỗi loại
-- [ ] Đặt requests/limits và phân biệt OOMKilled vs throttle
-- [ ] Cài Metrics Server và tạo HPA scale theo CPU
-- [ ] Tái hiện CrashLoopBackOff do liveness quá gắt rồi sửa bằng startupProbe
-- [ ] Giải thích vì sao liveness không nên phụ thuộc DB
+> 🧠 **Một câu để nhớ:** readiness bảo *"khoan hãy gửi khách vào"*; liveness bảo *"hết cứu, làm lại từ đầu"*. Chọn nhầm chữ là chọn nhầm hậu quả.
 
-✅ **Kết quả đạt được:** Cấu hình health check, giới hạn tài nguyên và autoscaling — vận hành K8s production.
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+
+- [ ] Phân biệt 3 loại probe và nói rõ K8s làm gì khi từng loại trượt
+- [ ] Tự làm readiness trượt và chứng minh pod bị rút khỏi endpoints
+- [ ] Tự làm liveness trượt và chỉ ra `RESTARTS` tăng cùng lý do trong Events
+- [ ] Giải thích vì sao liveness không được gọi sang database
+- [ ] Nhận diện `OOMKilled` / `Exit Code 137` và biết nguyên nhân
+- [ ] Nói được 3 lớp QoS và ai bị giết trước khi node cạn RAM
+- [ ] Dựng HPA, tạo tải, và tính tay ra được số pod mà HPA sẽ chọn
+
+✅ **Kết quả đạt được:** Ứng dụng biết tự báo cáo sức khoẻ và cụm biết tự co giãn theo tải — hai điều kiện để một hệ thống chạy được qua đêm mà không cần ai trực.
 
 ---
 
@@ -4255,370 +4588,960 @@ Tự tăng/giảm **số pod** theo tải: "CPU > 60% → tăng pod (2→5), t�
 
 > ⏱️ ~90 phút · Loại: Kubernetes
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 41 (pod khoẻ mạnh) → **Ngày 42 (Helm — đóng gói app K8s, 1 chart nhiều môi trường)** → Ngày 43 (GitOps/ArgoCD). Helm cũng là cách bạn cài Prometheus/Grafana ở Ngày 44 chỉ bằng 1 lệnh.
+> 🧭 **Bạn đang ở đâu:** Ngày 41 (probe, tài nguyên, autoscaling) → **Ngày 42 (đóng gói tất cả YAML đó thành một gói cài được)** → Ngày 43 (GitOps tự đồng bộ từ Git). Đến giờ bạn đã có cả chục file YAML rời rạc — hôm nay biến chúng thành một thứ cài bằng **một lệnh**.
 >
-> ✅ **Chuẩn bị:** cluster local + cài Helm (`helm version`).
+> ✅ **Chuẩn bị:** cluster đang chạy (`minikube start`).
+>
+> 🎁 **Cuối ngày bạn có gì:** một **chart Helm của riêng bạn** cài được vào bất kỳ cluster nào với cấu hình khác nhau cho từng môi trường, kèm khả năng **nâng cấp và quay lui bằng một lệnh**.
 
 ### 📘 Lý thuyết
 
-#### 1. Vấn đề: quản cả đống YAML rất mệt
+#### 1. Vấn đề: YAML sinh sôi rất nhanh
 
-Một app trên K8s có chục file YAML; mỗi môi trường (dev/prod) cần giá trị khác (replica, image tag). Copy-sửa thủ công = dễ sai, khó quản.
+Hệ thống nhỏ ở Ngày 40 đã cần: Deployment, Service, Ingress, ConfigMap, Secret, PVC, HPA — **7 file cho một ứng dụng**. Giờ nhân lên:
 
-#### 2. Helm — "apt cho Kubernetes"
+- 3 môi trường (dev / staging / production) → **21 file**, khác nhau vài dòng.
+- Đổi tag image → sửa tay ở 3 chỗ, quên một chỗ là môi trường lệch nhau.
+- Người mới vào đội hỏi "cài hệ thống này thế nào?" → *"apply 21 file, theo đúng thứ tự này..."*.
 
-Helm đóng gói toàn bộ YAML của app thành 1 **Chart** có biến. Bạn điền giá trị qua `values.yaml` → Helm "điền vào khuôn" tạo YAML thật. **1 chart + nhiều values → nhiều môi trường.**
+Helm giải đúng bài toán ấy, y như `apt` đã làm với Linux:
 
-#### 3. Cấu trúc Chart
-
-| Thành phần | Vai trò |
-|---|---|
-| `Chart.yaml` | Metadata (tên, version) |
-| `values.yaml` | Giá trị mặc định (tham số hoá) |
-| `templates/` | YAML có biến `{{ .Values.xxx }}` |
-
-#### 4. Lệnh chính
-
-| Lệnh | Làm gì |
-|---|---|
-| `helm install` | Cài app (1 release) |
-| `helm upgrade` | Nâng cấp |
-| `helm rollback <release> <rev>` | Quay về revision cũ |
-| `helm list` / `helm history` | Xem release / lịch sử |
-| `helm repo add ...` | Thêm kho chart (cài Prometheus/Postgres 1 lệnh) |
-
-#### 5. Helm vs Kustomize
-
-| | Cách tiếp cận | Phù hợp |
+| | Không có Helm | Có Helm |
 |---|---|---|
-| **Helm** | Template + biến | App phức tạp, phân phối, nhiều môi trường |
-| **Kustomize** | Overlay/patch YAML thuần | Đơn giản, tích hợp sẵn `kubectl -k` |
+| Cài | `kubectl apply` từng file, đúng thứ tự | `helm install cuahang ./chart` |
+| Khác biệt giữa môi trường | Copy cả bộ file rồi sửa tay | Một bộ khuôn + nhiều file `values` |
+| Nâng cấp | Sửa file, apply lại, tự theo dõi | `helm upgrade` |
+| Quay lui | Tự tìm lại YAML cũ trong Git | `helm rollback cuahang 1` |
+| Gỡ bỏ | Nhớ và xoá từng thứ | `helm uninstall cuahang` |
 
-> 🔑 `helm upgrade` áp dụng **ngay** — luôn xem trước bằng `helm diff upgrade` (plugin) hoặc `--dry-run`. `helm rollback` cứu bạn khi upgrade hỏng.
+#### 2. Ba khái niệm phải phân biệt
 
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
-
-> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
-
-**Chart như một khuôn bánh có chỗ để điền.** `templates/` là chiếc khuôn có sẵn các ô trống (`{{ .Values.x }}`); `values.yaml` là tờ giấy điền *"bánh này 3 cái, nhân sô cô la"*. Cùng một khuôn, đổi tờ điền là ra bánh dev (nhỏ, 1 bản) hay bánh prod (to, 5 bản) — không phải khắc lại khuôn cho mỗi lần. Đây chính là lối thoát khỏi cảnh copy-sửa cả chục file YAML mỗi khi đổi môi trường.
-
-**"apt cho Kubernetes" — vì sao đáng giá đến thế.** Trước Helm, muốn cài Prometheus lên cụm bạn phải tự tải/ghép hàng chục file YAML rồi cầu nguyện chúng khớp nhau. Với Helm, `helm install` một dòng — y hệt `apt install`. Và cả một hệ sinh thái chart công khai (Prometheus, Postgres, ingress-nginx...) nghĩa là bạn *đứng trên vai người khác*, không dựng lại từ số 0. Ngày 44 bạn sẽ cài nguyên bộ monitoring chỉ bằng một lệnh nhờ điều này.
-
-**Điểm ngầm quan trọng: Helm nhớ từng "revision".** Helm không chỉ sinh YAML rồi quên. Mỗi lần `install`/`upgrade` là một **revision** của một **release** được ghi lại. Nhờ vậy `helm rollback` đưa bạn về bản cũ như một cỗ máy thời gian — khác hẳn `kubectl apply` (apply xong là không còn khái niệm "bản trước").
-
-### 🧪 Lab cơ bản
-
-1. Cài Helm, thêm repo: `helm repo add bitnami ...`.
-2. Cài 1 app có sẵn (vd nginx hoặc postgresql) qua Helm chart.
-3. Tạo Helm chart cho app của bạn: `helm create my-chart`.
-4. Tham số hóa image và replica trong `values.yaml`, deploy bằng `helm install`.
-5. Thực hành `helm upgrade` (đổi giá trị) và `helm rollback`.
-
-### 🚀 Lab nâng cao (best-practice)
-
-> Mục tiêu: dùng Helm để 1 chart deploy được nhiều môi trường, nâng cấp/rollback an toàn.
-
-1. **1 chart + nhiều values file cho mỗi môi trường:**
-   ```bash
-   helm install web ./chart -f values-dev.yaml
-   helm upgrade web ./chart -f values-prod.yaml   # cùng chart, config khác
-   ```
-2. **`helm diff` trước khi upgrade** (plugin) — xem chính xác sẽ đổi gì, như `terraform plan`.
-3. **`helm lint` + `helm template`** để validate chart trước khi deploy.
-4. **Versioning chart** (`Chart.yaml`) + đẩy lên chart repo riêng cho team.
-
-### 💡 Bổ sung thực tế: những cái đi làm mới thấm
-
-- **`helm rollback` không phải cỗ máy thời gian hoàn hảo:** nó khôi phục *manifest* về revision cũ, nhưng những gì đã xảy ra bên ngoài — dữ liệu trong DB, PVC, thay đổi do hook tạo — thì không quay lại. Rollback code/config thì được; rollback dữ liệu thì không.
-- **Đừng commit values chứa mật khẩu vào Git:** `values.yaml` rất tiện để nhét cấu hình, nhưng nó là file thường → password trong đó là lộ. Tách secret ra (helm-secrets + SOPS, hoặc External Secrets) đúng tinh thần Ngày 39.
-- **`version` (chart) ≠ `appVersion` (app):** trong `Chart.yaml`, `version` là phiên bản của *chart* (khuôn), `appVersion` là phiên bản của *app* bên trong. Bump nhầm chỗ là nguồn lú lẫn kinh điển — nhớ tăng `version` mỗi lần sửa chart.
-- **Dùng `--atomic` cho upgrade production:** kèm `--atomic --timeout` thì nếu upgrade fail giữa chừng, Helm **tự rollback** về bản đang chạy, thay vì để lại release "dở dang" (`pending-upgrade`) rất khó gỡ.
-- **Helm 3 lưu lịch sử release trong Secret của namespace** (không còn Tiller như Helm 2): xoá nhầm các Secret `sh.helm.release.*` là mất lịch sử revision → `rollback`/`history` mất tác dụng. Trạng thái bám theo namespace, nên cùng một release name ở hai namespace là hai release độc lập.
-
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
-
-**Trình tự nên làm:** cài Helm + thêm repo → cài 1 app có sẵn → `helm create` chart riêng → tham số hóa values → upgrade & rollback.
-
-**Giải nghĩa & kết quả mong đợi:**
-- `helm repo add bitnami ...` + `helm install pg bitnami/postgresql` — cài app phổ biến trong 1 lệnh. *Kết quả:* `helm list` → STATUS deployed.
-- `helm create my-chart` — sinh khung chart (Chart.yaml, values.yaml, templates/).
-- `helm install web ./chart -f values-prod.yaml` — deploy với values môi trường.
-- `helm upgrade` / `helm rollback web 1` — nâng cấp / quay về revision cũ.
-
-**🧪 Thử nghiệm:**
-- `helm install web ./chart -f values-dev.yaml` và `-f values-prod.yaml` → cùng chart, 2 cấu hình khác. **Bài học:** 1 chart deploy nhiều môi trường.
-- `helm upgrade` đổi replica rồi `helm rollback`; `helm history web` xem revision. **Bài học:** rollback dễ dàng.
-
-⚠️ **Dễ sai:** `helm upgrade` áp dụng ngay — luôn `helm diff upgrade` (plugin) hoặc `--dry-run` trước.
-
-💡 **Hiểu sâu:** Helm = template (biến) cho YAML K8s, giải bài toán YAML lặp lại + nhiều môi trường. Đối thủ nhẹ hơn: Kustomize (overlay/patch, có sẵn `kubectl -k`).
-
-### 🐛 Gỡ lỗi nhanh
-
-| Triệu chứng | Nguyên nhân | Cách sửa |
+| Khái niệm | Là gì | Ví dụ tương đương |
 |---|---|---|
-| `helm install` lỗi template | Biến `{{ .Values.x }}` chưa có trong values | Bổ sung vào `values.yaml`; `helm lint` |
-| Upgrade làm hỏng, muốn quay lại | — | `helm rollback <release> <revision>`; `helm history` xem rev |
-| Không biết upgrade đổi gì | Áp dụng "mù" | `helm diff upgrade` (plugin) hoặc `--dry-run` trước |
-| Release "stuck" pending-upgrade | Upgrade trước bị ngắt | `helm rollback`; hoặc `--force`/xử lý theo tài liệu |
-| Values không được áp | Sai `-f` / ưu tiên override | `helm get values <release>` kiểm tra thực tế |
+| **Chart** | Gói khuôn mẫu (template + giá trị mặc định) | File cài đặt `.deb` |
+| **Values** | Giá trị bạn truyền vào để điền chỗ trống | Tuỳ chọn khi cài |
+| **Release** | **Một lần cài** chart vào cluster, có tên riêng | Phần mềm đã cài xong |
 
-### 📝 Bài ôn tập & Demo đối chiếu
+Một chart có thể cài nhiều lần thành nhiều release khác nhau: `helm install shop-dev ./chart` và `helm install shop-prod ./chart` — cùng khuôn, khác cấu hình, sống song song.
 
-**✍️ Tự kiểm tra:**
+#### 3. Cấu trúc một chart
 
-<details>
-<summary>1. Helm giải quyết gì so với `kubectl apply` nhiều file?</summary>
+```text
+chart-cua-toi/
+├── Chart.yaml          # Tên, phiên bản chart, mô tả
+├── values.yaml         # GIÁ TRỊ MẶC ĐỊNH — nơi người dùng chart cần đọc
+├── templates/          # YAML có chỗ trống chờ điền
+│   ├── deployment.yaml
+│   ├── service.yaml
+│   ├── ingress.yaml
+│   ├── _helpers.tpl    # hàm dùng lại (đặt tên, nhãn chuẩn)
+│   └── NOTES.txt       # lời nhắn in ra sau khi cài xong
+└── charts/             # chart phụ thuộc (vd: postgresql)
+```
 
-> Đóng gói + tham số hoá YAML thành chart: 1 chart deploy được nhiều môi trường (values khác nhau), có version + rollback, cài app phổ biến bằng 1 lệnh.
-</details>
+#### 4. Cú pháp template — chỉ cần bốn thứ
 
-<details>
-<summary>2. `values.yaml` và `templates/` quan hệ thế nào?</summary>
+```yaml
+# 1) Lấy giá trị từ values.yaml
+image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
 
-> `templates/` chứa YAML có biến `{{ .Values.x }}`; `values.yaml` cung cấp giá trị. Helm "điền biến" để sinh YAML thật.
-</details>
+# 2) Thông tin về release/chart
+name: {{ .Release.Name }}-web        # .Release.Name = tên bạn đặt lúc install
 
-<details>
-<summary>3. Viết lệnh cài chart với tên release tuỳ chỉnh.</summary>
+# 3) Có điều kiện — chỉ sinh ra khi được bật
+{{- if .Values.ingress.enabled }}
+...phần Ingress...
+{{- end }}
 
-> `helm install <tên-release> ./chart -f values-prod.yaml`
-</details>
+# 4) Lặp
+{{- range .Values.hosts }}
+  - host: {{ . }}
+{{- end }}
+```
 
-<details>
-<summary>4. Trước khi `helm upgrade` production nên làm gì?</summary>
+> 📌 Dấu `-` trong `{{-` nghĩa là "nuốt khoảng trắng phía trước". Thiếu nó thì YAML sinh ra đầy dòng trống và **sai thụt lề** — lỗi khó chịu nhất khi mới viết chart. Bước 6 sẽ cho bạn cách nhìn thấy kết quả trước khi cài.
 
-> `helm diff upgrade` (plugin) hoặc `--dry-run` để xem chính xác sẽ đổi gì — như `terraform plan`.
-</details>
+#### 5. Nâng cấp và quay lui — Helm nhớ giúp bạn
 
-**🔬 Demo đối chiếu:**
+Mỗi lần `helm upgrade`, Helm lưu lại một **revision**. Muốn quay lui thì không cần tìm YAML cũ:
 
-| Demo đối chiếu | Kết quả mong đợi |
-|---|---|
-| Cài app bằng Helm | `helm install` → STATUS: deployed |
-| Liệt kê release | `helm list` hiện release |
-| Upgrade & rollback | Chạy thành công, `helm history` thấy các revision |
+```bash
+helm history cuahang        # xem các đời đã qua
+helm rollback cuahang 2     # quay về đời số 2
+```
 
-### 📚 Thuật ngữ Anh–Việt (ngày này)
+Đây là lợi ích rất thực tế mà `kubectl apply` thuần không có.
 
-| Thuật ngữ | Nghĩa |
-|---|---|
-| **Helm** | Trình quản lý gói cho K8s |
-| **Chart** | Gói app K8s (có biến) |
-| **values.yaml** | Giá trị cấu hình cho chart |
-| **Template** | YAML có biến `{{ .Values.x }}` |
-| **Release** | Một lần cài chart vào cluster |
-| **Repository** | Kho chart (Artifact Hub) |
-| **Kustomize** | Cách quản YAML bằng overlay (đối thủ nhẹ hơn) |
+### 🧪 LAB — Dùng chart người khác, rồi tự viết chart của mình
+
+**Phần A:** cài một chart có sẵn để hiểu cách dùng.
+**Phần B:** tự tạo chart cho ứng dụng của bạn.
+
+### 🧭 Hướng dẫn làm LAB — step by step
+
+#### Bước 1 — Cài Helm
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+helm version
+```
+
+**Bạn sẽ thấy:**
+```text
+version.BuildInfo{Version:"v3.16.x", GitCommit:"...", GoVersion:"go1.22.x"}
+```
+
+✅ **Checkpoint:** in ra `Version:"v3.x"`.
+
+💡 Chỉ cần nhớ **Helm 3**. Helm 2 có một thành phần chạy trong cluster tên Tiller với quyền rất lớn — đã bị khai tử vì lý do bảo mật. Tài liệu cũ nào nhắc tới Tiller thì bỏ qua.
+
+#### Bước 2 — Cài một chart có sẵn
+
+```bash
+helm repo add podinfo https://stefanprodan.github.io/podinfo
+helm repo update
+helm search repo podinfo
+```
+
+**Bạn sẽ thấy:**
+```text
+NAME            CHART VERSION   APP VERSION   DESCRIPTION
+podinfo/podinfo 6.7.x           6.7.x         Podinfo Helm chart for Kubernetes
+```
+
+Trước khi cài, hãy xem chart này cho phép chỉnh những gì:
+
+```bash
+helm show values podinfo/podinfo | head -25
+```
+
+✅ **Checkpoint:** thấy danh sách giá trị mặc định (`replicaCount`, `image`, `service`...).
+
+💡 **`helm show values` là việc đầu tiên nên làm với bất kỳ chart lạ nào.** Nó là "bảng điều khiển" — cho biết bạn được phép đổi gì mà không phải đọc template.
+
+Giờ cài:
+
+```bash
+helm install demo podinfo/podinfo --set replicaCount=2
+kubectl get pods -l app.kubernetes.io/name=podinfo
+helm list
+```
+
+**Bạn sẽ thấy:**
+```text
+NAME    NAMESPACE   REVISION   STATUS     CHART           APP VERSION
+demo    default     1          deployed   podinfo-6.7.x   6.7.x
+```
+
+✅ **Checkpoint:** `STATUS` là `deployed`, `REVISION` là `1`, và có **2 pod** đang chạy.
+
+💡 Một lệnh vừa tạo ra Deployment + Service + mọi thứ chart định nghĩa. Đây chính là điều Helm mang lại so với việc apply từng file.
+
+#### Bước 3 — Nâng cấp và quay lui
+
+```bash
+helm upgrade demo podinfo/podinfo --set replicaCount=4
+kubectl get pods -l app.kubernetes.io/name=podinfo --no-headers | wc -l
+helm history demo
+```
+
+**Bạn sẽ thấy:**
+```text
+4
+
+REVISION   STATUS       DESCRIPTION
+1          superseded   Install complete
+2          deployed     Upgrade complete
+```
+
+Giờ quay lui:
+
+```bash
+helm rollback demo 1
+sleep 5
+kubectl get pods -l app.kubernetes.io/name=podinfo --no-headers | wc -l
+helm history demo
+```
+
+**Bạn sẽ thấy:**
+```text
+2
+
+REVISION   STATUS       DESCRIPTION
+1          superseded   Install complete
+2          superseded   Upgrade complete
+3          deployed     Rollback to 1
+```
+
+✅ **Checkpoint:** số pod về lại 2, và lịch sử ghi rõ `Rollback to 1`.
+
+💡 Để ý rollback **không xoá lịch sử** mà tạo thêm revision 3. Nhờ vậy bạn luôn biết chuyện gì đã xảy ra — rất quan trọng khi mổ xẻ sự cố.
+
+Dọn:
+```bash
+helm uninstall demo
+```
+
+#### Bước 4 — Tạo chart của riêng bạn
+
+```bash
+cd ~
+helm create cuahang
+find cuahang -type f | sort
+```
+
+**Bạn sẽ thấy:**
+```text
+cuahang/.helmignore
+cuahang/Chart.yaml
+cuahang/charts
+cuahang/templates/NOTES.txt
+cuahang/templates/_helpers.tpl
+cuahang/templates/deployment.yaml
+cuahang/templates/hpa.yaml
+cuahang/templates/ingress.yaml
+cuahang/templates/service.yaml
+cuahang/templates/serviceaccount.yaml
+cuahang/templates/tests/test-connection.yaml
+cuahang/values.yaml
+```
+
+✅ **Checkpoint:** có đủ `Chart.yaml`, `values.yaml` và thư mục `templates/`.
+
+💡 `helm create` dựng sẵn một chart mẫu **đầy đủ chuẩn thực hành tốt** (probe, HPA, service account, nhãn chuẩn). Ở công ty người ta hầu như luôn bắt đầu từ đây rồi sửa, chứ ít khi viết từ con số không.
+
+#### Bước 5 — Sửa `values.yaml` cho ứng dụng của bạn
+
+Thay toàn bộ `cuahang/values.yaml` bằng:
+
+```yaml
+replicaCount: 2
+
+image:
+  repository: nginx
+  tag: "1.27"                 # tag cụ thể, không dùng latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false              # mặc định tắt; môi trường nào cần thì bật
+  className: nginx
+  hosts:
+    - host: cuahang.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 128Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 8
+  targetCPUUtilizationPercentage: 50
+
+# Giá trị riêng của ứng dụng — sẽ được tiêm vào pod làm biến môi trường
+ungDung:
+  tenCuaHang: "Cửa hàng ABC"
+  moiTruong: "dev"
+
+serviceAccount:
+  create: true
+  name: ""
+
+podSecurityContext: {}
+securityContext: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+```
+
+Rồi thêm phần biến môi trường vào `cuahang/templates/deployment.yaml`. Tìm khối `ports:` trong container và **thêm ngay dưới nó**:
+
+```yaml
+          env:
+            - name: TEN_CUA_HANG
+              value: {{ .Values.ungDung.tenCuaHang | quote }}
+            - name: MOI_TRUONG
+              value: {{ .Values.ungDung.moiTruong | quote }}
+            - name: TEN_RELEASE
+              value: {{ .Release.Name | quote }}
+```
+
+> 📌 `| quote` tự thêm dấu nháy. Thiếu nó, giá trị như `dev` vẫn ổn nhưng `"20"` hay `true` sẽ bị YAML hiểu thành số/boolean và gây lỗi kiểu dữ liệu. **Thói quen tốt: mọi giá trị chuỗi đều `| quote`.**
+
+#### Bước 6 — Xem trước kết quả TRƯỚC khi cài (bước quan trọng nhất)
+
+```bash
+helm lint ./cuahang
+```
+
+**Bạn sẽ thấy:**
+```text
+==> Linting ./cuahang
+1 chart(s) linted, 0 chart(s) failed
+```
+
+Giờ xem YAML thật sự sẽ được sinh ra:
+
+```bash
+helm template thu-nghiem ./cuahang | head -40
+```
+
+**Bạn sẽ thấy** YAML hoàn chỉnh với mọi chỗ trống đã điền:
+```text
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: thu-nghiem-cuahang
+...
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: thu-nghiem-cuahang
+spec:
+  replicas: 2
+...
+          env:
+            - name: TEN_CUA_HANG
+              value: "Cửa hàng ABC"
+```
+
+✅ **Checkpoint:** thấy `{{ }}` đã được thay bằng giá trị thật, và tên có tiền tố `thu-nghiem-`.
+
+💡 **`helm template` là công cụ gỡ lỗi số một khi viết chart.** Nó chạy **hoàn toàn ngoại tuyến**, không đụng tới cluster. Sai thụt lề hay sai tên biến lộ ra ngay tại đây, thay vì làm hỏng cluster rồi mới biết.
+
+Thử đổi giá trị xem template phản ứng:
+```bash
+helm template thu-nghiem ./cuahang --set ingress.enabled=true | grep -A5 "kind: Ingress"
+```
+
+**Bạn sẽ thấy** phần Ingress xuất hiện — trong khi lúc nãy không có, vì `{{- if .Values.ingress.enabled }}` trả về false.
+
+#### Bước 7 — Cài chart của bạn cho hai môi trường cùng lúc
+
+Tạo file `values-prod.yaml` ngoài thư mục chart:
+
+```yaml
+replicaCount: 3
+
+ungDung:
+  moiTruong: "production"
+  tenCuaHang: "Cửa hàng ABC - Chính thức"
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
+```
+
+Cài cả hai:
+
+```bash
+helm install shop-dev  ./cuahang
+helm install shop-prod ./cuahang -f values-prod.yaml
+helm list
+kubectl get pods -l app.kubernetes.io/instance=shop-dev
+kubectl get pods -l app.kubernetes.io/instance=shop-prod
+```
+
+**Bạn sẽ thấy:**
+```text
+NAME        REVISION   STATUS     CHART
+shop-dev    1          deployed   cuahang-0.1.0
+shop-prod   1          deployed   cuahang-0.1.0
+
+(2 pod shop-dev...)
+(3 pod shop-prod...)
+```
+
+Kiểm chứng cấu hình khác nhau thật:
+
+```bash
+kubectl exec deploy/shop-dev-cuahang  -- printenv MOI_TRUONG TEN_CUA_HANG
+echo "---"
+kubectl exec deploy/shop-prod-cuahang -- printenv MOI_TRUONG TEN_CUA_HANG
+```
+
+**Bạn sẽ thấy:**
+```text
+dev
+Cửa hàng ABC
+---
+production
+Cửa hàng ABC - Chính thức
+```
+
+✅ **Checkpoint:** **một chart duy nhất**, hai release sống song song với cấu hình khác nhau.
+
+💡 **Đây là toàn bộ giá trị của Helm gói trong một màn hình.** Không copy file, không sửa tay, không lệch môi trường — chỉ khác nhau ở file values.
+
+#### Bước 8 — Nâng cấp an toàn với `--atomic`
+
+```bash
+helm upgrade shop-prod ./cuahang -f values-prod.yaml \
+  --set image.tag=1.27-alpine \
+  --atomic --timeout 2m
+
+helm history shop-prod
+```
+
+**Bạn sẽ thấy:**
+```text
+REVISION   STATUS       DESCRIPTION
+1          superseded   Install complete
+2          deployed     Upgrade complete
+```
+
+✅ **Checkpoint:** nâng cấp xong, revision lên `2`.
+
+💡 **`--atomic` là thói quen nên có cho mọi lần upgrade production:** nếu bản mới không lên được trong thời gian `--timeout`, Helm **tự động quay lui** về bản cũ. Không có nó, bạn sẽ mắc kẹt ở trạng thái nửa vời — một nửa pod mới hỏng, một nửa pod cũ, và phải tự dọn.
+
+Thử với một tag không tồn tại để thấy nó cứu bạn:
+```bash
+helm upgrade shop-prod ./cuahang -f values-prod.yaml \
+  --set image.tag=khong-ton-tai-dau --atomic --timeout 60s
+```
+
+**Bạn sẽ thấy:**
+```text
+Error: UPGRADE FAILED: release shop-prod failed, and has been rolled back due to atomic being set: ...
+```
+
+```bash
+kubectl get pods -l app.kubernetes.io/instance=shop-prod
+helm history shop-prod
+```
+
+✅ **Checkpoint:** các pod **vẫn chạy bản cũ bình thường**, và lịch sử ghi lại lần thất bại + lần rollback tự động.
+
+#### Bước 9 — Dọn dẹp
+
+```bash
+helm uninstall shop-dev shop-prod
+helm list
+minikube stop
+```
+
+**Bạn sẽ thấy:** danh sách release trống.
+
+💡 Một lệnh `uninstall` gỡ sạch mọi thứ chart đã tạo — không sót Service hay ConfigMap mồ côi như khi xoá tay.
+
+### 💡 Đi làm mới thấm (sách cơ bản hay bỏ quên)
+
+- **`helm template` trước, `helm install` sau.** Luôn xem YAML sẽ sinh ra trước khi đụng vào cluster. Với production thì thêm `helm diff upgrade` (plugin `helm-diff`) để thấy **chính xác cái gì sắp đổi** — đây là bước mà người làm lâu năm không bao giờ bỏ qua.
+- **Đừng để chart phụ thuộc kéo theo cả một database production.** Nhiều chart tiện tay gói luôn PostgreSQL/Redis làm chart con. Rất hợp cho lab, nhưng database production nên đứng ngoài, do dịch vụ quản lý của cloud lo — vòng đời của nó **không nên gắn với vòng đời một release ứng dụng**.
+- **Ghim phiên bản chart, đừng chỉ ghim image.** `helm install ... --version 6.7.1`. Không ghim thì hôm nay cài ra một kiểu, tháng sau cài lại ra kiểu khác — đúng bài học `latest` của Ngày 33, chỉ là ở tầng chart.
+- **Helm lưu trạng thái release trong Secret của namespace.** `kubectl get secret -l owner=helm` sẽ thấy. Xoá nhầm những Secret này là Helm mất trí nhớ về release đó. Biết để đừng "dọn dẹp" nhầm.
+- **`--set` tiện nhưng chóng quên.** Giá trị truyền bằng `--set` không nằm trong Git → không ai biết production đang chạy cấu hình gì. Dùng `--set` khi thử nghiệm; với môi trường thật hãy để mọi thứ trong **file values được commit vào Git** (đây chính là tiền đề của GitOps ngày mai).
+- **Chart của bạn cũng cần đánh phiên bản.** `Chart.yaml` có hai trường: `version` (phiên bản của *chart*) và `appVersion` (phiên bản của *ứng dụng*). Sửa template thì tăng `version`; đổi image thì đổi `appVersion`. Lẫn lộn hai cái là rắc rối về sau.
 
 ### 🎯 Đúc kết Ngày 42
 
 **3 điều phải mang theo:**
-1. **Helm = "apt cho K8s":** đóng gói YAML thành Chart có biến; một chart + nhiều values → nhiều môi trường, thoát cảnh copy-paste.
-2. **Cấu trúc chart:** `Chart.yaml` (metadata) + `values.yaml` (giá trị) + `templates/` (YAML có `{{ .Values.x }}`). Cài app phổ biến chỉ bằng một lệnh.
-3. **Helm nhớ release theo revision → `helm rollback` quay về bản cũ;** nhưng luôn `diff`/`--dry-run` trước vì `upgrade` áp dụng ngay.
 
-> 🧠 **Một câu để nhớ:** `helm upgrade` áp dụng ngay — luôn xem trước bằng `helm diff upgrade` (plugin) hoặc `--dry-run`; và `helm rollback` cứu bạn khi upgrade hỏng.
+1. **Một chart + nhiều file values = nhiều môi trường** mà không nhân bản YAML. Hết cảnh "dev và prod lệch nhau mà không ai biết vì sao".
+2. **`helm template` và `helm lint` chạy ngoại tuyến** — bắt lỗi trước khi đụng cluster. Đây là thói quen tách người mới với người đã làm thật.
+3. **`helm upgrade --atomic` + `helm rollback`** biến việc nâng cấp thành thao tác có đường lui, thay vì một canh bạc.
 
-**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
-- [ ] Tạo chart bằng `helm create` và hiểu Chart.yaml / values / templates
-- [ ] Deploy một chart cho 2 môi trường bằng values khác nhau
-- [ ] `helm upgrade` rồi `helm rollback` + xem `helm history`
-- [ ] Cài một app có sẵn từ repo bằng một lệnh
-- [ ] Biết `helm rollback` không khôi phục dữ liệu DB/PVC
+> 🧠 **Một câu để nhớ:** Helm không làm K8s dễ hơn — nó làm **YAML của bạn ngừng nhân bản mất kiểm soát**.
 
-✅ **Kết quả đạt được:** Đóng gói và quản lý ứng dụng K8s bằng Helm — chuẩn công nghiệp.
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+
+- [ ] Phân biệt chart / values / release
+- [ ] Dùng `helm show values` để biết một chart lạ cho phép chỉnh gì
+- [ ] Tạo chart riêng bằng `helm create` và sửa `values.yaml` theo ứng dụng
+- [ ] Dùng `helm template` để xem YAML sinh ra và gỡ lỗi ngoại tuyến
+- [ ] Cài một chart thành hai release với cấu hình khác nhau
+- [ ] Nâng cấp bằng `--atomic` và chứng minh nó tự quay lui khi thất bại
+- [ ] Xem `helm history` và rollback về một revision cụ thể
+
+✅ **Kết quả đạt được:** Một chart Helm của riêng bạn, cài được nhiều môi trường từ cùng một khuôn, nâng cấp và quay lui an toàn — sẵn sàng để Ngày 43 giao cho Git tự động quản lý.
 
 ---
 
 ## Ngày 43 — GitOps: ArgoCD & Triển khai khai báo
 
-> ⏱️ ~90 phút · Loại: GitOps
+> ⏱️ ~90 phút · Loại: Kubernetes / CD
 >
-> 🧭 **Bạn đang ở đâu:** Ngày 42 (Helm) → **Ngày 43 (GitOps — Git là nguồn chân lý, ArgoCD tự đồng bộ)** → Ngày 44 (Monitoring). Đây là phương pháp triển khai hiện đại nhất, an toàn hơn CI/CD push-based.
+> 🧭 **Bạn đang ở đâu:** Ngày 42 (Helm đóng gói) → **Ngày 43 (để Git tự lái cluster — GitOps)** → Ngày 44 (giám sát). Nhớ hai điều còn dang dở: Ngày 34 bạn phải **giao chìa khoá server cho CI**, và Ngày 36 bạn thấy `kubectl scale` bằng tay **âm thầm bị ghi đè**. Hôm nay giải quyết cả hai.
 >
-> ✅ **Chuẩn bị:** cluster local + 1 repo Git chứa manifest K8s. Cài ArgoCD vào cluster (theo docs).
+> ✅ **Chuẩn bị:** cluster đang chạy, `kubectl` và Git đã sẵn sàng. Cần một repo GitHub mới (để **Public** cho đơn giản — không phải cấu hình khoá truy cập).
+>
+> 🎁 **Cuối ngày bạn có gì:** cluster tự đồng bộ từ Git. Bạn sửa file trên GitHub → cluster tự đổi theo. Bạn sửa tay trên cluster → **nó tự khôi phục về đúng như Git**.
 
 ### 📘 Lý thuyết
 
-#### 1. GitOps là gì — "Git là nguồn chân lý duy nhất"
+#### 1. Hai vấn đề còn tồn đọng từ các ngày trước
 
-Trạng thái cluster K8s phải **luôn khớp đúng những gì ghi trong Git**. Muốn đổi gì → sửa file trong Git (qua PR) → công cụ tự đồng bộ vào cluster. Không ai `kubectl` sửa tay trực tiếp nữa.
+**Vấn đề 1 — chìa khoá nằm sai chỗ (Ngày 34).** Pipeline muốn deploy thì phải giữ khoá SSH hoặc kubeconfig của production. Nghĩa là: ai chiếm được CI thì chiếm được cả cluster. Khoá càng nhiều nơi giữ thì càng khó kiểm soát.
 
-#### 2. ArgoCD — "người gác" sống trong cluster
+**Vấn đề 2 — cluster trôi khỏi tài liệu (Ngày 36).** Nửa đêm sự cố, ai đó `kubectl scale` lên 10 pod để chữa cháy. Sáng hôm sau không ai nhớ. File YAML trong Git vẫn ghi 3. Lần deploy sau, con số âm thầm về 3 → sự cố tái diễn và **không ai hiểu vì sao**. Hiện tượng này gọi là **trôi cấu hình** (configuration drift).
 
-ArgoCD liên tục so sánh "Git nói gì" với "cluster đang thế nào":
-- Sửa file trong Git → ArgoCD tự **kéo về** và áp dụng.
-- Ai lỡ sửa tay trên cluster (**drift**) → ArgoCD phát hiện và kéo về đúng Git (**self-heal**).
+#### 2. GitOps — lật ngược chiều kết nối
 
-#### 3. Push vs Pull — khác biệt cốt lõi
+Ý tưởng chỉ gồm hai câu:
 
-| | CI/CD truyền thống (push) | GitOps (pull) |
-|---|---|---|
-| Ai deploy | CI có credential cluster, đẩy lên | ArgoCD **trong** cluster tự kéo từ Git |
-| Bảo mật | CI cần quyền cluster (rủi ro) | Cluster không lộ credential ra ngoài |
-| Drift | Không tự phát hiện | Tự phát hiện + sửa |
-| Rollback | Re-run pipeline | `git revert` → tự sync |
+> **1. Git là nguồn sự thật duy nhất** về "cluster phải trông như thế nào".
+> **2. Một tác nhân sống bên trong cluster tự kéo từ Git về và sửa cho khớp.**
 
-#### 4. Application CRD & auto-sync
+```text
+  MÔ HÌNH PUSH (Ngày 34)                MÔ HÌNH PULL (GitOps — hôm nay)
 
-- **Application**: đối tượng ArgoCD trỏ tới repo + path + cluster đích.
-- **Auto-sync + self-heal:**
-  ```yaml
-  syncPolicy:
-    automated: { prune: true, selfHeal: true }
-  ```
-- **App of Apps**: 1 Application quản nhiều app con.
-
-#### 5. Chuẩn GitOps: tách repo code & repo config
-
-Repo `app` chứa code + CI build image; repo `config` chứa manifest/Helm → ArgoCD theo dõi repo config. CI chỉ cập nhật image tag trong repo config, **không** có quyền vào cluster.
-
-> 🔑 Với GitOps, **rollback = `git revert`**, và mọi thay đổi production đều có dấu vết trong lịch sử Git (ai, lúc nào, vì sao) — audit miễn phí.
-
-**Sơ đồ — luồng GitOps (pull-based, tự đồng bộ):**
-```mermaid
-flowchart LR
-    Dev(("👤")) -->|"PR / commit"| CR["📁 Config repo<br/>(manifests / Helm)"]
-    CR -->|"ArgoCD tự KÉO (pull)"| ARGO["🔄 ArgoCD<br/>(chạy trong cluster)"]
-    ARGO -->|"sync"| K8S["☸️ Kubernetes Cluster"]
-    K8S -.->|"so sánh liên tục"| ARGO
-    ARGO -.->|"sửa drift tự động (self-heal)"| K8S
-    classDef g fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20;
-    class CR,ARGO g;
+  CI  ──(giữ chìa khoá)──>  Cluster     Git  <──(tự đi kéo)──  ArgoCD
+      đẩy vào                                                  (sống TRONG cluster)
+                                                                     │
+  ⚠️ CI có toàn quyền cluster            ✅ Không ai bên ngoài cần chìa khoá
 ```
-> Khác CI/CD push: cluster **tự kéo** từ Git → không lộ credential cluster ra ngoài. Rollback = `git revert`.
 
-### 📖 Hiểu rõ hơn (giải thích cho người mới)
+Nghe đơn giản, nhưng hệ quả rất lớn:
 
-> Phần 📘 ở trên đã liệt kê "cái gì". Mục này cho bạn **một hình dung để nhớ** — không lặp lại bảng.
-
-**Git là bản thiết kế treo tường luôn được thi công đúng.** Không có GitOps, cluster giống một căn nhà bị sửa lung tung mà chẳng ai cập nhật bản vẽ — tới lúc sự cố, không ai biết *thật sự* nhà đang thế nào. GitOps lật ngược: **bản vẽ (Git) là chân lý**, và có một giám sát công trình (ArgoCD) liên tục so bản vẽ với thực địa, thấy lệch là sửa cho khớp. Muốn đổi nhà thì sửa bản vẽ (PR vào Git), không ai được cầm búa đục tường trực tiếp.
-
-**Push vs pull: "giao chìa khoá cho thợ" hay "thợ sống trong nhà".** CI/CD truyền thống là *push* — CI đứng ngoài, cầm chìa khoá cluster thò vào đẩy; chìa lộ là toang. GitOps là *pull* — ArgoCD sống *bên trong* cluster, tự thò tay ra Git kéo bản vẽ về. Không phải đưa chìa khoá cluster ra ngoài cho bất kỳ pipeline nào → bề mặt tấn công co lại rõ rệt.
-
-**Hết thời "cấu hình ma".** Ai từng `kubectl edit` giữa đêm để chữa cháy rồi sáng ra quên mất đã đổi gì — đó là *cấu hình ma*, thứ không ai truy được nguồn. Với self-heal, sửa tay bị kéo về Git ngay, buộc **mọi thay đổi phải đi qua Git**. Hệ quả đẹp: mỗi thay đổi là một commit có tác giả, thời gian, lý do (PR) → nhật ký kiểm toán *miễn phí*, và rollback chỉ còn là `git revert`.
-
-### 🧪 Lab cơ bản
-
-1. Cài ArgoCD vào cluster minikube, truy cập UI.
-2. Tạo repo Git chứa manifest K8s của app.
-3. Tạo ArgoCD Application trỏ tới repo, để nó tự sync.
-4. Sửa manifest trong Git (đổi replica), commit, quan sát ArgoCD tự áp dụng.
-5. Thử thay đổi trực tiếp trên cluster và xem ArgoCD phát hiện drift.
-
-### 🚀 Lab nâng cao (best-practice)
-
-> Mục tiêu: dựng luồng GitOps thật — Git là nguồn sự thật, ArgoCD tự đồng bộ.
-
-1. **Repo cấu hình tách khỏi repo code** (chuẩn GitOps): repo `app` chứa code + CI build image; repo `config` chứa manifest/Helm → ArgoCD theo dõi repo config.
-2. **Auto-sync + self-heal:**
-   ```yaml
-   syncPolicy:
-     automated: { prune: true, selfHeal: true }   # tự đồng bộ + tự sửa drift
-   ```
-3. **App of Apps pattern** — 1 ArgoCD Application quản lý nhiều app con.
-4. **Tách quyền:** CI chỉ build/push image + cập nhật tag trong repo config; **không** CI nào có quyền vào cluster → bảo mật tốt hơn push-based.
-
-### 💡 Bổ sung thực tế: những cái đi làm mới thấm
-
-- **Bật `selfHeal` thì `kubectl edit` tay sẽ bị "nuốt":** đang chữa cháy khẩn mà sửa trực tiếp trên cluster, ArgoCD kéo về Git ngay lập tức → mất thay đổi. Khi cần can thiệp gấp, phải biết *tạm tắt auto-sync/self-heal* (hoặc sửa thẳng trong Git), đừng vật lộn với ArgoCD.
-- **`selfHeal` dễ "đánh nhau" với HPA:** HPA đổi `spec.replicas`, còn Git ghi một con số cứng → ArgoCD thấy lệch, kéo về, HPA lại đổi... thành vòng lặp. Giải pháp chuẩn: khai `ignoreDifferences` cho `spec.replicas` để ArgoCD *bỏ qua* field mà controller khác sở hữu.
-- **Mắt xích hay hỏng: ai cập nhật image tag vào repo config?** CI build ra image `:sha-mới` rồi *phải* ghi tag đó vào repo config thì ArgoCD mới deploy. Việc này do CI mở PR bump tag, hoặc **Argo CD Image Updater** làm tự động — quên bước này thì ArgoCD vẫn "Synced" nhưng chạy image cũ.
-- **Secret vẫn là bài toán nhức nhối của GitOps:** manifest nằm trong Git nên không được để secret trần → dùng **Sealed Secrets / SOPS / External Secrets** (như Ngày 39, 42). Đây là thứ người mới hay bỏ quên khi hào hứng "mọi thứ vào Git".
-- **Không phải app nào cũng nên auto-sync:** môi trường nhạy cảm thường để **manual sync** (người review diff rồi bấm nút), còn dev/staging thì auto-sync cho nhanh. Và `prune: true` (tự xoá tài nguyên không còn trong Git) mạnh nhưng nguy hiểm — chỉ bật khi đã thật sự tin repo là chân lý.
-
-### 🧭 Hướng dẫn làm lab & giải nghĩa lệnh (cho người tự học)
-
-**Trình tự nên làm:** cài ArgoCD → tạo repo manifest → tạo ArgoCD Application trỏ repo → sửa manifest trên Git xem tự sync → thử drift.
-
-**Giải nghĩa & kết quả mong đợi:**
-- Cài ArgoCD vào cluster, mở UI; tạo `Application` trỏ tới repo + path. *Kết quả:* UI hiện app `Synced` + `Healthy`.
-- Sửa replica trong Git → commit → ArgoCD tự kéo và áp dụng. *Kết quả:* số pod đổi theo Git.
-
-**🧪 Thử nghiệm:**
-- `kubectl edit deployment` sửa tay trên cluster (đổi replica) → ArgoCD báo **OutOfSync** (drift) và (nếu bật self-heal) kéo về đúng Git. **Bài học:** Git là nguồn chân lý.
-- `git revert` 1 commit → ArgoCD tự rollback về trạng thái trước. **Bài học:** rollback = thao tác Git.
-
-⚠️ **Dễ sai:** vừa dùng GitOps vừa sửa tay cluster → ArgoCD kéo về, "mất" thay đổi tay. Mọi thay đổi PHẢI qua Git.
-
-💡 **Hiểu sâu:** GitOps = **pull** (agent trong cluster tự kéo) vs CI/CD truyền thống = **push** (CI có credential đẩy vào). Pull an toàn hơn (không lộ credential cluster) + tự sửa drift.
-
-### 🐛 Gỡ lỗi nhanh
-
-| Triệu chứng | Nguyên nhân | Cách sửa |
+| | Deploy kiểu push (Ngày 34) | GitOps |
 |---|---|---|
-| App `OutOfSync` mãi | Cluster lệch Git / sync policy manual | Bấm Sync; bật `automated`; kiểm manifest |
-| Thay đổi tay "biến mất" | Self-heal kéo về Git | Đúng thiết kế — mọi thay đổi PHẢI qua Git |
-| ArgoCD không thấy repo | Sai URL/credential repo | Thêm repo trong Settings; kiểm quyền |
-| App `Healthy` nhưng chưa `Synced` | Có commit mới chưa sync | Chờ auto-sync / bấm Sync |
-| Rollback không tự chạy | Chưa revert trên repo config | `git revert` commit lỗi → ArgoCD tự sync về |
+| Ai giữ chìa khoá cluster | CI (bên ngoài) | **Không ai** — tác nhân ở trong cluster |
+| Cluster có khớp tài liệu không | Hy vọng là có | **Được kiểm tra liên tục** |
+| Sửa tay lúc nửa đêm | Không ai biết | **Bị phát hiện, và tự hoàn tác** |
+| Quay lui | Chạy lại pipeline cũ | **`git revert`** |
+| Ai đổi gì, lúc nào | Rải rác trong log CI | **Lịch sử Git** |
 
-### 📝 Bài ôn tập & Demo đối chiếu
+#### 3. Vòng điều hoà — lần thứ hai bạn gặp nó
 
-**✍️ Tự kiểm tra:**
+Ngày 36 bạn học: K8s liên tục so **mong muốn** (trong etcd) với **thực tế** (pod đang chạy) rồi sửa.
 
-<details>
-<summary>1. GitOps khác CI/CD truyền thống ở điểm nào?</summary>
+ArgoCD làm **đúng y như vậy, nhưng ở một tầng cao hơn**: so **mong muốn** (trong Git) với **thực tế** (trong cluster) rồi sửa.
 
-> GitOps là **pull** (agent trong cluster tự kéo từ Git); CI/CD truyền thống là **push** (CI có credential đẩy vào). Pull an toàn hơn + tự phát hiện/sửa drift.
-</details>
+```text
+  Tầng của K8s:     etcd  <──so sánh──>  pod đang chạy
+  Tầng của ArgoCD:  Git   <──so sánh──>  toàn bộ cluster
+```
 
-<details>
-<summary>2. Vì sao Git là "nguồn chân lý" giúp rollback dễ?</summary>
+Nhận ra cùng một khuôn tư duy lặp lại là bạn đã nắm được tinh thần của Kubernetes.
 
-> Mọi trạng thái mong muốn nằm trong Git. Rollback = `git revert` commit → ArgoCD tự đồng bộ về. Có lịch sử đầy đủ để audit.
-</details>
+#### 4. Ba trạng thái của ArgoCD
 
-<details>
-<summary>3. Drift detection làm gì?</summary>
-
-> Phát hiện khi cluster lệch khỏi Git (ai đó sửa tay) → báo OutOfSync và (nếu bật self-heal) kéo về đúng Git.
-</details>
-
-<details>
-<summary>4. Vì sao GitOps an toàn hơn cho quyền cluster?</summary>
-
-> CI không cần credential vào cluster; chỉ ArgoCD (trong cluster) tự kéo từ Git → không lộ chìa khoá cluster ra pipeline bên ngoài.
-</details>
-
-**🔬 Demo đối chiếu:**
-
-| Demo đối chiếu | Kết quả mong đợi |
+| Trạng thái | Nghĩa |
 |---|---|
-| ArgoCD đồng bộ từ Git | UI hiện app `Synced` + `Healthy` |
-| Sửa manifest trên Git | ArgoCD tự phát hiện & đồng bộ |
-| Sửa tay trên cụm | Báo OutOfSync, self-heal kéo về Git |
+| **Synced** | Cluster khớp Git ✅ |
+| **OutOfSync** | Có khác biệt — do ai đó sửa tay, hoặc Git vừa đổi mà chưa kịp đồng bộ |
+| **Healthy / Degraded** | Sức khoẻ thật của ứng dụng (pod có chạy được không) |
 
-### 📚 Thuật ngữ Anh–Việt (ngày này)
+> 📌 **Hai trục khác nhau, đừng lẫn:** *Synced* nói **"có giống Git không"**; *Healthy* nói **"có chạy được không"**. Một app hoàn toàn có thể `Synced` mà `Degraded` — tức Git mô tả đúng ý bạn, nhưng thứ bạn mô tả lại đang hỏng.
 
-| Thuật ngữ | Nghĩa |
-|---|---|
-| **GitOps** | Git là nguồn chân lý, tự đồng bộ vào cluster |
-| **ArgoCD** | Công cụ GitOps chạy trong cluster |
-| **Pull-based** | Cluster tự kéo cấu hình (vs push) |
-| **Drift** | Cluster lệch khỏi Git |
-| **Self-heal** | Tự kéo về đúng Git |
-| **Application (CRD)** | Đối tượng ArgoCD trỏ repo→cluster |
-| **App of Apps** | 1 app quản nhiều app con |
+#### 5. Hai chế độ đồng bộ
+
+```yaml
+syncPolicy:
+  automated:
+    prune: true        # Git xoá file -> xoá luôn tài nguyên trong cluster
+    selfHeal: true     # ai sửa tay trên cluster -> tự kéo về đúng như Git
+```
+
+- **Thủ công** (mặc định): ArgoCD chỉ *báo* khác biệt, chờ người bấm Sync. Hợp với production lúc mới bắt đầu.
+- **Tự động + selfHeal**: tự sửa mọi khác biệt. Đây là GitOps đúng nghĩa — nhưng cũng nghĩa là **bạn không thể vá tay lên cluster nữa**, mọi thứ buộc phải đi qua Git.
+
+#### 6. Tách hai repo — chi tiết nhỏ nhưng quan trọng
+
+| Repo | Chứa gì | Ai sửa |
+|---|---|---|
+| **Repo mã nguồn** (`ci-demo`) | Code, Dockerfile, test | Lập trình viên |
+| **Repo cấu hình** (`ci-demo-config`) | YAML/Helm mô tả cluster | CI (cập nhật tag image) + người vận hành |
+
+Vì sao tách? Vì mỗi lần deploy là một commit vào repo cấu hình. Gộp chung thì lịch sử code bị ngập trong commit "cập nhật tag image", và mỗi lần đổi cấu hình lại kích hoạt chạy lại toàn bộ CI một cách vô nghĩa.
+
+### 🧪 LAB — Để Git lái cluster
+
+**Repo cấu hình bạn sẽ tạo:**
+
+```text
+ci-demo-config/                 ← repo GitHub MỚI, để Public
+└── ung-dung/
+    ├── deployment.yaml
+    └── service.yaml
+```
+
+**Và một file khai báo cho ArgoCD (giữ ở máy):**
+
+```text
+~/lab43-gitops/
+└── application.yaml            # bảo ArgoCD: hãy theo dõi repo kia
+```
+
+#### File 1 — `ung-dung/deployment.yaml` (trong repo cấu hình)
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-gitops
+  labels:
+    app: web-gitops
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web-gitops
+  template:
+    metadata:
+      labels:
+        app: web-gitops
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.27
+          ports:
+            - containerPort: 80
+          command: ["/bin/sh", "-c"]
+          args:
+            - echo "<h1>Phiên bản 1 - lái bởi Git</h1>" > /usr/share/nginx/html/index.html
+              && nginx -g 'daemon off;'
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+```
+
+#### File 2 — `ung-dung/service.yaml` (trong repo cấu hình)
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-gitops-svc
+spec:
+  selector:
+    app: web-gitops
+  ports:
+    - port: 80
+      targetPort: 80
+```
+
+#### File 3 — `application.yaml` (giữ ở máy)
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: web-gitops
+  namespace: argocd
+spec:
+  project: default
+
+  # NGUỒN SỰ THẬT: repo nào, nhánh nào, thư mục nào
+  source:
+    repoURL: https://github.com/<TEN-GITHUB-CUA-BAN>/ci-demo-config.git
+    targetRevision: main
+    path: ung-dung
+
+  # ĐÍCH ĐẾN: cluster nào, namespace nào
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+
+  syncPolicy:
+    automated:
+      prune: true        # Git xoá file -> xoá tài nguyên tương ứng
+      selfHeal: true     # sửa tay trên cluster -> tự kéo về đúng Git
+    syncOptions:
+      - CreateNamespace=true
+```
+
+### 🧭 Hướng dẫn làm LAB — step by step
+
+#### Bước 1 — Cài ArgoCD vào cluster
+
+```bash
+minikube start
+kubectl create namespace argocd
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl -n argocd rollout status deployment/argocd-server --timeout=300s
+```
+
+**Bạn sẽ thấy** (lần đầu mất 2–4 phút để tải image):
+```text
+deployment "argocd-server" successfully rolled out
+```
+
+```bash
+kubectl get pods -n argocd
+```
+
+**Bạn sẽ thấy** khoảng 7 pod, tất cả `Running`:
+```text
+argocd-application-controller-0            1/1   Running
+argocd-repo-server-6b9c7d8f4-xk2mp         1/1   Running
+argocd-server-7d4f8b9c5-t7m3n              1/1   Running
+...
+```
+
+✅ **Checkpoint:** mọi pod trong namespace `argocd` đều `Running`.
+
+💡 Chú ý: ArgoCD **chạy bên trong cluster**. Đó chính là điều khiến nó không cần ai đưa chìa khoá từ bên ngoài — nó đã ở sẵn trong nhà.
+
+#### Bước 2 — Vào giao diện ArgoCD
+
+Lấy mật khẩu admin:
+
+```bash
+kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath="{.data.password}" | base64 -d; echo
+```
+
+**Bạn sẽ thấy** một chuỗi ngẫu nhiên, ví dụ `k8Jx2mQpL9nRt4Wz`.
+
+💡 Để ý: lại là `base64 -d` — đúng bài học Ngày 39. Secret của K8s chưa bao giờ là mã hoá thật.
+
+Mở đường hầm tới giao diện:
+
+```bash
+kubectl port-forward svc/argocd-server -n argocd 8088:443 > /dev/null 2>&1 &
+sleep 3
+echo "Mở trình duyệt: https://localhost:8088  (user: admin)"
+```
+
+Trình duyệt sẽ cảnh báo chứng chỉ không tin cậy → chọn **Advanced → Proceed** (chứng chỉ tự ký, bình thường với lab).
+
+✅ **Checkpoint:** đăng nhập được, thấy màn hình Applications trống.
+
+#### Bước 3 — Tạo repo cấu hình trên GitHub
+
+Tạo repo mới tên `ci-demo-config`, để **Public** (ArgoCD kéo được ngay, khỏi cấu hình khoá).
+
+```bash
+mkdir -p ~/ci-demo-config/ung-dung && cd ~/ci-demo-config
+# tạo ung-dung/deployment.yaml và ung-dung/service.yaml theo phần LAB
+git init -b main
+git add .
+git commit -m "Cấu hình ban đầu: 2 bản sao, phiên bản 1"
+git remote add origin git@github.com:<TEN-GITHUB-CUA-BAN>/ci-demo-config.git
+git push -u origin main
+```
+
+✅ **Checkpoint:** vào GitHub thấy thư mục `ung-dung/` với 2 file.
+
+#### Bước 4 — Bảo ArgoCD theo dõi repo đó
+
+```bash
+mkdir -p ~/lab43-gitops && cd ~/lab43-gitops
+# tạo application.yaml theo phần LAB — NHỚ thay <TEN-GITHUB-CUA-BAN>
+kubectl apply -f application.yaml
+sleep 20
+kubectl get application -n argocd
+```
+
+**Bạn sẽ thấy:**
+```text
+NAME         SYNC STATUS   HEALTH STATUS
+web-gitops   Synced        Healthy
+```
+
+```bash
+kubectl get pods -l app=web-gitops
+```
+
+**Bạn sẽ thấy 2 pod đang chạy** — mà **bạn chưa hề `kubectl apply` cái deployment nào**.
+
+✅ **Checkpoint:** `Synced` + `Healthy`, và 2 pod tự xuất hiện.
+
+💡 **Dừng lại và nhận ra điều vừa xảy ra:** bạn chỉ nói với ArgoCD *"nguồn sự thật nằm ở repo này"*. Nó tự đọc Git, tự tạo mọi thứ. Từ giờ, muốn đổi gì trên cluster thì **sửa Git**, không gõ `kubectl` nữa.
+
+Trên giao diện, bấm vào app `web-gitops` — bạn sẽ thấy sơ đồ cây: Application → Deployment → ReplicaSet → 2 Pod, kèm màu sức khoẻ từng thứ.
+
+#### Bước 5 — Đổi Git, cluster tự đổi theo
+
+```bash
+cd ~/ci-demo-config
+sed -i 's/replicas: 2/replicas: 4/' ung-dung/deployment.yaml
+sed -i 's/Phiên bản 1/Phiên bản 2 - đã đổi qua Git/' ung-dung/deployment.yaml
+git commit -am "Tăng lên 4 bản sao, cập nhật nội dung"
+git push
+```
+
+Theo dõi (ArgoCD kiểm tra Git khoảng mỗi 3 phút; muốn nhanh thì bấm **Refresh** trên giao diện):
+
+```bash
+kubectl get pods -l app=web-gitops -w
+```
+
+**Bạn sẽ thấy** pod thứ 3 và 4 tự xuất hiện, rồi các pod lần lượt được thay bằng phiên bản mới.
+
+Kiểm chứng nội dung:
+```bash
+kubectl port-forward svc/web-gitops-svc 8090:80 > /dev/null 2>&1 &
+sleep 2
+curl -s localhost:8090
+kill %1
+```
+
+**Bạn sẽ thấy:**
+```text
+<h1>Phiên bản 2 - đã đổi qua Git</h1>
+```
+
+✅ **Checkpoint:** cluster đổi theo Git mà bạn **không chạy lệnh `kubectl` nào**.
+
+💡 Không có pipeline nào đẩy vào cluster ở đây cả. ArgoCD **tự đi kéo**. Đó là toàn bộ khác biệt giữa push và pull.
+
+#### Bước 6 — Sửa tay trên cluster và xem nó bị hoàn tác
+
+Đây là bước trả lời câu hỏi còn treo từ Ngày 36.
+
+```bash
+kubectl scale deployment web-gitops --replicas=10
+kubectl get pods -l app=web-gitops --no-headers | wc -l     # 10 ngay lập tức
+```
+
+Giờ chờ khoảng 10–30 giây rồi đếm lại:
+
+```bash
+sleep 30
+kubectl get pods -l app=web-gitops --no-headers | wc -l
+kubectl get application web-gitops -n argocd
+```
+
+**Bạn sẽ thấy:**
+```text
+4
+
+NAME         SYNC STATUS   HEALTH STATUS
+web-gitops   Synced        Healthy
+```
+
+✅ **Checkpoint:** số pod **tự quay về 4** — đúng như Git ghi.
+
+💡 **Đây là `selfHeal: true` đang làm việc.** Hãy so với Ngày 36: lúc đó `kubectl scale` tồn tại cho đến lần `apply` tiếp theo — có thể là vài tuần sau, khi không ai còn nhớ. Bây giờ, mọi sửa tay đều bị hoàn tác trong vài chục giây.
+
+💡 **Điều này thay đổi văn hoá làm việc:** "vá tay lên production" không còn là lựa chọn. Muốn đổi thì mở Pull Request — nghĩa là có review, có lịch sử, có người biết.
+
+Trên giao diện ArgoCD, mở tab **EVENTS** của app — bạn sẽ thấy dòng ghi lại lần tự sửa này.
+
+#### Bước 7 — Quay lui bằng `git revert`
+
+Giả sử bản vừa lên có vấn đề:
+
+```bash
+cd ~/ci-demo-config
+git revert --no-edit HEAD
+git push
+```
+
+Bấm **Refresh** trên giao diện ArgoCD rồi kiểm tra:
+
+```bash
+sleep 20
+kubectl get pods -l app=web-gitops --no-headers | wc -l
+kubectl port-forward svc/web-gitops-svc 8090:80 > /dev/null 2>&1 &
+sleep 2
+curl -s localhost:8090
+kill %1
+```
+
+**Bạn sẽ thấy:**
+```text
+2
+<h1>Phiên bản 1 - lái bởi Git</h1>
+```
+
+✅ **Checkpoint:** quay lui hoàn toàn — cả số bản sao lẫn nội dung — chỉ bằng một lệnh Git.
+
+💡 **So sánh ba cách rollback bạn đã học:**
+
+| Cách | Lệnh | Dấu vết để lại |
+|---|---|---|
+| Ngày 34 (pipeline) | Chạy lại workflow với tag cũ | Log CI |
+| Ngày 42 (Helm) | `helm rollback` | Lịch sử Helm |
+| **Hôm nay (GitOps)** | `git revert` | **Một commit — cả đội nhìn thấy, review được** |
+
+Cách thứ ba mạnh hơn ở chỗ: rollback cũng là một thay đổi *được ghi nhận*, không phải một thao tác âm thầm của người trực.
+
+#### Bước 8 — Thấy `prune` dọn rác
+
+```bash
+cd ~/ci-demo-config
+git rm ung-dung/service.yaml
+git commit -m "Bỏ service"
+git push
+```
+
+Refresh trên giao diện, chờ ~20 giây:
+
+```bash
+kubectl get svc web-gitops-svc
+```
+
+**Bạn sẽ thấy:**
+```text
+Error from server (NotFound): services "web-gitops-svc" not found
+```
+
+✅ **Checkpoint:** xoá file trong Git → tài nguyên trong cluster cũng biến mất.
+
+💡 **`prune: true` là con dao hai lưỡi.** Nó giữ cluster sạch, không để lại tài nguyên mồ côi. Nhưng nghĩa là **xoá nhầm file trong Git = xoá thật trên cluster**. Ở production, nhiều đội bật `prune` nhưng kèm `PruneLast=true` và bảo vệ nhánh `main` bằng Pull Request bắt buộc (đúng như Ngày 32 bạn đã làm).
+
+Khôi phục lại:
+```bash
+git revert --no-edit HEAD
+git push
+```
+
+#### Bước 9 — Dọn dẹp
+
+```bash
+kubectl delete -f ~/lab43-gitops/application.yaml
+kubectl delete namespace argocd
+minikube stop
+```
+
+⚠️ Xoá `Application` sẽ xoá luôn những gì nó tạo ra (vì `prune: true`). Muốn giữ lại tài nguyên thì phải thêm annotation `argocd.argoproj.io/delete: "false"` hoặc xoá kèm `--cascade=orphan`.
+
+### 💡 Đi làm mới thấm (sách cơ bản hay bỏ quên)
+
+- **CI cập nhật repo cấu hình, không chạm vào cluster.** Mô hình hoàn chỉnh ở công ty: pipeline build image → **commit tag mới vào repo cấu hình** → ArgoCD thấy Git đổi → tự deploy. CI không bao giờ có kubeconfig của production. Đây chính là mảnh ghép nối Ngày 33 với hôm nay.
+- **Chỉ bật `selfHeal` khi đội đã sẵn sàng.** Ở nơi mọi người quen vá tay, bật `selfHeal` sẽ gây bực bội: "tôi vừa sửa thì nó tự đổi lại". Cách làm thường thấy là bắt đầu bằng sync thủ công (ArgoCD chỉ báo khác biệt) vài tuần, đến khi cả đội quen với "mọi thay đổi qua Git" rồi mới bật tự động.
+- **GitOps buộc bí mật phải xử lý tử tế.** Mọi thứ nằm trong Git, mà Secret thì chỉ là base64 (Ngày 39) → **không thể** commit thẳng. Đây là lý do **Sealed Secrets** / **SOPS** / **External Secrets Operator** gần như luôn đi kèm với GitOps.
+- **App-of-Apps để quản lý quy mô lớn.** Một Application đặc biệt trỏ tới thư mục chứa các Application khác → cài cả một nền tảng bằng một lần khai báo. Đây là cách các đội quản lý hàng chục dịch vụ.
+- **ArgoCD mặc định hỏi Git mỗi 3 phút.** Muốn phản hồi tức thì thì gắn **webhook** từ GitHub → cluster. Không có webhook thì đừng hoảng khi thấy chậm — đó là hành vi bình thường, không phải lỗi.
+- **`Synced` không có nghĩa là đúng.** ArgoCD chỉ đảm bảo cluster *giống Git*. Nếu Git sai thì cluster sai một cách rất trung thành. Chất lượng của GitOps phụ thuộc hoàn toàn vào chất lượng review Pull Request — đây là lý do branch protection (Ngày 32) trở nên quan trọng gấp bội.
 
 ### 🎯 Đúc kết Ngày 43
 
 **3 điều phải mang theo:**
-1. **GitOps: Git là nguồn chân lý duy nhất** — mọi thay đổi đi qua PR, ArgoCD tự đồng bộ cluster về đúng Git.
-2. **Pull an toàn hơn push:** ArgoCD sống trong cluster tự kéo từ Git → không đưa credential cluster ra ngoài; tự phát hiện & sửa drift (self-heal).
-3. **Rollback = `git revert`**, và mỗi thay đổi là một commit có tác giả/lý do → nhật ký kiểm toán miễn phí.
 
-> 🧠 **Một câu để nhớ:** với GitOps, **rollback = `git revert`**, và mọi thay đổi production đều có dấu vết trong lịch sử Git (ai, lúc nào, vì sao) — tuyệt cho audit.
+1. **Git là nguồn sự thật, tác nhân trong cluster tự kéo về.** Không ai bên ngoài cần giữ chìa khoá cluster nữa — giải đúng nhược điểm của Ngày 34.
+2. **Trôi cấu hình bị phát hiện và tự hoàn tác.** Vá tay lúc nửa đêm không còn tồn tại âm thầm được nữa.
+3. **`git revert` là nút rollback tốt nhất** vì nó vừa khôi phục hệ thống, vừa để lại dấu vết cả đội nhìn thấy được.
 
-**✅ Tự chấm** *(đánh dấu khi làm được mà không cần nhìn tài liệu):*
-- [ ] Cài ArgoCD, tạo Application trỏ repo → thấy `Synced` + `Healthy`
-- [ ] Sửa manifest trên Git và thấy ArgoCD tự áp dụng
-- [ ] Gây drift bằng `kubectl edit` và thấy `OutOfSync` / self-heal
-- [ ] Rollback bằng `git revert` → ArgoCD tự sync về
-- [ ] Giải thích push vs pull và vì sao pull an toàn hơn
+> 🧠 **Một câu để nhớ:** GitOps không phải công cụ mới — nó là **chính vòng điều hoà của Kubernetes, nâng lên một tầng**: thay vì so etcd với pod, nó so **Git với cả cluster**.
 
-✅ **Kết quả đạt được:** Áp dụng GitOps với ArgoCD — phương pháp triển khai hiện đại nhất.
+**✅ Tự chấm** *(đánh dấu khi làm được mà không nhìn tài liệu):*
+
+- [ ] Giải thích khác biệt push vs pull và vì sao pull an toàn hơn về chìa khoá
+- [ ] Nói rõ "trôi cấu hình" là gì và vì sao nó nguy hiểm
+- [ ] Cài ArgoCD và khai một Application trỏ tới repo Git
+- [ ] Đổi Git và chứng minh cluster tự đổi theo, không gõ `kubectl`
+- [ ] Sửa tay bằng `kubectl scale` và chứng minh `selfHeal` hoàn tác
+- [ ] Rollback bằng `git revert` và nói vì sao cách này tốt hơn hai cách trước
+- [ ] Phân biệt `Synced` với `Healthy`
+- [ ] Nói được vì sao GitOps bắt buộc phải xử lý bí mật tử tế
+
+✅ **Kết quả đạt được:** Một cluster tự lái bởi Git — mọi thay đổi đều có commit, có review, có đường lui, và không một ai bên ngoài phải giữ chìa khoá vào production.
 
 ---
 
