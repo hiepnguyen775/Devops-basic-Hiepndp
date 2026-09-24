@@ -27,16 +27,19 @@
 | # | File | Mất bao lâu | Để làm gì |
 |---|---|---|---|
 | 1 | [**ROADMAP.md**](./ROADMAP.md) | 10 phút | Hiểu **học gì, thứ tự nào, vì sao thứ tự đó** + mental model DevOps |
-| 2 | [Tài liệu tham khảo](./Tai-lieu-tham-khao.md) | 5 phút | Cách kết hợp tài liệu này với docs chính thức và cộng đồng |
-| 3 | [**PROGRESS.md**](./PROGRESS.md) | 2 phút | Mở sẵn để tick từng ngày — đây là bảng theo dõi của bạn |
-| 4 | Ngày 1 | 90 phút | Bắt đầu học |
+| 2 | [**HOC-HANG-NGAY.md**](./HOC-HANG-NGAY.md) | 10 phút | Khuôn một buổi học · nhịp tuần · nhịp tháng — **thứ quyết định bạn có đi hết 60 ngày** |
+| 3 | [Tài liệu tham khảo](./Tai-lieu-tham-khao.md) | 5 phút | Cách kết hợp tài liệu này với docs chính thức và cộng đồng |
+| 4 | [**PROGRESS.md**](./PROGRESS.md) | 2 phút | Mở sẵn để tick từng ngày — đây là bảng theo dõi của bạn |
+| 5 | Ngày 1 | 90 phút | Bắt đầu học |
 
-**Bốn file tra cứu — mở khi cần, không đọc tuần tự:**
+**Sáu file tra cứu — mở khi cần, không đọc tuần tự:**
 
 | File | Mở khi |
 |---|---|
 | 📚 [**GLOSSARY.md**](./GLOSSARY.md) | Gặp thuật ngữ lạ — 364 thuật ngữ, có link về bài gốc |
 | 🐛 [**TROUBLESHOOTING.md**](./TROUBLESHOOTING.md) | **Đang kẹt vì một lỗi** — 118 lỗi gom theo chủ đề + quy trình chẩn đoán 9 bước |
+| 🏗️ [**PROJECTS.md**](./PROJECTS.md) | Cuối mỗi tháng — 5 dự án + capstone, có rubric và bài tập 4 mức |
+| 🧠 [**QUIZ-TONG-HOP.md**](./QUIZ-TONG-HOP.md) | Cuối mỗi giai đoạn — 4 bộ × 20 câu tự kiểm tra |
 | 🎤 [**INTERVIEW.md**](./INTERVIEW.md) | Chuẩn bị phỏng vấn — 25 câu tình huống kèm đáp án tham khảo |
 | ✅ [**PROGRESS.md**](./PROGRESS.md) | Sau mỗi ngày học, và khi muốn biết mình đang ở đâu |
 

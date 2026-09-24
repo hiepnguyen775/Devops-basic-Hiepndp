@@ -24,17 +24,17 @@
 | Ngày | Chủ đề |
 |------|--------|
 | [1](#ngày-1--devops--sysops-là-gì-tổng-quan-toàn-ngành) | DevOps & SysOps là gì? Tổng quan toàn ngành |
-| [2](#ngày-2--linux-cơ-bản--điều-hướng--quản-lý-file) | Linux cơ bản — Điều hướng & Quản lý file |
-| [3](#ngày-3--linux--quản-lý-tiến-trình--phần-mềm) | Linux — Quản lý tiến trình & phần mềm |
-| [4](#ngày-4--linux--người-dùng-nhóm--phân-quyền) | Linux — Người dùng, nhóm & phân quyền |
-| [5](#ngày-5--bash-scripting--cơ-bản) | Bash Scripting — Cơ bản |
-| [6](#ngày-6--bash-scripting--nâng-cao--tự-động-hóa) | Bash Scripting — Nâng cao & tự động hóa |
-| [7](#ngày-7--mạng-máy-tính-cho-devops--cơ-bản) | Mạng máy tính cho DevOps — Cơ bản |
-| [8](#ngày-8--ssh--kết-nối--quản-lý-server-từ-xa) | SSH — Kết nối & quản lý server từ xa |
+| [2](#ngày-2--linux-cơ-bản-điều-hướng--quản-lý-file) | Linux cơ bản — Điều hướng & Quản lý file |
+| [3](#ngày-3--linux-quản-lý-tiến-trình--phần-mềm) | Linux — Quản lý tiến trình & phần mềm |
+| [4](#ngày-4--linux-người-dùng-nhóm--phân-quyền) | Linux — Người dùng, nhóm & phân quyền |
+| [5](#ngày-5--bash-scripting-cơ-bản) | Bash Scripting — Cơ bản |
+| [6](#ngày-6--bash-scripting-nâng-cao--tự-động-hóa) | Bash Scripting — Nâng cao & tự động hóa |
+| [7](#ngày-7--mạng-máy-tính-cho-devops-cơ-bản) | Mạng máy tính cho DevOps — Cơ bản |
+| [8](#ngày-8--ssh-kết-nối--quản-lý-server-từ-xa) | SSH — Kết nối & quản lý server từ xa |
 | [9](#ngày-9--tường-lửa-bảo-mật--hardening) | Tường lửa, bảo mật & hardening |
 | [10](#ngày-10--quản-lý-log--giám-sát-hệ-thống) | Quản lý log & giám sát hệ thống |
 | [11](#ngày-11--lưu-trữ-backup--khôi-phục) | Lưu trữ, backup & khôi phục |
-| [12](#ngày-12--milestone--lab-tổng-hợp-giai-đoạn-1) | **Milestone — LAB tổng hợp Giai đoạn 1** |
+| [12](#ngày-12--milestone-lab-tổng-hợp-giai-đoạn-1) | **Milestone — LAB tổng hợp Giai đoạn 1** |
 
 ---
 

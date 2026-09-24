@@ -23,12 +23,12 @@
 | [53](#ngày-53--cost-optimization--finops) | Cost Optimization & FinOps |
 | [54](#ngày-54--service-mesh--microservices-nâng-cao) | Service Mesh & Microservices nâng cao |
 | [55](#ngày-55--platform-engineering--developer-experience) | Platform Engineering & Developer Experience |
-| [56](#ngày-56--dự-án-tốt-nghiệp-phần-1-thiết-kế--hạ-tầng) | **Dự án tốt nghiệp — Phần 1: Thiết kế & Hạ tầng** |
-| [57](#ngày-57--dự-án-tốt-nghiệp-phần-2-container--cicd) | **Dự án tốt nghiệp — Phần 2: Container & CI/CD** |
-| [58](#ngày-58--dự-án-tốt-nghiệp-phần-3-monitoring--reliability) | **Dự án tốt nghiệp — Phần 3: Monitoring & Reliability** |
-| [59](#ngày-59--dự-án-tốt-nghiệp-phần-4-tài-liệu-demo--portfolio) | **Dự án tốt nghiệp — Phần 4: Tài liệu, Demo & Portfolio** |
+| [56](#ngày-56--dự-án-tốt-nghiệp--phần-1-thiết-kế--hạ-tầng) | **Dự án tốt nghiệp — Phần 1: Thiết kế & Hạ tầng** |
+| [57](#ngày-57--dự-án-tốt-nghiệp--phần-2-container--cicd) | **Dự án tốt nghiệp — Phần 2: Container & CI/CD** |
+| [58](#ngày-58--dự-án-tốt-nghiệp--phần-3-monitoring--reliability) | **Dự án tốt nghiệp — Phần 3: Monitoring & Reliability** |
+| [59](#ngày-59--dự-án-tốt-nghiệp--phần-4-tài-liệu-demo--portfolio) | **Dự án tốt nghiệp — Phần 4: Tài liệu, Demo & Portfolio** |
 | [60](#ngày-60--tốt-nghiệp--tổng-kết-chứng-chỉ--định-hướng-sự-nghiệp) | **TỐT NGHIỆP — Tổng kết, Chứng chỉ & Định hướng** |
-| [📎 Phụ lục](#-phụ-lục-giai-đoạn-4) | Dự án CloudNote · Checklist năng lực · Định hướng nghề |
+| 📎 Phụ lục | [A — Cheat sheet](#phụ-lục-a--cheat-sheet-tổng-hợp-theo-giai-đoạn) · [B — Đề bài CloudNote](#phụ-lục-b--đề-bài-dự-án-tốt-nghiệp-cloudnote) · [C — Bảng kiểm năng lực](#phụ-lục-c--bảng-kiểm-năng-lực-tốt-nghiệp) · [D — Định hướng nghề](#phụ-lục-d--định-hướng-nghề--90-ngày-tiếp-theo) |
 
 ---
 

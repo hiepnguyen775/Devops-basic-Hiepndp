@@ -12,9 +12,9 @@
 
 | Bài | Nội dung | Học sau | Vì sao cần |
 |---|---|---|---|
-| **[NT1](#nt1-mạng-chuyên-sâu-subnet-định-tuyến-bắt-gói-tls)** | Subnet · Định tuyến · tcpdump · TLS | Ngày 9 | Ngày 7 cho bạn phản xạ debug; bài này cho bạn **bằng chứng** thay vì phỏng đoán |
-| **[NT2](#nt2-web-server-production-https-load-balancing-tinh-chỉnh)** | HTTPS thật · Cân bằng tải · Tinh chỉnh | Ngày 23 | Ngày 23 dạy reverse proxy cơ bản; production cần thêm TLS, keepalive, log đúng |
-| **[NT3](#nt3-ansible-nâng-cao-role-vault-rolling-update-inventory-động)** | Role · Vault · `serial` · Inventory động | Ngày 47 | Ngày 47 cho playbook chạy được; bài này cho playbook **dùng được trong đội** |
+| **[NT1](#nt1--mạng-chuyên-sâu-subnet-định-tuyến-bắt-gói--tls)** | Subnet · Định tuyến · tcpdump · TLS | Ngày 9 | Ngày 7 cho bạn phản xạ debug; bài này cho bạn **bằng chứng** thay vì phỏng đoán |
+| **[NT2](#nt2--web-server-production-https-load-balancing--tinh-chỉnh)** | HTTPS thật · Cân bằng tải · Tinh chỉnh | Ngày 23 | Ngày 23 dạy reverse proxy cơ bản; production cần thêm TLS, keepalive, log đúng |
+| **[NT3](#nt3--ansible-nâng-cao-role-vault-rolling-update--inventory-động)** | Role · Vault · `serial` · Inventory động | Ngày 47 | Ngày 47 cho playbook chạy được; bài này cho playbook **dùng được trong đội** |
 
 > 📌 **Ba bài độc lập nhau** — học theo nhu cầu, không bắt buộc tuần tự. Nhưng mỗi bài đều cần kiến thức của ngày tương ứng trong cột *"Học sau"*.
 

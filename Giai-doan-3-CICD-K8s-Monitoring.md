@@ -19,25 +19,25 @@
 | Ngày | Chủ đề |
 |------|--------|
 | [31](#ngày-31--cicd-khái-niệm--github-actions-cơ-bản) | CI/CD — Khái niệm & GitHub Actions cơ bản |
-| [32](#ngày-32--ci-pipeline--build-test--lint-tự-động) | CI Pipeline — Build, Test & Lint tự động |
-| [33](#ngày-33--cd-pipeline--build--push-docker-image) | CD Pipeline — Build & Push Docker Image |
-| [34](#ngày-34--cd-pipeline--tự-động-deploy-lên-server) | CD Pipeline — Tự động Deploy lên Server |
-| [35](#ngày-35--milestone--pipeline-cicd-hoàn-chỉnh) | **Milestone — Pipeline CI/CD hoàn chỉnh** |
-| [36](#ngày-36--kubernetes--khái-niệm--kiến-trúc) | Kubernetes — Khái niệm & Kiến trúc |
-| [37](#ngày-37--kubernetes--pod-deployment--replicaset) | Kubernetes — Pod, Deployment & ReplicaSet |
-| [38](#ngày-38--kubernetes--service--networking) | Kubernetes — Service & Networking |
-| [39](#ngày-39--kubernetes--configmap-secret--storage) | Kubernetes — ConfigMap, Secret & Storage |
-| [40](#ngày-40--milestone--deploy-full-stack-lên-kubernetes) | **Milestone — Deploy Full-stack lên Kubernetes** |
-| [41](#ngày-41--kubernetes--health-check-resource--autoscaling) | Kubernetes — Health Check, Resource & Autoscaling |
-| [42](#ngày-42--helm--package-manager-cho-kubernetes) | Helm — Package Manager cho Kubernetes |
-| [43](#ngày-43--gitops--argocd--triển-khai-khai-báo) | GitOps — ArgoCD & Triển khai khai báo |
-| [44](#ngày-44--monitoring--prometheus--metrics) | Monitoring — Prometheus & Metrics |
-| [45](#ngày-45--monitoring--grafana-dashboard) | Monitoring — Grafana Dashboard |
-| [46](#ngày-46--logging-tập-trung--loki) | Logging tập trung — Loki |
-| [47](#ngày-47--configuration-management--ansible) | Configuration Management — Ansible |
-| [48](#ngày-48--terraform-nâng-cao--module-remote-state--workspace) | Terraform nâng cao — Module, Remote State |
+| [32](#ngày-32--ci-pipeline-build-test--lint-tự-động) | CI Pipeline — Build, Test & Lint tự động |
+| [33](#ngày-33--cd-pipeline-build--push-docker-image) | CD Pipeline — Build & Push Docker Image |
+| [34](#ngày-34--cd-pipeline-tự-động-deploy-lên-server) | CD Pipeline — Tự động Deploy lên Server |
+| [35](#ngày-35--milestone-pipeline-cicd-hoàn-chỉnh) | **Milestone — Pipeline CI/CD hoàn chỉnh** |
+| [36](#ngày-36--kubernetes-khái-niệm--kiến-trúc) | Kubernetes — Khái niệm & Kiến trúc |
+| [37](#ngày-37--kubernetes-pod-deployment--replicaset) | Kubernetes — Pod, Deployment & ReplicaSet |
+| [38](#ngày-38--kubernetes-service--networking) | Kubernetes — Service & Networking |
+| [39](#ngày-39--kubernetes-configmap-secret--storage) | Kubernetes — ConfigMap, Secret & Storage |
+| [40](#ngày-40--milestone-deploy-full-stack-lên-kubernetes) | **Milestone — Deploy Full-stack lên Kubernetes** |
+| [41](#ngày-41--kubernetes-health-check-resource--autoscaling) | Kubernetes — Health Check, Resource & Autoscaling |
+| [42](#ngày-42--helm-package-manager-cho-kubernetes) | Helm — Package Manager cho Kubernetes |
+| [43](#ngày-43--gitops-argocd--triển-khai-khai-báo) | GitOps — ArgoCD & Triển khai khai báo |
+| [44](#ngày-44--monitoring-prometheus--metrics) | Monitoring — Prometheus & Metrics |
+| [45](#ngày-45--monitoring-grafana-dashboard) | Monitoring — Grafana Dashboard |
+| [46](#ngày-46--logging-tập-trung-loki) | Logging tập trung — Loki |
+| [47](#ngày-47--configuration-management-ansible) | Configuration Management — Ansible |
+| [48](#ngày-48--terraform-nâng-cao-module-remote-state--workspace) | Terraform nâng cao — Module, Remote State |
 | [49](#ngày-49--bảo-mật-devsecops--best-practices) | Bảo mật DevSecOps & Best Practices |
-| [50](#ngày-50--milestone--lab-tổng-hợp-giai-đoạn-3) | **Milestone — LAB tổng hợp Giai đoạn 3** |
+| [50](#ngày-50--milestone-lab-tổng-hợp-giai-đoạn-3) | **Milestone — LAB tổng hợp Giai đoạn 3** |
 
 ---
 
