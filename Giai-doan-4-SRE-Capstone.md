@@ -3096,7 +3096,7 @@ Lý do: deploy thường xuyên nghĩa là mỗi lần thay đổi **nhỏ** —
 >
 > 🧭 **Bạn đang ở đâu:** Ngày 51–55 (SRE, HA/DR, FinOps, mesh, nền tảng) → **Ngày 56 (bắt đầu dự án tốt nghiệp: thiết kế + hạ tầng)** → Ngày 57 (container & CI/CD). Bốn ngày tới bạn ghép **tất cả** đã học thành một sản phẩm duy nhất để đưa vào portfolio.
 >
-> ✅ **Chuẩn bị:** Docker, minikube (hoặc k3s), Terraform, Git. Có thể dùng bộ khung [`capstone-cloudnote/`](../capstone-cloudnote/) làm điểm khởi đầu, hoặc tự sinh bằng `tao-dich-vu.sh` của Ngày 55.
+> ✅ **Chuẩn bị:** Docker, minikube (hoặc k3s), Terraform, Git. Có thể dùng bộ khung [`capstone-cloudnote/`](./capstone-cloudnote/) làm điểm khởi đầu, hoặc tự sinh bằng `tao-dich-vu.sh` của Ngày 55.
 >
 > 🎯 **Khác với các ngày trước:** từ đây **không còn hướng dẫn từng bước**. Bạn nhận **đề bài + tiêu chí chấm**, tự quyết cách làm. Bí thì mở phần gợi ý ở cuối — nhưng hãy tự vật lộn trước đã, đó mới là lúc kiến thức đọng lại.
 

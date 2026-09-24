@@ -45,6 +45,41 @@
 
 ---
 
+## 🗂️ Cấu trúc repository
+
+```text
+devops-60-ngay/
+│
+├── README.md · ROADMAP.md · PROGRESS.md      ← bắt đầu ở đây
+├── GLOSSARY.md · TROUBLESHOOTING.md          ← tra cứu
+├── PROJECTS.md · QUIZ-TONG-HOP.md            ← thực hành & tự kiểm tra
+├── INTERVIEW.md · HOC-HANG-NGAY.md
+│
+├── Giai-doan-1..4-*.md                       ← NỘI DUNG 60 ngày (đọc liền mạch)
+├── Module-*.md                               ← 3 module bổ sung
+│
+├── docs/
+│   ├── architecture/lab-topology.md          ← dựng môi trường lab
+│   ├── concepts/tu-duy-devops.md             ← 7 nguyên tắc xuyên suốt
+│   └── references/cheat-sheet.md             ← tra lệnh nhanh
+│
+├── 00-devops-fundamentals/ … 15-advanced/    ← 16 module: cổng vào + nơi bạn làm việc
+│   ├── README.md    (mục tiêu · bài học · điều hướng)
+│   ├── labs/        (code bạn viết)
+│   ├── exercises/   (bài tập tự làm)
+│   └── notes/       (ghi chép của bạn)
+│
+├── projects/project-01..05/                  ← 5 dự án
+├── capstone/                                 ← dự án tốt nghiệp của bạn
+└── capstone-cloudnote/                       ← bộ khung code mẫu
+```
+
+> 💡 **Vì sao tách làm hai chỗ:** nội dung giảng dạy nằm trong các file giai đoạn (đọc liền mạch dễ hơn nhiều so với nhảy qua 60 file nhỏ). Các thư mục module là **cổng vào** — mỗi cái có README nêu mục tiêu, danh sách bài, và **thư mục trống để bạn lưu thành quả**.
+>
+> Bắt đầu một module: mở `README.md` của nó → bấm link sang bài học → làm LAB → lưu kết quả vào `labs/` của chính thư mục đó.
+
+---
+
 ## 📂 Danh sách tài liệu
 
 **Lộ trình chính (60 ngày):**
