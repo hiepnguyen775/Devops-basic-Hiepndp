@@ -102,6 +102,10 @@
 ## Module bổ sung
 
 - [ ] [Module Python cho DevOps](./Module-Python-cho-DevOps.md) — học sau Ngày 6
+- [ ] [**Module Nền tảng Mở rộng**](./Module-Nen-Tang-Mo-Rong.md) — đào sâu 3 chỗ mỏng
+  - [ ] NT1 — Mạng chuyên sâu (subnet, định tuyến, tcpdump, TLS) · *sau Ngày 9*
+  - [ ] NT2 — Web Server production (HTTPS, cân bằng tải, tinh chỉnh) · *sau Ngày 23*
+  - [ ] NT3 — Ansible nâng cao (role, Vault, rolling update, inventory động) · *sau Ngày 47*
 - [ ] [Module nâng cao bổ sung](./Module-Nang-Cao-Bo-Sung.md) — học sau Giai đoạn 3
   - [ ] NC1 — Distributed Tracing (OpenTelemetry + Jaeger)
   - [ ] NC2 — HashiCorp Vault

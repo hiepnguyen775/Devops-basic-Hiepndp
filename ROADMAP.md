@@ -85,6 +85,16 @@ Cột **Ngày** bấm được — nhảy thẳng tới bài.
 | **Phase 14** | GitOps | [43](./Giai-doan-3-CICD-K8s-Monitoring.md#ngày-43-gitops-argocd-triển-khai-khai-báo) | Cần Git + K8s + CD trước |
 | **Phase 15** | Advanced / SRE | [51](./Giai-doan-4-SRE-Capstone.md#ngày-51-site-reliability-engineering-sre-nguyên-lý) · [52](./Giai-doan-4-SRE-Capstone.md#ngày-52-high-availability-scaling-disaster-recovery) · [53](./Giai-doan-4-SRE-Capstone.md#ngày-53-cost-optimization-finops) · [54](./Giai-doan-4-SRE-Capstone.md#ngày-54-service-mesh-microservices-nâng-cao) · [55](./Giai-doan-4-SRE-Capstone.md#ngày-55-platform-engineering-developer-experience) | Nâng từ 'chạy được' lên 'tin cậy đo được' |
 
+### Module bổ sung — đào sâu khi cần
+
+| Module | Nội dung | Học sau |
+|---|---|---|
+| [🐍 Python cho DevOps](./Module-Python-cho-DevOps.md) | Script Python thay Bash khi việc phức tạp hơn | Ngày 6 |
+| [🧱 **Nền tảng Mở rộng**](./Module-Nen-Tang-Mo-Rong.md) — NT1 | Subnet · định tuyến · `tcpdump` · TLS | Ngày 9 |
+| [🧱 Nền tảng Mở rộng](./Module-Nen-Tang-Mo-Rong.md) — NT2 | HTTPS production · cân bằng tải · tinh chỉnh | Ngày 23 |
+| [🧱 Nền tảng Mở rộng](./Module-Nen-Tang-Mo-Rong.md) — NT3 | Role · Vault · rolling update · inventory động | Ngày 47 |
+| [🧩 Nâng cao bổ sung](./Module-Nang-Cao-Bo-Sung.md) | Tracing · Vault · Kafka · Managed K8s | Giai đoạn 3 |
+
 ### Ngày Milestone — LAB Final
 
 | Ngày | Chủ đề tổng hợp | Chấm điểm |
@@ -152,6 +162,7 @@ Toàn bộ khoá chạy **miễn phí trên máy bạn** — không cần tài k
 | File | Dùng khi |
 |---|---|
 | [PROGRESS.md](./PROGRESS.md) | Theo dõi mình đã học tới đâu |
+| [Module Nền tảng Mở rộng](./Module-Nen-Tang-Mo-Rong.md) | Cần đào sâu mạng, web server hoặc Ansible |
 | [GLOSSARY.md](./GLOSSARY.md) | Gặp thuật ngữ lạ |
 | [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) | Đang kẹt vì một lỗi |
 | [INTERVIEW.md](./INTERVIEW.md) | Chuẩn bị phỏng vấn |
