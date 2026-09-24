@@ -1,0 +1,83 @@
+name: Quét bảo mật
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 2 * * 1'          # 2h sáng thứ Hai hằng tuần
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------- Lớp 1: bí mật lỡ commit ----------
+  quet-bi-mat:
+    name: Quét bí mật
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # BẮT BUỘC: cần TOÀN BỘ lịch sử mới quét được commit cũ
+
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---------- Lớp 2: cách viết Dockerfile ----------
+  quet-dockerfile:
+    name: Kiểm tra Dockerfile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          config: .hadolint.yaml
+
+  # ---------- Lớp 3: lỗ hổng trong thư viện và image ----------
+  quet-lo-hong:
+    name: Quét lỗ hổng
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trivy quét mã nguồn và thư viện
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL      # chỉ chặn ở mức cao
+          exit-code: '1'               # có phát hiện -> pipeline ĐỎ
+          ignore-unfixed: true         # bỏ qua lỗ hổng chưa có bản vá
+
+      - name: Build image để quét
+        run: docker build -t ci-demo:quet .
+
+      - name: Trivy quét image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: ci-demo:quet
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+
+      - name: Tạo SBOM (danh mục thành phần)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: ci-demo:quet
+          format: cyclonedx
+          output: sbom.json
+
+      - name: Lưu SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json
+          retention-days: 30

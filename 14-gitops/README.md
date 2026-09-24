@@ -26,6 +26,18 @@ Hoàn thành [`13-devsecops/`](../13-devsecops/)
 
 ---
 
+## 🧪 File LAB có sẵn
+
+Các file trong bài học đã được **trích ra thành file thật** — `cd` vào là chạy được ngay.
+
+| Thư mục | File | Chạy thử |
+|---|---|---|
+| [`labs/ngay-43/`](./labs/ngay-43/) | `application.yaml` · `ung-dung/deployment.yaml` · `ung-dung/service.yaml` | `kubectl apply -f .` |
+
+> ⚠️ **Hãy tự gõ tay khi làm bài lần đầu** — đó là cách kiến thức đọng lại. Thư mục này để **đối chiếu khi kẹt** và để chạy nhanh khi ôn lại.
+
+---
+
 ## 📁 Thư mục làm việc của bạn
 
 ```text

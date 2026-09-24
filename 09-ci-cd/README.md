@@ -29,6 +29,21 @@ Hoàn thành [`08-terraform/`](../08-terraform/)
 
 ---
 
+## 🧪 File LAB có sẵn
+
+Các file trong bài học đã được **trích ra thành file thật** — `cd` vào là chạy được ngay.
+
+| Thư mục | File | Chạy thử |
+|---|---|---|
+| [`labs/ngay-31/`](./labs/ngay-31/) | `.github/workflows/ci.yml` · `app.js` · `package.json` · `src/tinh-tien.js` · `test/tinh-tien.test.js` | — |
+| [`labs/ngay-32/`](./labs/ngay-32/) | `.github/workflows/ci.yml` · `eslint.config.js` · `package.json` | — |
+| [`labs/ngay-33/`](./labs/ngay-33/) | `.dockerignore` · `.github/workflows/cd-image.yml` · `Dockerfile` | — |
+| [`labs/ngay-34/`](./labs/ngay-34/) | `.github/workflows/deploy.yml` · `deploy/docker-compose.prod.yml` | — |
+
+> ⚠️ **Hãy tự gõ tay khi làm bài lần đầu** — đó là cách kiến thức đọng lại. Thư mục này để **đối chiếu khi kẹt** và để chạy nhanh khi ôn lại.
+
+---
+
 ## 📁 Thư mục làm việc của bạn
 
 ```text

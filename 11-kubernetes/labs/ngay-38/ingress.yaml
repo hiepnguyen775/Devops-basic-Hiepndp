@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cong-vao
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: shop.local                # truy cập bằng tên miền này
+      http:
+        paths:
+          - path: /api                # shop.local/api  -> api-svc
+            pathType: Prefix
+            backend:
+              service:
+                name: api-svc
+                port:
+                  number: 8080
+          - path: /                   # shop.local/     -> web-svc
+            pathType: Prefix
+            backend:
+              service:
+                name: web-svc
+                port:
+                  number: 80

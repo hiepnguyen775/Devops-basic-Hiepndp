@@ -1,0 +1,24 @@
+global:
+  scrape_interval: 15s        # cứ 15 giây đi hỏi mỗi target một lần
+  evaluation_interval: 15s    # cứ 15 giây kiểm tra lại các luật cảnh báo
+
+rule_files:
+  - /etc/prometheus/alert.rules.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']    # gọi bằng TÊN SERVICE, Docker tự phân giải thành IP
+
+scrape_configs:
+  # Target 1: chính Prometheus tự giám sát mình
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Target 2: máy Linux của bạn, qua node-exporter
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          may: 'may-cua-toi'      # nhãn tự đặt, sau này lọc theo máy rất tiện

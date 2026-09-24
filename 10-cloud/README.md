@@ -28,6 +28,20 @@ Hoàn thành [`09-ci-cd/`](../09-ci-cd/)
 
 ---
 
+## 🧪 File LAB có sẵn
+
+Các file trong bài học đã được **trích ra thành file thật** — `cd` vào là chạy được ngay.
+
+| Thư mục | File | Chạy thử |
+|---|---|---|
+| [`labs/ngay-26/`](./labs/ngay-26/) | `chinh-sach-doc.json` · `docker-compose.yml` | `docker compose up -d` |
+| [`labs/ngay-27/`](./labs/ngay-27/) | `cloud-init.yaml` · `kiem-tra.sh` | `./kiem-tra.sh` |
+| [`labs/ngay-28/`](./labs/ngay-28/) | `app/Dockerfile` · `app/app.js` · `app/package.json` · `docker-compose.yml` · `nginx.conf` | `docker compose up -d` |
+
+> ⚠️ **Hãy tự gõ tay khi làm bài lần đầu** — đó là cách kiến thức đọng lại. Thư mục này để **đối chiếu khi kẹt** và để chạy nhanh khi ôn lại.
+
+---
+
 ## 📁 Thư mục làm việc của bạn
 
 ```text

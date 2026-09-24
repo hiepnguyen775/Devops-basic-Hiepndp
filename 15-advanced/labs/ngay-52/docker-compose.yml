@@ -1,0 +1,55 @@
+services:
+  # ---- Ba bản sao của ứng dụng ----
+  app1:
+    image: nginx:1.27-alpine
+    container_name: ha-app1
+    restart: unless-stopped
+    command: ["/bin/sh","-c","echo '<h1>Phục vụ bởi app1</h1>' > /usr/share/nginx/html/index.html && nginx -g 'daemon off;'"]
+
+  app2:
+    image: nginx:1.27-alpine
+    container_name: ha-app2
+    restart: unless-stopped
+    command: ["/bin/sh","-c","echo '<h1>Phục vụ bởi app2</h1>' > /usr/share/nginx/html/index.html && nginx -g 'daemon off;'"]
+
+  app3:
+    image: nginx:1.27-alpine
+    container_name: ha-app3
+    restart: unless-stopped
+    command: ["/bin/sh","-c","echo '<h1>Phục vụ bởi app3</h1>' > /usr/share/nginx/html/index.html && nginx -g 'daemon off;'"]
+
+  # ---- Bộ cân bằng tải (LƯU Ý: đây vẫn là một SPOF) ----
+  lb:
+    image: nginx:1.27-alpine
+    container_name: ha-lb
+    restart: unless-stopped
+    ports:
+      - "8300:80"
+    volumes:
+      - ./nginx-lb.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app1
+      - app2
+      - app3
+
+  # ---- Database để thực hành sao lưu & khôi phục ----
+  db:
+    image: postgres:16-alpine
+    container_name: ha-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: matkhau123
+      POSTGRES_DB: cuahang
+    ports:
+      - "5433:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./sao-luu:/sao-luu            # thư mục chung để xuất/nhập bản sao lưu
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  db-data:

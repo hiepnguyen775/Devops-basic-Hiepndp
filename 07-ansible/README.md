@@ -28,6 +28,19 @@ Hoàn thành [`06-docker/`](../06-docker/)
 
 ---
 
+## 🧪 File LAB có sẵn
+
+Các file trong bài học đã được **trích ra thành file thật** — `cd` vào là chạy được ngay.
+
+| Thư mục | File | Chạy thử |
+|---|---|---|
+| [`labs/ngay-47/`](./labs/ngay-47/) | `Dockerfile.server` · `docker-compose.yml` · `inventory.ini` · `playbook.yml` · `templates/trang-chu.html.j2` | `docker compose up -d` |
+| [`labs/nt3-ansible-nang-cao/`](./labs/nt3-ansible-nang-cao/) | `ansible.cfg` · `inventory-tu-terraform.py` · `roles/web/defaults/main.yml` · `roles/web/handlers/main.yml` · `roles/web/tasks/main.yml` · +2 | `ansible-playbook site.yml` |
+
+> ⚠️ **Hãy tự gõ tay khi làm bài lần đầu** — đó là cách kiến thức đọng lại. Thư mục này để **đối chiếu khi kẹt** và để chạy nhanh khi ôn lại.
+
+---
+
 ## 📁 Thư mục làm việc của bạn
 
 ```text

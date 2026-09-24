@@ -1,0 +1,5 @@
+---
+- name: nap lai nginx
+  service:
+    name: nginx
+    state: reloaded      # reload, KHÔNG restart — không ngắt kết nối đang có

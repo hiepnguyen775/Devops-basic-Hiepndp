@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tinh-nang
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tinh-nang
+  template:
+    metadata:
+      labels:
+        app: tinh-nang
+    spec:
+      containers:
+        - name: tinh-nang
+          image: registry.k8s.io/hpa-example    # app mẫu chính thức: mỗi request tính toán nặng
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "100m"        # BẮT BUỘC có — HPA tính % dựa trên con số này
+              memory: "64Mi"
+            limits:
+              memory: "128Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tinh-nang-svc
+spec:
+  selector:
+    app: tinh-nang
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: tinh-nang-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: tinh-nang
+  minReplicas: 1
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50      # giữ CPU trung bình quanh 50% của requests
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 60  # chờ 60s ổn định rồi mới thu bớt, tránh giật cục

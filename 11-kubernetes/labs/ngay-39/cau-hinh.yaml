@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cau-hinh-app
+data:
+  # Kiểu 1: từng cặp khoá-giá trị đơn giản -> hợp để tiêm làm biến môi trường
+  TEN_UNG_DUNG: "Cửa hàng ABC"
+  MOI_TRUONG: "staging"
+  SO_KET_QUA_MOI_TRANG: "20"
+
+  # Kiểu 2: nguyên một file -> hợp để gắn vào thư mục
+  trang-chu.html: |
+    <!DOCTYPE html>
+    <html lang="vi">
+      <head><meta charset="utf-8"><title>Trang từ ConfigMap</title></head>
+      <body>
+        <h1>Nội dung này đến từ ConfigMap</h1>
+        <p>Sửa ConfigMap rồi chờ khoảng 1 phút, trang này tự đổi.</p>
+      </body>
+    </html>

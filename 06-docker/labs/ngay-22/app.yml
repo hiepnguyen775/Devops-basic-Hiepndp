@@ -1,0 +1,8 @@
+app:
+  name: my-app
+  port: 3000
+servers:
+  - host: web-01
+    ip: 10.0.0.11
+  - host: web-02
+    ip: 10.0.0.12

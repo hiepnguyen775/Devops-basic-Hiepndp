@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Push liên tiếp thì huỷ run cũ, chỉ giữ run mới nhất — đỡ tốn phút runner
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Mặc định chỉ cho đọc; job nào cần hơn thì tự khai thêm
+permissions:
+  contents: read
+
+jobs:
+  # ---------- TẦNG 1: rẻ nhất, chạy trước ----------
+  lint:
+    name: Kiểm tra chất lượng code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'              # bật cache thư viện npm
+
+      - name: Cài thư viện
+        run: npm ci
+
+      - name: Chạy ESLint
+        run: npm run lint
+
+  # ---------- TẦNG 2: test trên nhiều phiên bản Node ----------
+  test:
+    name: Test trên Node ${{ matrix.node }}
+    needs: lint                     # lint đỏ thì không chạy
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false              # Node 18 hỏng vẫn chạy nốt Node 20 để biết toàn cảnh
+      matrix:
+        node: [18, 20]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Chạy test
+        run: npm test
+
+  # ---------- TẦNG 3: đóng gói sản phẩm ----------
+  build:
+    name: Đóng gói
+    needs: test                     # chỉ đóng gói khi MỌI bản test đều xanh
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Tạo thư mục sản phẩm
+        run: |
+          mkdir -p dist
+          cp -r app.js src package.json package-lock.json dist/
+          echo "Commit: ${{ github.sha }}"      >  dist/PHIEN-BAN.txt
+          echo "Nhánh:  ${{ github.ref_name }}" >> dist/PHIEN-BAN.txt
+          ls -la dist/
+
+      - name: Lưu sản phẩm để tải về
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-demo-build
+          path: dist/
+          retention-days: 7         # tự xoá sau 7 ngày, đỡ chật kho

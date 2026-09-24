@@ -27,6 +27,12 @@ Hoàn thành [`00-devops-fundamentals/`](../00-devops-fundamentals/)
 
 ---
 
+## 🧪 Về thư mục `labs/`
+
+Module này **chủ yếu là lệnh**, không phải file cấu hình. Dùng `labs/` để lưu script bạn tự viết (kiểm tra sức khoẻ, sao lưu) và `notes/` để ghi lệnh hay quên.
+
+---
+
 ## 📁 Thư mục làm việc của bạn
 
 ```text

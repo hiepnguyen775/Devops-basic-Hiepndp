@@ -1,0 +1,22 @@
+title = "Cấu hình quét bí mật cho ci-demo"
+
+[extend]
+useDefault = true          # dùng toàn bộ luật mặc định (hơn 100 loại token)
+
+# Thêm luật riêng cho dự án
+[[rules]]
+id = "mat-khau-trong-code"
+description = "Mật khẩu viết thẳng trong code"
+regex = '''(?i)(mat_khau|password|passwd|pwd)\s*[:=]\s*["'][^"']{8,}["']'''
+tags = ["mat-khau"]
+
+[allowlist]
+description = "Bỏ qua các giá trị ví dụ trong tài liệu"
+regexes = [
+  '''ban@example\.com''',
+  '''matkhau123''',              # mật khẩu lab, cố ý công khai
+  '''MatKhauSieuBiMat123''',
+]
+paths = [
+  '''(.*?)(md|txt)$''',           # bỏ qua file tài liệu
+]

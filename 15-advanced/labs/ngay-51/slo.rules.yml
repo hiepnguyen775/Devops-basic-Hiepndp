@@ -1,0 +1,54 @@
+groups:
+  # ---------- Recording rules: tính sẵn SLI cho nhẹ dashboard ----------
+  - name: slo-tinh-san
+    interval: 15s
+    rules:
+      # SLI khả dụng trên các khung thời gian khác nhau
+      - record: sli:kha_dung:ratio5m
+        expr: avg_over_time(probe_success{job="do-suc-khoe-dich-vu"}[5m])
+
+      - record: sli:kha_dung:ratio30m
+        expr: avg_over_time(probe_success{job="do-suc-khoe-dich-vu"}[30m])
+
+      - record: sli:kha_dung:ratio1h
+        expr: avg_over_time(probe_success{job="do-suc-khoe-dich-vu"}[1h])
+
+      # Mục tiêu SLO — khai thành metric để dashboard tham chiếu
+      - record: slo:muc_tieu
+        expr: vector(0.99)                  # SLO = 99%
+
+      # Tốc độ đốt ngân sách = tỉ lệ lỗi hiện tại / tỉ lệ lỗi cho phép
+      - record: slo:burn_rate5m
+        expr: (1 - sli:kha_dung:ratio5m) / (1 - 0.99)
+
+      - record: slo:burn_rate1h
+        expr: (1 - sli:kha_dung:ratio1h) / (1 - 0.99)
+
+      # Phần trăm ngân sách lỗi CÒN LẠI (tính trên khung 1 giờ cho lab)
+      - record: slo:ngan_sach_con_lai_phan_tram
+        expr: clamp_min((1 - (1 - sli:kha_dung:ratio1h) / (1 - 0.99)) * 100, 0)
+
+  # ---------- Cảnh báo theo tốc độ đốt, kiểm tra 2 khung ----------
+  - name: slo-canh-bao
+    rules:
+      # Đốt rất nhanh: cạn ngân sách trong khoảng 2 ngày -> gọi người dậy
+      - alert: DotNganSachRatNhanh
+        expr: slo:burn_rate5m > 14.4 and slo:burn_rate1h > 14.4
+        for: 2m
+        labels:
+          severity: critical
+          muc_do: goi-nguoi-day
+        annotations:
+          tom_tat: "Đốt ngân sách lỗi cực nhanh"
+          chi_tiet: "Tốc độ gấp {{ $value | printf \"%.1f\" }} lần cho phép — cạn ngân sách trong ~2 ngày."
+
+      # Đốt nhanh vừa: ghi vé, xử lý trong giờ hành chính
+      - alert: DotNganSachNhanh
+        expr: slo:burn_rate1h > 6 and slo:burn_rate1h < 14.4
+        for: 15m
+        labels:
+          severity: warning
+          muc_do: ghi-ve
+        annotations:
+          tom_tat: "Đốt ngân sách nhanh hơn bình thường"
+          chi_tiet: "Xem xét trong giờ làm việc, chưa cần đánh thức ai."

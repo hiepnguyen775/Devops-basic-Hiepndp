@@ -22,6 +22,18 @@ Hoàn thành [`12-monitoring-observability/`](../12-monitoring-observability/)
 
 ---
 
+## 🧪 File LAB có sẵn
+
+Các file trong bài học đã được **trích ra thành file thật** — `cd` vào là chạy được ngay.
+
+| Thư mục | File | Chạy thử |
+|---|---|---|
+| [`labs/ngay-49/`](./labs/ngay-49/) | `.github/workflows/bao-mat.yml` · `.gitleaks.toml` · `.hadolint.yaml` | — |
+
+> ⚠️ **Hãy tự gõ tay khi làm bài lần đầu** — đó là cách kiến thức đọng lại. Thư mục này để **đối chiếu khi kẹt** và để chạy nhanh khi ôn lại.
+
+---
+
 ## 📁 Thư mục làm việc của bạn
 
 ```text

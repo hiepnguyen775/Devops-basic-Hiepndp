@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head><meta charset="utf-8"><title>{{ inventory_hostname }}</title></head>
+<body>
+  <h1>Xin chào từ {{ inventory_hostname }}</h1>
+  <ul>
+    <li>Vai trò: {{ vai_tro }}</li>
+    <li>Hệ điều hành: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}</li>
+    <li>Số CPU: {{ ansible_facts['processor_vcpus'] }}</li>
+    <li>Thuộc nhóm: {{ group_names | join(', ') }}</li>
+  </ul>
+  <p>Trang này do Ansible sinh ra — mỗi máy một nội dung khác nhau.</p>
+</body>
+</html>

@@ -33,6 +33,22 @@ Hoàn thành [`14-gitops/`](../14-gitops/)
 
 ---
 
+## 🧪 File LAB có sẵn
+
+Các file trong bài học đã được **trích ra thành file thật** — `cd` vào là chạy được ngay.
+
+| Thư mục | File | Chạy thử |
+|---|---|---|
+| [`labs/ngay-51/`](./labs/ngay-51/) | `blackbox.yml` · `slo.rules.yml` | — |
+| [`labs/ngay-52/`](./labs/ngay-52/) | `docker-compose.yml` · `nginx-lb.conf` | `docker compose up -d` |
+| [`labs/ngay-53/`](./labs/ngay-53/) | `bang-gia.json` · `tim-rac.sh` · `tinh-lang-phi.py` | `./tim-rac.sh` |
+| [`labs/ngay-54/`](./labs/ngay-54/) | `docker-compose.yml` · `gateway-co-khien.conf` · `gateway-ngay-tho.conf` | `docker compose up -d` |
+| [`labs/ngay-55/`](./labs/ngay-55/) | `do-dora.py` · `mau/Dockerfile` · `mau/Makefile` · `mau/ci.yml` · `tao-dich-vu.sh` | `./tao-dich-vu.sh` |
+
+> ⚠️ **Hãy tự gõ tay khi làm bài lần đầu** — đó là cách kiến thức đọng lại. Thư mục này để **đối chiếu khi kẹt** và để chạy nhanh khi ôn lại.
+
+---
+
 ## 📁 Thư mục làm việc của bạn
 
 ```text

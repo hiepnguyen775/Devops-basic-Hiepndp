@@ -22,6 +22,12 @@ Không cần gì — đây là điểm bắt đầu.
 
 ---
 
+## 🧪 Về thư mục `labs/`
+
+Module này **không có file cấu hình** — nội dung là thiết lập ban đầu (`git config`, `ssh-keygen`, tạo tài khoản GitHub). Dùng `notes/` để ghi lại username GitHub, đường dẫn khoá SSH và kế hoạch học của bạn.
+
+---
+
 ## 📁 Thư mục làm việc của bạn
 
 ```text

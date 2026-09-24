@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment               # Deployment = có "quản đốc" trông chừng
+metadata:
+  name: web
+  labels:
+    app: web
+spec:
+  replicas: 3                  # ĐÂY là "mong muốn": luôn có 3 bản chạy
+  selector:
+    matchLabels:
+      app: web                 # quản lý những pod mang nhãn app=web
+  template:                    # khuôn để đúc ra pod
+    metadata:
+      labels:
+        app: web               # PHẢI khớp selector ở trên
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.27
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"

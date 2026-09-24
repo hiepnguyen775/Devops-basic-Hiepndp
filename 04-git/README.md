@@ -26,6 +26,12 @@ Hoàn thành [`03-bash-python/`](../03-bash-python/)
 
 ---
 
+## 🧪 Về thư mục `labs/`
+
+Module này **chủ yếu là lệnh Git**, không có file cấu hình. Thành quả của bạn chính là **repo Git** bạn tạo ra — đẩy nó lên GitHub, đó là bằng chứng tốt hơn bất kỳ file nào ở đây.
+
+---
+
 ## 📁 Thư mục làm việc của bạn
 
 ```text

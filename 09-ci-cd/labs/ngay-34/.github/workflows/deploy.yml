@@ -1,0 +1,84 @@
+name: Deploy lên server
+
+on:
+  # Chỉ chạy SAU KHI workflow đóng gói image đã xong và thành công
+  workflow_run:
+    workflows: ["CD - Đóng gói image"]
+    types: [completed]
+    branches: [main]
+  # Cho phép bấm tay, và nhập SHA cũ để ROLLBACK
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Tag image cần deploy (để trống = bản mới nhất trên main)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: self-hosted            # ← chạy trên MÁY CỦA BẠN, không phải máy GitHub
+    timeout-minutes: 10
+    environment: production         # ← gắn cổng có người gác
+
+    # Nếu được kích bởi workflow_run thì chỉ chạy khi workflow kia THÀNH CÔNG
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xác định image cần deploy
+        run: |
+          IMAGE_NAME="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          # Ưu tiên tag người dùng nhập tay (dùng khi rollback); không có thì lấy commit hiện tại
+          TAG="${{ inputs.image_tag }}"
+          if [ -z "$TAG" ]; then
+            TAG="${{ github.event.workflow_run.head_sha || github.sha }}"
+          fi
+          echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
+          echo "IMAGE_TAG=$TAG"         >> $GITHUB_ENV
+          echo "Sắp deploy: $IMAGE_NAME:$TAG"
+
+      - name: Đăng nhập GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Ghi lại bản ĐANG chạy (để còn đường lui)
+        run: |
+          mkdir -p ~/trien-khai
+          if [ -f ~/trien-khai/tag-hien-tai.txt ]; then
+            cp ~/trien-khai/tag-hien-tai.txt ~/trien-khai/tag-truoc-do.txt
+          fi
+
+      - name: Kéo image mới
+        run: docker pull "$IMAGE_NAME:$IMAGE_TAG"
+
+      - name: Khởi động bản mới
+        working-directory: deploy
+        run: docker compose -f docker-compose.prod.yml up -d
+
+      - name: Kiểm tra sức khoẻ (thử 10 lần, mỗi lần cách 3 giây)
+        run: |
+          for i in $(seq 1 10); do
+            if curl -fs http://localhost:8080/health > /dev/null; then
+              echo "✅ App khoẻ sau $((i*3)) giây"
+              curl -s http://localhost:8080/health; echo
+              echo "$IMAGE_TAG" > ~/trien-khai/tag-hien-tai.txt
+              exit 0
+            fi
+            echo "Lần $i: chưa sẵn sàng, chờ thêm..."
+            sleep 3
+          done
+          echo "❌ App không phản hồi sau 30 giây — deploy THẤT BẠI"
+          docker compose -f deploy/docker-compose.prod.yml logs --tail 50
+          exit 1
+
+      - name: Tóm tắt kết quả
+        if: success()
+        run: |
+          echo "### ✅ Deploy thành công" >> $GITHUB_STEP_SUMMARY
+          echo "- Image: \`$IMAGE_NAME:$IMAGE_TAG\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Bản trước: \`$(cat ~/trien-khai/tag-truoc-do.txt 2>/dev/null || echo 'chưa có')\`" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head><meta charset="utf-8"><title>{{ inventory_hostname }}</title></head>
+<body>
+  <h1>{{ web_tieu_de }}</h1>
+  <ul>
+    <li>Máy: {{ inventory_hostname }}</li>
+    <li>Nhóm: {{ group_names | join(', ') }}</li>
+    <li>Phiên bản triển khai: {{ phien_ban | default('chưa đặt') }}</li>
+    <li>Hệ điều hành: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}</li>
+  </ul>
+</body>
+</html>

@@ -1,0 +1,9 @@
+failure-threshold: warning       # cảnh báo trở lên là coi như trượt
+
+ignored:
+  - DL3008                       # không bắt buộc ghim phiên bản gói apt (gây phiền cho alpine)
+
+trustedRegistries:
+  - docker.io
+  - ghcr.io
+  - registry.k8s.io

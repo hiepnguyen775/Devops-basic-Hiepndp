@@ -1,0 +1,24 @@
+services:
+  web1:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: may-web1
+    ports:
+      - "2201:22"
+
+  web2:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: may-web2
+    ports:
+      - "2202:22"
+
+  db1:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: may-db1
+    ports:
+      - "2203:22"

@@ -63,20 +63,30 @@ devops-60-ngay/
 │   ├── concepts/tu-duy-devops.md             ← 7 nguyên tắc xuyên suốt
 │   └── references/cheat-sheet.md             ← tra lệnh nhanh
 │
-├── 00-devops-fundamentals/ … 15-advanced/    ← 16 module: cổng vào + nơi bạn làm việc
-│   ├── README.md    (mục tiêu · bài học · điều hướng)
-│   ├── labs/        (code bạn viết)
-│   ├── exercises/   (bài tập tự làm)
-│   └── notes/       (ghi chép của bạn)
+├── 00-devops-fundamentals/ … 15-advanced/    ← 16 module
+│   ├── README.md          (mục tiêu · bài học · điều hướng)
+│   ├── labs/ngay-XX/      ← 98 FILE LAB CHẠY ĐƯỢC, trích sẵn từ bài học
+│   ├── exercises/         (bài tập tự làm)
+│   └── notes/             (ghi chép của bạn)
 │
 ├── projects/project-01..05/                  ← 5 dự án
 ├── capstone/                                 ← dự án tốt nghiệp của bạn
 └── capstone-cloudnote/                       ← bộ khung code mẫu
 ```
 
-> 💡 **Vì sao tách làm hai chỗ:** nội dung giảng dạy nằm trong các file giai đoạn (đọc liền mạch dễ hơn nhiều so với nhảy qua 60 file nhỏ). Các thư mục module là **cổng vào** — mỗi cái có README nêu mục tiêu, danh sách bài, và **thư mục trống để bạn lưu thành quả**.
+> 💡 **Vì sao tách làm hai chỗ:** nội dung giảng dạy nằm trong các file giai đoạn (đọc liền mạch dễ hơn nhiều so với nhảy qua 60 file nhỏ). Các thư mục module chứa **file LAB chạy được** và là nơi bạn lưu thành quả.
+
+**98 file LAB đã trích sẵn** — chúng là file thật, không phải chữ trong markdown:
+
+```bash
+cd 12-monitoring-observability/labs/ngay-44 && docker compose up -d   # dựng Prometheus
+cd 11-kubernetes/labs/ngay-38 && kubectl apply -f .                   # Service + Ingress
+cd 08-terraform/labs/ngay-48 && terraform init && terraform apply     # module + workspace
+```
+
+> ⚠️ **Vẫn nên tự gõ tay khi làm bài lần đầu** — đó là cách kiến thức đọng lại. Thư mục `labs/` để **đối chiếu khi kẹt** và chạy nhanh khi ôn lại.
 >
-> Bắt đầu một module: mở `README.md` của nó → bấm link sang bài học → làm LAB → lưu kết quả vào `labs/` của chính thư mục đó.
+> Bốn module `00`, `01`, `02`, `04` không có file — vì bài học của chúng **chủ yếu là lệnh**, không phải file cấu hình. README của từng module nói rõ điều này.
 
 ---
 

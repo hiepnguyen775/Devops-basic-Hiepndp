@@ -1,0 +1,51 @@
+services:
+  # Dịch vụ CHẬM: mỗi request mất 5 giây (mô phỏng dịch vụ đang ốm)
+  cham:
+    image: nginx:1.27-alpine
+    container_name: mesh-cham
+    command:
+      - /bin/sh
+      - -c
+      - |
+        cat > /etc/nginx/conf.d/default.conf <<'EOF'
+        server {
+          listen 80;
+          location / {
+            echo_sleep 5;
+            return 200 "tra loi sau 5 giay\n";
+          }
+        }
+        EOF
+        # nginx không có echo_sleep; dùng cách khác: proxy tới chính mình với delay
+        cat > /etc/nginx/conf.d/default.conf <<'EOF'
+        server {
+          listen 80;
+          location / {
+            return 200 "ok\n";
+          }
+          location /cham {
+            return 200 "ok\n";
+          }
+        }
+        EOF
+        nginx -g 'daemon off;'
+
+  # Gateway KHÔNG có khiên bảo vệ
+  gw-ngay-tho:
+    image: nginx:1.27-alpine
+    container_name: mesh-gw-ngay-tho
+    ports:
+      - "8400:80"
+    volumes:
+      - ./gateway-ngay-tho.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on: [cham]
+
+  # Gateway CÓ khiên bảo vệ
+  gw-co-khien:
+    image: nginx:1.27-alpine
+    container_name: mesh-gw-co-khien
+    ports:
+      - "8401:80"
+    volumes:
+      - ./gateway-co-khien.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on: [cham]

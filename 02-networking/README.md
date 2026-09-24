@@ -31,6 +31,12 @@ Hoàn thành [`01-linux/`](../01-linux/)
 
 ---
 
+## 🧪 Về thư mục `labs/`
+
+Module này **chủ yếu là lệnh chẩn đoán** (`ss`, `dig`, `nc`, `curl`). Dùng `notes/` để ghi lại output thật của máy bạn — rất hữu ích khi so sánh lúc có sự cố.
+
+---
+
 ## 📁 Thư mục làm việc của bạn
 
 ```text

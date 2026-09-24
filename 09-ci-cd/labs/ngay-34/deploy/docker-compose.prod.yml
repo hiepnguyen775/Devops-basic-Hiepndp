@@ -1,0 +1,21 @@
+services:
+  app:
+    # Tag image được truyền vào lúc deploy qua biến môi trường IMAGE_TAG
+    image: ${IMAGE_NAME}:${IMAGE_TAG}
+    container_name: ci-demo-prod
+    restart: unless-stopped
+    ports:
+      - "8080:3000"          # máy: 8080  ->  container: 3000
+    environment:
+      NODE_ENV: production
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"      # chặn log phình vô hạn làm đầy ổ đĩa
+        max-file: "3"

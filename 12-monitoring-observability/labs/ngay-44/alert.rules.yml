@@ -1,0 +1,32 @@
+groups:
+  - name: canh-bao-he-thong
+    rules:
+      # 1) Một target chết quá 1 phút
+      - alert: TargetChet
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          tom_tat: "Target {{ $labels.job }} không phản hồi"
+          chi_tiet: "{{ $labels.instance }} đã không scrape được hơn 1 phút."
+
+      # 2) RAM còn trống dưới 15%
+      - alert: RamSapCan
+        expr: (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 < 15
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          tom_tat: "RAM còn dưới 15%"
+          chi_tiet: "Chỉ còn ít RAM trống trên {{ $labels.instance }}."
+
+      # 3) CPU bận trên 80% liên tục 5 phút
+      - alert: CpuCao
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          tom_tat: "CPU trên 80%"
+          chi_tiet: "CPU {{ $labels.instance }} bận liên tục suốt 5 phút."

@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: du-lieu-postgres
+spec:
+  accessModes:
+    - ReadWriteOnce               # một node gắn để ghi — đúng cho database
+  resources:
+    requests:
+      storage: 1Gi                # xin 1 GB
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  replicas: 1                     # CHỈ 1 — nhiều bản cùng ghi một ổ RWO sẽ hỏng
+  selector:
+    matchLabels:
+      app: postgres
+  strategy:
+    type: Recreate                # xoá pod cũ RỒI mới tạo pod mới (không giành ổ đĩa)
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: bi-mat-app
+                  key: MAT_KHAU_DB
+            - name: POSTGRES_DB
+              value: cuahang
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata   # thư mục con, tránh lỗi "not empty"
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: kho-du-lieu
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+      volumes:
+        - name: kho-du-lieu
+          persistentVolumeClaim:
+            claimName: du-lieu-postgres
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-svc
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

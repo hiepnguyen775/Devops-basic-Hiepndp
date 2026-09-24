@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: web-gitops
+  namespace: argocd
+spec:
+  project: default
+
+  # NGUỒN SỰ THẬT: repo nào, nhánh nào, thư mục nào
+  source:
+    repoURL: https://github.com/<TEN-GITHUB-CUA-BAN>/ci-demo-config.git
+    targetRevision: main
+    path: ung-dung
+
+  # ĐÍCH ĐẾN: cluster nào, namespace nào
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+
+  syncPolicy:
+    automated:
+      prune: true        # Git xoá file -> xoá tài nguyên tương ứng
+      selfHeal: true     # sửa tay trên cluster -> tự kéo về đúng Git
+    syncOptions:
+      - CreateNamespace=true

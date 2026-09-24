@@ -1,0 +1,10 @@
+---
+# Giá trị mặc định — người dùng role ghi đè thoải mái
+web_cong: 80
+web_thu_muc: /var/www/html
+web_so_worker: auto
+web_tieu_de: "Trang mặc định"
+web_bat_gzip: true
+web_goi_can:
+  - nginx
+  - curl

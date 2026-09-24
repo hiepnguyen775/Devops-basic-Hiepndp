@@ -1,0 +1,51 @@
+---
+- name: Kiểm tra hệ điều hành được hỗ trợ
+  assert:
+    that: ansible_facts['os_family'] == 'Debian'
+    fail_msg: "Role này chỉ hỗ trợ Debian/Ubuntu, máy này là {{ ansible_facts['os_family'] }}"
+  tags: [always]
+
+- name: Cài các gói cần thiết
+  apt:
+    name: "{{ web_goi_can }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  tags: [cai-dat]
+
+- name: Tạo thư mục web
+  file:
+    path: "{{ web_thu_muc }}"
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: "0755"
+  tags: [cau-hinh]
+
+- name: Sinh trang chủ riêng cho từng máy
+  template:
+    src: trang.html.j2
+    dest: "{{ web_thu_muc }}/index.html"
+    owner: www-data
+    mode: "0644"
+  notify: nap lai nginx
+  tags: [cau-hinh]
+
+- name: Đảm bảo nginx đang chạy và bật khi khởi động
+  service:
+    name: nginx
+    state: started
+    enabled: true
+  tags: [dich-vu]
+
+# Kiểm chứng ngay trong role — role tự chứng minh nó đã làm đúng
+- name: Kiểm tra web trả lời được
+  uri:
+    url: "http://127.0.0.1:{{ web_cong }}/"
+    status_code: 200
+    timeout: 5
+  register: kq_kiem_tra
+  retries: 3
+  delay: 2
+  until: kq_kiem_tra is succeeded
+  tags: [kiem-tra]

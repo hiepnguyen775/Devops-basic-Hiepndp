@@ -28,6 +28,19 @@ Hoàn thành [`04-git/`](../04-git/)
 
 ---
 
+## 🧪 File LAB có sẵn
+
+Các file trong bài học đã được **trích ra thành file thật** — `cd` vào là chạy được ngay.
+
+| Thư mục | File | Chạy thử |
+|---|---|---|
+| [`labs/ngay-23/`](./labs/ngay-23/) | `etc/nginx/conf.d/lab.conf` | — |
+| [`labs/nt2-web-server-production/`](./labs/nt2-web-server-production/) | `docker-compose.yml` · `nginx/conf.d/site.conf` · `nginx/conf.d/tls.conf` · `nginx/nginx.conf` | `docker compose up -d` |
+
+> ⚠️ **Hãy tự gõ tay khi làm bài lần đầu** — đó là cách kiến thức đọng lại. Thư mục này để **đối chiếu khi kẹt** và để chạy nhanh khi ôn lại.
+
+---
+
 ## 📁 Thư mục làm việc của bạn
 
 ```text

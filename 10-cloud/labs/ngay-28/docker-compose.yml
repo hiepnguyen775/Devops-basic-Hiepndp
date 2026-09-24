@@ -1,0 +1,37 @@
+services:
+  app:
+    build: ./app
+    container_name: ung-dung
+    restart: unless-stopped          # tự lên lại sau khi máy khởi động lại
+    environment:
+      PHIEN_BAN: ${PHIEN_BAN:-v1}
+      NODE_ENV: production
+    expose:
+      - "3000"                       # CHỈ mở trong mạng nội bộ, không ra ngoài
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"              # chặn log làm đầy ổ đĩa
+        max-file: "3"
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: cong-vao
+    restart: unless-stopped
+    ports:
+      - "80:80"                      # CHỈ nginx mở ra ngoài
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      app:
+        condition: service_healthy   # chờ app khoẻ rồi mới nhận khách
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

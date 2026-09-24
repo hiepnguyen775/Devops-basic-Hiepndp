@@ -1,0 +1,67 @@
+#cloud-config
+# Dòng đầu tiên BẮT BUỘC phải là #cloud-config — thiếu nó, file bị bỏ qua hoàn toàn
+
+# ---- Tạo người dùng quản trị, KHÔNG dùng root ----
+users:
+  - name: quantri
+    groups: [sudo, docker]
+    shell: /bin/bash
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    lock_passwd: true                # không cho đăng nhập bằng mật khẩu
+    ssh_authorized_keys:
+      - KHOA_CONG_KHAI_CUA_BAN       # script sẽ thay bằng khoá thật
+
+# ---- Cài gói cần thiết ----
+package_update: true
+package_upgrade: false               # bật ở production; tắt ở lab cho nhanh
+packages:
+  - ufw
+  - fail2ban
+  - curl
+  - htop
+  - ca-certificates
+
+# ---- Ghi file cấu hình ----
+write_files:
+  - path: /etc/ssh/sshd_config.d/99-siet-chat.conf
+    content: |
+      # Hardening SSH — đúng bài học Ngày 9
+      PermitRootLogin no
+      PasswordAuthentication no
+      PubkeyAuthentication yes
+      MaxAuthTries 3
+      ClientAliveInterval 300
+    permissions: "0644"
+
+  - path: /etc/motd
+    content: |
+      ============================================
+        Máy chủ dựng bằng cloud-init
+        Mọi thay đổi thủ công sẽ MẤT khi dựng lại
+      ============================================
+    permissions: "0644"
+
+# ---- Lệnh chạy lần đầu, theo thứ tự ----
+runcmd:
+  # Tường lửa: chặn hết chiều vào, chỉ mở những gì cần
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow 22/tcp comment 'SSH'
+  - ufw allow 80/tcp comment 'HTTP'
+  - ufw allow 443/tcp comment 'HTTPS'
+  - ufw --force enable
+
+  # Chặn dò mật khẩu
+  - systemctl enable --now fail2ban
+
+  # Nạp lại cấu hình SSH đã siết
+  - systemctl restart ssh
+
+  # Cài Docker (chuẩn bị cho Ngày 28)
+  - curl -fsSL https://get.docker.com | sh
+  - usermod -aG docker quantri
+
+  # Đánh dấu đã xong để bên ngoài kiểm tra được
+  - date -Is > /var/log/cloud-init-xong.txt
+
+final_message: "Máy đã sẵn sàng sau $UPTIME giây"

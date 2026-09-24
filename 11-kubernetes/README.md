@@ -32,6 +32,22 @@ Hoàn thành [`10-cloud/`](../10-cloud/)
 
 ---
 
+## 🧪 File LAB có sẵn
+
+Các file trong bài học đã được **trích ra thành file thật** — `cd` vào là chạy được ngay.
+
+| Thư mục | File | Chạy thử |
+|---|---|---|
+| [`labs/ngay-36/`](./labs/ngay-36/) | `deployment-web.yaml` · `pod-tran.yaml` | `kubectl apply -f .` |
+| [`labs/ngay-37/`](./labs/ngay-37/) | `deployment-prod.yaml` | `kubectl apply -f .` |
+| [`labs/ngay-38/`](./labs/ngay-38/) | `app-api.yaml` · `app-web.yaml` · `ingress.yaml` | `kubectl apply -f .` |
+| [`labs/ngay-39/`](./labs/ngay-39/) | `app.yaml` · `bi-mat.yaml` · `cau-hinh.yaml` · `postgres.yaml` | — |
+| [`labs/ngay-41/`](./labs/ngay-41/) | `app-probe.yaml` · `hpa-demo.yaml` | `kubectl apply -f .` |
+
+> ⚠️ **Hãy tự gõ tay khi làm bài lần đầu** — đó là cách kiến thức đọng lại. Thư mục này để **đối chiếu khi kẹt** và để chạy nhanh khi ôn lại.
+
+---
+
 ## 📁 Thư mục làm việc của bạn
 
 ```text

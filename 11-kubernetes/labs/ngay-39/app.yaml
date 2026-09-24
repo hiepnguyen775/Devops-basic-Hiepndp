@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-cau-hinh
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-cau-hinh
+  template:
+    metadata:
+      labels:
+        app: app-cau-hinh
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.27
+          ports:
+            - containerPort: 80
+
+          # ---- Cách 1: tiêm thành BIẾN MÔI TRƯỜNG ----
+          envFrom:
+            - configMapRef:
+                name: cau-hinh-app      # lấy TẤT CẢ khoá làm biến môi trường
+          env:
+            - name: MAT_KHAU_DB         # lấy đúng MỘT khoá từ Secret
+              valueFrom:
+                secretKeyRef:
+                  name: bi-mat-app
+                  key: MAT_KHAU_DB
+
+          # ---- Cách 2: gắn thành FILE ----
+          volumeMounts:
+            - name: trang-web
+              mountPath: /usr/share/nginx/html/index.html
+              subPath: trang-chu.html   # chỉ gắn 1 khoá, không đè cả thư mục
+            - name: kho-bi-mat
+              mountPath: /etc/bi-mat
+              readOnly: true
+
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+
+      volumes:
+        - name: trang-web
+          configMap:
+            name: cau-hinh-app
+        - name: kho-bi-mat
+          secret:
+            secretName: bi-mat-app

@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-gitops
+  labels:
+    app: web-gitops
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web-gitops
+  template:
+    metadata:
+      labels:
+        app: web-gitops
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.27
+          ports:
+            - containerPort: 80
+          command: ["/bin/sh", "-c"]
+          args:
+            - echo "<h1>Phiên bản 1 - lái bởi Git</h1>" > /usr/share/nginx/html/index.html
+              && nginx -g 'daemon off;'
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"

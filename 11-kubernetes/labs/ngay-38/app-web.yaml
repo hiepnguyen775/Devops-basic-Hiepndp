@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web                      # nhãn này là thứ Service sẽ tìm
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.27
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+          # Ghi tên pod vào trang chủ để LÁT NỮA THẤY RÕ việc chia tải
+          command: ["/bin/sh", "-c"]
+          args:
+            - echo "Xin chào từ pod $HOSTNAME" > /usr/share/nginx/html/index.html
+              && nginx -g 'daemon off;'
+          env:
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-svc
+spec:
+  type: ClusterIP                     # mặc định — chỉ gọi được từ trong cluster
+  selector:
+    app: web                          # PHẢI khớp labels của pod ở trên
+  ports:
+    - port: 80                        # cổng của Service (người khác gọi vào đây)
+      targetPort: 80                  # cổng của container

@@ -1,0 +1,8 @@
+route:
+  receiver: 'mac-dinh'
+  group_wait: 10s         # gom các alert nổ cùng lúc, chờ 10s rồi gửi 1 lần
+  group_interval: 1m
+  repeat_interval: 1h     # cùng 1 alert chưa khỏi thì 1 tiếng nhắc lại, không spam
+
+receivers:
+  - name: 'mac-dinh'      # lab này chưa gắn Slack/email — alert chỉ hiện trên UI cổng 9093

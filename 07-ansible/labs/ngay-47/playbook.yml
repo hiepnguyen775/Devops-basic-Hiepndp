@@ -1,0 +1,81 @@
+---
+- name: Cấu hình toàn bộ máy chủ
+  hosts: all
+  become: true                    # chạy bằng quyền sudo
+
+  vars:
+    goi_can_thiet:
+      - curl
+      - vim
+      - htop
+
+  tasks:
+    - name: Cập nhật danh sách gói (cache 1 giờ)
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Đảm bảo các gói cơ bản đã cài
+      apt:
+        name: "{{ goi_can_thiet }}"
+        state: present
+
+    - name: Tạo user triển khai
+      user:
+        name: trienkhai
+        shell: /bin/bash
+        state: present
+
+    - name: Tạo thư mục dùng chung
+      file:
+        path: /opt/ungdung
+        state: directory
+        owner: trienkhai
+        mode: "0755"
+
+# ---- Phần riêng cho nhóm web ----
+- name: Cấu hình riêng máy web
+  hosts: web
+  become: true
+
+  tasks:
+    - name: Cài nginx
+      apt:
+        name: nginx
+        state: present
+
+    - name: Sinh trang chủ riêng cho từng máy
+      template:
+        src: templates/trang-chu.html.j2
+        dest: /var/www/html/index.html
+        mode: "0644"
+      notify: khoi dong lai nginx      # chỉ báo khi file thay đổi
+
+    - name: Đảm bảo nginx đang chạy
+      service:
+        name: nginx
+        state: started
+
+  handlers:
+    - name: khoi dong lai nginx
+      service:
+        name: nginx
+        state: restarted
+
+# ---- Phần riêng cho nhóm db ----
+- name: Cấu hình riêng máy cơ sở dữ liệu
+  hosts: db
+  become: true
+
+  tasks:
+    - name: Tạo thư mục dữ liệu
+      file:
+        path: /var/du-lieu
+        state: directory
+        mode: "0700"
+
+    - name: Ghi ghi chú nhận diện máy
+      copy:
+        content: "Máy này giữ dữ liệu. Không xoá bừa.\n"
+        dest: /var/du-lieu/DOC-TRUOC.txt
+        mode: "0644"

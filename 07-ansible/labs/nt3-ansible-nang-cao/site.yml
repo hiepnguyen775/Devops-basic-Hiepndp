@@ -1,0 +1,33 @@
+---
+- name: Cập nhật cuốn chiếu cho nhóm web
+  hosts: web
+  become: true
+
+  # ---- Cập nhật LẦN LƯỢT, không đồng loạt ----
+  serial: 1
+  max_fail_percentage: 0          # một máy lỗi là dừng toàn bộ
+
+  vars:
+    phien_ban: "{{ lookup('env', 'PHIEN_BAN') | default('v1', true) }}"
+    web_tieu_de: "Cửa hàng ABC — {{ phien_ban }}"
+
+  pre_tasks:
+    - name: "[{{ inventory_hostname }}] Rút khỏi cụm trước khi sửa"
+      debug:
+        msg: "Thực tế: gọi API load balancer để ngừng gửi tải vào máy này"
+      tags: [always]
+
+  roles:
+    - role: web
+
+  post_tasks:
+    - name: "[{{ inventory_hostname }}] Xác nhận khoẻ rồi mới đưa lại vào cụm"
+      uri:
+        url: "http://127.0.0.1/"
+        return_content: true
+      register: kq
+      failed_when: phien_ban not in kq.content
+
+    - name: "[{{ inventory_hostname }}] Đã cập nhật xong"
+      debug:
+        msg: "✅ {{ inventory_hostname }} đang chạy {{ phien_ban }}"

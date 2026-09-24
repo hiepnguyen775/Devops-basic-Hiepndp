@@ -1,0 +1,18 @@
+{
+  "ghi_chu": "Giá tham khảo theo mặt bằng chung cloud, dùng để ước lượng. Thay bằng giá thật của nhà cung cấp bạn dùng.",
+  "don_vi_tien": "USD",
+  "gia": {
+    "cpu_moi_core_moi_gio": 0.031,
+    "ram_moi_gb_moi_gio": 0.004,
+    "dia_ssd_moi_gb_moi_thang": 0.10,
+    "ip_tinh_khong_dung_moi_gio": 0.005,
+    "luu_luong_ra_moi_gb": 0.09,
+    "load_balancer_moi_gio": 0.025,
+    "snapshot_moi_gb_moi_thang": 0.05
+  },
+  "giam_gia": {
+    "cam_ket_1_nam": 0.40,
+    "cam_ket_3_nam": 0.60,
+    "spot": 0.80
+  }
+}

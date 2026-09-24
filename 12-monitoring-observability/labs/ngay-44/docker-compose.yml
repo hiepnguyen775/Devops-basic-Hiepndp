@@ -1,0 +1,40 @@
+services:
+  prometheus:
+    image: prom/prometheus:v3.0.1          # cố định phiên bản để lab luôn tái lập được
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro    # :ro = chỉ đọc, container không sửa được
+      - ./alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
+      - prom-data:/prometheus                                 # dữ liệu metric nằm trong volume, xoá container không mất
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'   # giữ metric 15 ngày rồi tự xoá
+      - '--web.enable-lifecycle'              # cho phép nạp lại config không cần restart
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: node-exporter
+    restart: unless-stopped
+    pid: host                     # nhìn được tiến trình của MÁY THẬT, không phải của container
+    ports:
+      - "9100:9100"
+    volumes:
+      - /:/host:ro,rslave         # gắn toàn bộ ổ đĩa máy thật vào /host, chỉ đọc
+    command:
+      - '--path.rootfs=/host'     # bảo node-exporter: gốc hệ thống thật nằm ở /host
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: alertmanager
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+
+volumes:
+  prom-data:

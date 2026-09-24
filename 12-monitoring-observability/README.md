@@ -24,6 +24,20 @@ Hoàn thành [`11-kubernetes/`](../11-kubernetes/)
 
 ---
 
+## 🧪 File LAB có sẵn
+
+Các file trong bài học đã được **trích ra thành file thật** — `cd` vào là chạy được ngay.
+
+| Thư mục | File | Chạy thử |
+|---|---|---|
+| [`labs/ngay-44/`](./labs/ngay-44/) | `alert.rules.yml` · `alertmanager.yml` · `docker-compose.yml` · `prometheus.yml` | `docker compose up -d` |
+| [`labs/ngay-45/`](./labs/ngay-45/) | `grafana/provisioning/dashboards/dashboard.yml` · `grafana/provisioning/dashboards/he-thong.json` · `grafana/provisioning/datasources/prometheus.yml` | — |
+| [`labs/ngay-46/`](./labs/ngay-46/) | `grafana/provisioning/datasources/loki.yml` · `loki-config.yaml` · `promtail-config.yaml` | — |
+
+> ⚠️ **Hãy tự gõ tay khi làm bài lần đầu** — đó là cách kiến thức đọng lại. Thư mục này để **đối chiếu khi kẹt** và để chạy nhanh khi ôn lại.
+
+---
+
 ## 📁 Thư mục làm việc của bạn
 
 ```text

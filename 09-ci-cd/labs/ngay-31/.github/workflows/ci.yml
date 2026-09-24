@@ -1,0 +1,27 @@
+name: CI
+
+# KHI NÀO chạy
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:                          # tên job, bạn tự đặt
+    runs-on: ubuntu-latest       # máy ảo GitHub cấp, sạch mỗi lần chạy
+
+    steps:
+      - name: Tải code về runner
+        uses: actions/checkout@v4      # thiếu bước này thì runner rỗng, không có gì để test
+
+      - name: Cài Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Chạy test
+        run: npm test                  # gõ gì trên Linux thì viết y vậy
+
+      - name: Báo cáo kết quả
+        run: echo "✅ Test đã chạy xong trên commit ${{ github.sha }}"
