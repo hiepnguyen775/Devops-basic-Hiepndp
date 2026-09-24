@@ -35,7 +35,7 @@
 
 | File | Mở khi |
 |---|---|
-| 📚 [**GLOSSARY.md**](./GLOSSARY.md) | Gặp thuật ngữ lạ — 171 thuật ngữ, có link về bài gốc |
+| 📚 [**GLOSSARY.md**](./GLOSSARY.md) | Gặp thuật ngữ lạ — 364 thuật ngữ, có link về bài gốc |
 | 🐛 [**TROUBLESHOOTING.md**](./TROUBLESHOOTING.md) | **Đang kẹt vì một lỗi** — 118 lỗi gom theo chủ đề + quy trình chẩn đoán 9 bước |
 | 🎤 [**INTERVIEW.md**](./INTERVIEW.md) | Chuẩn bị phỏng vấn — 25 câu tình huống kèm đáp án tham khảo |
 | ✅ [**PROGRESS.md**](./PROGRESS.md) | Sau mỗi ngày học, và khi muốn biết mình đang ở đâu |

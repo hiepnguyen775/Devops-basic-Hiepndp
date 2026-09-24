@@ -555,6 +555,61 @@ docker compose stop
 - **Không phải mọi dịch vụ đều cần cùng một SLO.** Trang thanh toán và trang "Giới thiệu" không thể chung một mức. Đặt SLO cao cho luồng sinh ra tiền, thấp hơn cho phần phụ — nguồn lực là hữu hạn, hãy tiêu vào chỗ đáng.
 - **Postmortem không đổ lỗi không có nghĩa là không có trách nhiệm.** Nó vẫn có người chịu trách nhiệm cho từng hành động khắc phục và có hạn chót. Điều nó bỏ đi chỉ là việc **quy lỗi cho cá nhân** — thứ chỉ khiến người ta giấu sai sót.
 
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. Vì sao SLO 100% là mục tiêu sai? Nêu ba lý do.</b></summary>
+
+1. **Chi phí tăng theo cấp số nhân** — từ 99% lên 99,9% đã khó; lên 99,99% tốn gấp nhiều lần (đa vùng, tự chuyển đổi, trực 24/7)
+2. **Người dùng không cảm nhận được** — mạng của họ, điện thoại của họ đã kém tin cậy hơn 99,99% rồi
+3. **Nó triệt tiêu khả năng thay đổi** — không có ngân sách lỗi nghĩa là không được phép phát hành gì cả
+
+Câu hỏi đúng không phải *'làm sao đạt 100%?'* mà là *'mức không hoàn hảo nào người dùng vẫn hài lòng, và ta trả nổi?'*
+
+</details>
+
+<details>
+<summary><b>2. Ngân sách lỗi giải quyết mâu thuẫn muôn thuở nào giữa hai đội?</b></summary>
+
+Đội phát triển muốn **đi nhanh**, đội vận hành muốn **ổn định**. Trước đây hai bên cãi nhau bằng quan điểm, và người nói to nhất thắng.
+
+Ngân sách lỗi biến nó thành **một phép tính**:
+- Còn nhiều → phát hành thoải mái, thử nghiệm
+- Sắp hết → đóng băng tính năng, tập trung ổn định
+- Đã cạn → **dừng phát hành**, chỉ sửa lỗi
+
+Cả hai nhìn **cùng một con số**, và con số tự quyết định. Không ai phải thắng ai.
+
+⚠️ Nhưng nó chỉ có giá trị nếu cả tổ chức **thật sự tuân theo** — dashboard đẹp mà vẫn phát hành bất chấp thì chỉ là đồ trang trí.
+
+</details>
+
+<details>
+<summary><b>3. Cảnh báo theo burn rate hơn cảnh báo ngưỡng thường ở điểm nào? Vì sao dùng hai khung thời gian?</b></summary>
+
+Cảnh báo ngưỡng (*'tỉ lệ lỗi > 1%'*) bắn liên tục vì mọi dao động nhỏ.
+
+**Burn rate** hỏi câu thông minh hơn: *'với tốc độ này, bao lâu nữa cạn sạch ngân sách tháng?'* — nó gắn mức nghiêm trọng với **thứ người dùng thật sự chịu đựng**.
+
+**Hai khung thời gian** (ví dụ 5 phút *và* 1 giờ): khung ngắn để **phát hiện nhanh**, khung dài để **loại nhiễu**. Cả hai cùng vượt ngưỡng mới báo động — nhờ vậy một cú giật 30 giây không đánh thức ai lúc 3 giờ sáng.
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **SLI** | Chỉ số **đo được**: tỉ lệ request thành công, p95 độ trễ |
+| **SLO** | Mục tiêu **nội bộ** đặt cho SLI (ví dụ ≥ 99,9% trong 30 ngày) |
+| **SLA** | Cam kết với khách hàng, vi phạm là đền tiền; luôn **lỏng hơn** SLO |
+| **Error budget** | Phần được phép sai = 100% − SLO; SLO 99,9% → 43 phút chết/tháng |
+| **Burn rate** | Tốc độ tiêu ngân sách lỗi = tỉ lệ lỗi hiện tại / tỉ lệ cho phép |
+| **Toil** | Việc thủ công lặp lại không sinh giá trị; SRE giới hạn ở 50% thời gian |
+| **Postmortem không đổ lỗi** | Mổ xẻ sự cố hỏi 'hệ thống nào cho phép sai sót gây hậu quả', không hỏi 'ai sai' |
+| **Blackbox probe** | Đo dịch vụ **từ bên ngoài** — đúng góc nhìn người dùng |
+
 ### 🎯 Đúc kết Ngày 51
 
 **3 điều phải mang theo:**
@@ -1055,6 +1110,70 @@ crontab -l | grep -v "sao-luu-tu-dong.sh" | crontab -    # gỡ lịch vừa đ�
 - **Chuyển đổi dự phòng phải tự động, hoặc coi như không có.** "Có sự cố thì gọi anh A dậy đổi DNS" không phải HA — đó là một quy trình thủ công với RTO tính bằng giờ. Và anh A có thể đang đi nghỉ.
 - **Hãy diễn tập bằng cách chủ động phá.** Netflix nổi tiếng với Chaos Monkey — công cụ **ngẫu nhiên giết máy chủ trong giờ làm việc**. Nghe điên rồ, nhưng logic rất vững: nếu hệ thống chịu được hỏng hóc lúc mọi người còn tỉnh táo và sẵn sàng, nó sẽ chịu được lúc 3 giờ sáng. Bước 2 hôm nay chính là một phiên bản thu nhỏ của ý tưởng đó.
 - **RTO/RPO là quyết định của doanh nghiệp, không phải của kỹ sư.** Việc của bạn là đưa ra bảng chi phí: *"RPO 24 giờ tốn X, RPO 5 phút tốn 10X"*. Người chịu trách nhiệm kinh doanh chọn. Kỹ sư tự quyết thay họ thì hoặc là tiêu quá nhiều tiền, hoặc là bảo vệ quá ít.
+
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. HA và DR khác nhau thế nào? Cho tình huống mà HA không cứu được.</b></summary>
+
+**HA** chống **hỏng hóc** một thành phần: 3 bản sao, chết 1 vẫn còn 2.
+**DR** chống **thảm hoạ**: mất sạch thì dựng lại từ bản sao lưu.
+
+Tình huống HA không cứu được:
+- Ai đó gõ nhầm lệnh xoá cả cụm → **cả 3 bản sao cùng chết**
+- Dữ liệu bị hỏng hoặc bị mã hoá tống tiền → nhân bản 3 lần thì hỏng cả 3
+- Cả region sập → 3 bản trong cùng một trung tâm dữ liệu cùng chết
+
+Có HA **không** miễn trừ nhu cầu có DR.
+
+</details>
+
+<details>
+<summary><b>2. Định nghĩa RTO và RPO. Chúng quyết định điều gì?</b></summary>
+
+```text
+     ← RPO →        THẢM HOẠ        ← RTO →
+ ────────┬──────────────┼──────────────┬────
+   sao lưu cuối     hệ thống chết   chạy lại được
+```
+
+- **RPO** = mất tối đa bao nhiêu **dữ liệu** (tính bằng thời gian). Sao lưu mỗi 24 giờ → RPO 24 giờ → có thể mất một ngày đơn hàng.
+- **RTO** = mất tối đa bao lâu để **khôi phục**.
+
+Hai con số này **quyết định toàn bộ thiết kế và chi phí**. RPO gần 0 đòi hỏi nhân bản đồng bộ — đắt hơn sao lưu theo giờ rất nhiều lần.
+
+Quan trọng: đây là **quyết định kinh doanh**, không phải quyết định kỹ thuật. Việc của kỹ sư là đưa ra bảng chi phí để người chịu trách nhiệm chọn.
+
+</details>
+
+<details>
+<summary><b>3. Vì sao 'bản sao lưu chưa từng khôi phục thử thì không phải bản sao lưu'?</b></summary>
+
+Vì `pg_dump` chạy thành công **không chứng minh** file dùng được. Vô số tổ chức phát hiện điều này theo cách đau đớn nhất: sao lưu chạy đều hàng đêm suốt hai năm, đến lúc cần thì file rỗng, thiếu bảng, hoặc không có khoá giải mã.
+
+Hai việc bắt buộc:
+1. Script sao lưu phải có **bước tự kiểm chứng** (`pg_restore --list`)
+2. **Diễn tập khôi phục định kỳ** (hằng quý), có bấm giờ và ghi biên bản
+
+Ngày bạn cần nó là ngày tệ nhất để phát hiện nó hỏng.
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **HA** | Chịu được hỏng hóc một thành phần — nhiều bản sao, tự chuyển đổi |
+| **DR** | Khôi phục sau thảm hoạ — sao lưu, dựng lại |
+| **SPOF** | Điểm chết đơn lẻ — thành phần mà nó chết là cả hệ thống chết |
+| **RTO** | Thời gian tối đa để khôi phục |
+| **RPO** | Lượng dữ liệu tối đa chấp nhận mất, tính bằng thời gian |
+| **Quy tắc 3-2-1** | 3 bản sao · 2 loại phương tiện · 1 bản ở nơi khác về địa lý |
+| **Scale up vs out** | Máy to hơn (không giúp HA) vs thêm nhiều máy (có giúp HA) |
+| **Stateless** | Không giữ trạng thái trong bộ nhớ app — điều kiện để nhân bản thoải mái |
+| **Chaos engineering** | Chủ động phá hệ thống trong giờ làm việc để kiểm chứng khả năng chịu lỗi |
 
 ### 🎯 Đúc kết Ngày 52
 
@@ -1568,6 +1687,57 @@ docker system df          # xem còn bao nhiêu có thể thu hồi
 - **Spot rất rẻ nhưng chỉ dùng cho việc chịu gián đoạn được.** Runner CI, xử lý theo lô, huấn luyện mô hình — rất hợp. Database production — tuyệt đối không. Máy có thể bị thu hồi với thông báo trước chỉ vài chục giây.
 - **Chi phí truyền dữ liệu là khoản gây bất ngờ nhiều nhất.** Dữ liệu đi vào thường miễn phí, đi ra thì tính tiền, và **giữa các vùng cũng tính tiền**. Một kiến trúc đặt ứng dụng ở vùng này, database ở vùng kia, có thể đẻ ra hoá đơn truyền dữ liệu lớn hơn cả tiền máy chủ.
 - **Cảnh báo ngân sách phải đặt theo tốc độ tiêu, không phải theo tổng.** Cảnh báo "đã tiêu 80% ngân sách tháng" bắn vào ngày 28 thì vô dụng. Cảnh báo *"tốc độ hiện tại sẽ vượt ngân sách trước cuối tháng"* mới kịp hành động — **đúng tư duy burn rate của Ngày 51**, áp cho tiền thay vì cho độ tin cậy.
+
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. Ba nguồn lãng phí lớn nhất trên cloud là gì? Vì sao chúng xảy ra?</b></summary>
+
+1. **Xin quá nhiều tài nguyên** — xin 4 CPU, dùng 0,2 CPU. Lớn nhất và vô hình nhất.
+2. **Tài nguyên mồ côi** — ổ đĩa không gắn với ai, IP tĩnh không dùng, snapshot cũ. Rất khó phát hiện vì không nằm trong dashboard nào.
+3. **Chạy khi không cần** — môi trường dev chạy cả đêm, cả cuối tuần. Dễ sửa nhất.
+
+Điểm chung: **không ai cố ý lãng phí**. Nó xảy ra vì không ai nhìn thấy. Đó là lý do bước đầu tiên của FinOps luôn là **đo và hiển thị**, chưa phải cắt giảm.
+
+</details>
+
+<details>
+<summary><b>2. Vì sao gắn thẻ là nền móng của FinOps?</b></summary>
+
+Không gắn thẻ thì hoá đơn chỉ là **một con số tổng**: *'tháng này hết 12.000 đô la'* — không ai biết phải cắt ở đâu.
+
+Có thẻ, nó thành: *'đội A tiêu 7.000, đội B tiêu 5.000; riêng môi trường dev của đội A là 3.000'* — và cuộc trò chuyện lập tức có hướng.
+
+Bộ thẻ tối thiểu: `moi_truong`, `doi`, `du_an`, `chu_so_huu`. Nhiều tổ chức còn có chính sách **tự động từ chối tạo tài nguyên không có thẻ** — khắt khe, nhưng đó là cách duy nhất giữ dữ liệu chi phí sạch.
+
+</details>
+
+<details>
+<summary><b>3. Vì sao không được tối ưu chi phí xuống dưới ngưỡng SLO?</b></summary>
+
+Vì chi phí và độ tin cậy **luôn kéo ngược nhau**, và SLO là bên phải thắng.
+
+Ví dụ: cắt từ 3 bản sao xuống 1 thì rẻ hơn thật, nhưng bạn vừa phá vỡ HA của Ngày 52. Tiết kiệm được 200 đô la rồi mất một khách hàng lớn là một vụ làm ăn tệ.
+
+Nguyên tắc: **tối ưu tới sát ngưỡng SLO, không vượt qua**. SLO là trọng tài cho mọi tranh luận về việc cắt giảm.
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **FinOps** | Đưa thông tin chi phí tới tận tay người ra quyết định kỹ thuật |
+| **Over-provisioning** | Xin nhiều hơn mức dùng — nguồn lãng phí lớn nhất |
+| **Tài nguyên mồ côi** | Ổ đĩa, IP, snapshot không ai dùng nhưng vẫn tính tiền |
+| **Right-sizing** | Điều chỉnh về mức dùng thật + 20–30% dự phòng |
+| **Tagging** | Gắn thẻ để quy trách nhiệm chi phí — nền móng của mọi việc còn lại |
+| **Reserved / Committed use** | Cam kết 1–3 năm để giảm 30–70%; chỉ dùng cho tải nền ổn định |
+| **Spot instance** | Rẻ 60–90% nhưng **có thể bị thu hồi bất cứ lúc nào** |
+| **Egress cost** | Chi phí truyền dữ liệu **ra ngoài** và **giữa các vùng** — hay gây bất ngờ |
+| **infracost** | Ước tính chi phí ngay trên Pull Request Terraform |
 
 ### 🎯 Đúc kết Ngày 53
 
@@ -2099,6 +2269,70 @@ minikube stop
 - **Mesh làm debug khó hơn.** Khi có lỗi mạng, giờ bạn phải hỏi thêm: lỗi ở app, ở proxy, hay ở cấu hình mesh? Hãy học cách đọc log của proxy **trước khi** đưa mesh vào production, đừng học lúc đang có sự cố.
 - **Đừng dùng mesh chỉ để lấy mã hoá.** Nếu nhu cầu duy nhất là mTLS, có những cách nhẹ hơn nhiều (mTLS ở tầng ingress, hoặc lớp mạng như Cilium). Mesh xứng đáng khi bạn cần **nhiều thứ cùng lúc**: mã hoá + đo lường + định tuyến + khả năng chịu lỗi.
 - **Suy giảm có kiểm soát phải được thiết kế trước.** Câu hỏi cần trả lời khi thiết kế, không phải khi sự cố: *"nếu dịch vụ gợi ý sản phẩm chết, trang chủ vẫn hiện được chứ?"* Câu trả lời đúng gần như luôn là: hiện trang chủ không có phần gợi ý, **không phải** hiện trang lỗi.
+
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. Vì sao 'chậm' nguy hiểm hơn 'chết' trong kiến trúc nhiều dịch vụ?</b></summary>
+
+Dịch vụ **chết** trả lỗi ngay → người gọi biết và xử lý được.
+
+Dịch vụ **chậm** thì **giữ tài nguyên của mọi người gọi nó**:
+```text
+C chậm 5s → B chờ C, mỗi request giữ một luồng 5 giây
+         → luồng của B cạn → B ngừng nhận request
+         → A chờ B, luồng của A cạn → A chết
+         → người dùng thấy TOÀN BỘ hệ thống chết
+```
+
+Điểm đáng chú ý: **C không hề chết**, nó chỉ chậm. Đó là cách một dịch vụ ở tận cùng kéo sập mọi thứ phía trước.
+
+</details>
+
+<details>
+<summary><b>2. Kể bốn tấm khiên chặn sập dây chuyền theo thứ tự quan trọng. Vì sao cái đầu quan trọng nhất?</b></summary>
+
+1. **Timeout** — chờ tối đa N giây rồi bỏ
+2. **Retry có giới hạn** — thử lại lỗi tạm thời
+3. **Circuit breaker** — lỗi nhiều quá thì ngừng gọi một lúc
+4. **Bulkhead** — chia tách nguồn tài nguyên
+
+**Timeout quan trọng nhất vì không có nó thì ba cái sau vô nghĩa** — luồng vẫn bị giữ vô hạn, và mọi cơ chế bảo vệ khác không kịp phát huy tác dụng.
+
+Cảnh báo: phần lớn thư viện HTTP **mặc định không có timeout** hoặc để rất dài. Đó là quả bom hẹn giờ nằm sẵn trong code của bạn.
+
+</details>
+
+<details>
+<summary><b>3. Retry storm là gì? Ba yếu tố khiến retry an toàn?</b></summary>
+
+**Retry storm**: dịch vụ đang quá tải, mọi client thử lại 3 lần → **lưu lượng tăng gấp ba** đúng lúc nó yếu nhất → sập hẳn.
+
+Ba yếu tố khiến retry an toàn:
+1. **Giới hạn số lần** (2–3 lần, không vô hạn)
+2. **Khoảng chờ tăng dần** (100ms → 200ms → 400ms)
+3. **Jitter** (thêm ngẫu nhiên) — không có nó, 1000 client cùng thử lại sau đúng 100ms, tạo từng đợt sóng đập vào dịch vụ đang ốm
+
+Và chỉ thử lại thao tác **an toàn khi lặp**: `GET` thì vô hại, 'tạo đơn hàng' có thể tạo hai đơn.
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Cascading failure** | Sập dây chuyền — một dịch vụ chậm kéo sập mọi thứ phía trước |
+| **Timeout** | Chờ tối đa bao lâu rồi bỏ — **tấm khiên quan trọng nhất** |
+| **Retry storm** | Thử lại đồng loạt làm tăng tải đúng lúc dịch vụ đang yếu |
+| **Exponential backoff + jitter** | Chờ tăng dần + ngẫu nhiên để các client không thử lại cùng lúc |
+| **Circuit breaker** | Đóng → Mở (từ chối ngay) → Nửa mở (thử dè dặt) |
+| **Bulkhead** | Chia tách tài nguyên để một phần hỏng không kéo theo phần khác |
+| **Service mesh** | Proxy cạnh mỗi dịch vụ lo timeout/retry/mTLS/đo lường thay ứng dụng |
+| **Sidecar** | Container proxy chạy cạnh app trong cùng pod |
+| **mTLS** | Mã hoá hai chiều giữa các dịch vụ — mesh bật tự động |
+| **Graceful degradation** | Trả ít chức năng hơn nhưng vẫn phục vụ, thay vì sập hoàn toàn |
 
 ### 🎯 Đúc kết Ngày 54
 
@@ -2776,6 +3010,60 @@ rm -rf dich-vu-thanh-toan dich-vu-don-hang dich-vu-thong-bao
 - **Tài liệu là một phần của nền tảng, không phải phụ lục.** Script sinh sẵn README (như lab hôm nay) tốt hơn một wiki đồ sộ không ai đọc. Tài liệu tốt nhất là tài liệu **nằm ngay chỗ người ta cần nó**.
 - **Cẩn thận với "cổng thông tin nội bộ" quá sớm.** Backstage và các công cụ tương tự rất mạnh, nhưng chúng là **tầng giao diện**. Xây cổng đẹp trên nền tự động hoá chưa xong thì chỉ có vỏ. Thứ tự đúng: tự động hoá trước, giao diện sau.
 - **Đo DORA để cải thiện, đừng đo để chấm điểm.** Khoảnh khắc chỉ số trở thành thước đo thành tích cá nhân, nó ngừng phản ánh sự thật — người ta sẽ chia nhỏ commit để tăng tần suất, hoặc tránh ghi nhận sự cố để giảm tỉ lệ lỗi.
+
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. Platform Engineering giải quyết vấn đề gì? Dấu hiệu nào cho biết bạn đang cần nó?</b></summary>
+
+Vấn đề: bạn trở thành **nút thắt cổ chai**. Mỗi lập trình viên muốn đưa dịch vụ lên đều phải hỏi bạn — *'viết Dockerfile thế nào?'*, *'copy workflow ở đâu?'*, *'sao pod em không lên?'*.
+
+Nhân với 30 người: bạn không còn làm được gì khác ngoài trả lời câu hỏi. Và mỗi người tự xoay một kiểu → hệ thống thành 30 cách làm khác nhau.
+
+Dấu hiệu cần nền tảng: **người mới mất nhiều ngày để deploy lần đầu**, và bạn trả lời cùng một câu hỏi lần thứ ba.
+
+Đổi cách nghĩ: **nền tảng là một sản phẩm, lập trình viên là khách hàng.**
+
+</details>
+
+<details>
+<summary><b>2. Kể bốn chỉ số DORA và phát hiện quan trọng nhất của nghiên cứu này.</b></summary>
+
+Bốn chỉ số: **tần suất triển khai**, **thời gian từ commit tới production**, **tỉ lệ thay đổi gây lỗi**, **thời gian khôi phục**.
+
+**Phát hiện quan trọng nhất (và phản trực giác):** hai chỉ số đầu (tốc độ) và hai chỉ số sau (ổn định) **không đánh đổi nhau**. Đội đi nhanh cũng chính là đội ổn định nhất.
+
+Lý do: deploy thường xuyên nghĩa là mỗi lần thay đổi **nhỏ** — mà nhỏ thì dễ kiểm tra, dễ hiểu, dễ quay lui.
+
+Điều này phá bỏ niềm tin *'muốn an toàn thì phải deploy ít lại'*. Thực tế ngược lại: deploy ít khiến mỗi lần trở thành một sự kiện to, rủi ro và đáng sợ.
+
+</details>
+
+<details>
+<summary><b>3. Vì sao 'lát đường' tốt hơn 'dựng rào'? Và vì sao không nên dùng DORA để chấm điểm cá nhân?</b></summary>
+
+**Lát đường vs dựng rào:** nền tảng ép buộc sẽ bị người ta lách bằng những cách sáng tạo và tệ hơn nhiều so với việc cho phép đi chệch có kiểm soát. Hãy làm con đường mặc định **dễ đi hơn** mọi lựa chọn khác — đó là cách duy nhất bền vững. Đội nào có lý do chính đáng để làm khác thì được phép, nhưng tự chịu trách nhiệm phần đó.
+
+**Về DORA:** khoảnh khắc chỉ số trở thành thước đo thành tích cá nhân, nó **ngừng phản ánh sự thật** — người ta sẽ chia nhỏ commit để tăng tần suất, hoặc tránh ghi nhận sự cố để giảm tỉ lệ lỗi. Dùng nó để theo dõi **xu hướng của đội mình** (tháng này so tháng trước), không để so sánh đội này với đội khác.
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Platform Engineering** | Xây nền tảng nội bộ như một **sản phẩm**, lập trình viên là khách hàng |
+| **Golden path** | Con đường mặc định đã lát sẵn, đúng chuẩn, dễ đi hơn mọi cách khác |
+| **IDP** | Internal Developer Platform — nền tảng nội bộ cho lập trình viên tự phục vụ |
+| **Scaffolding** | Sinh project chuẩn từ khuôn mẫu bằng một lệnh |
+| **DORA metrics** | 4 chỉ số: tần suất deploy, lead time, tỉ lệ gây lỗi, thời gian khôi phục |
+| **Deployment frequency** | Bao lâu deploy một lần — nhóm dẫn đầu: nhiều lần mỗi ngày |
+| **Lead time for changes** | Từ commit tới production — nhóm dẫn đầu: dưới 1 giờ |
+| **Change failure rate** | % lần deploy gây sự cố — nhóm dẫn đầu: dưới 5% |
+| **MTTR** | Thời gian trung bình khôi phục — nhóm dẫn đầu: dưới 1 giờ |
+| **Developer Experience** | Đo bằng **ma sát**: bao lâu deploy được lần đầu, bao nhiêu việc phải đi hỏi |
 
 ### 🎯 Đúc kết Ngày 55
 

@@ -452,6 +452,51 @@ Giá trị secret là: ***
 - **Phút runner không miễn phí vô hạn.** Repo public thì free thật; repo private có hạn mức tháng. Pipeline chạy 10 phút × 50 lần/ngày là con số thật sự tốn tiền ở công ty — đó là lý do Ngày 32 học **cache** và **xếp bước rẻ lên trước**.
 - **Ghim action bằng SHA cho môi trường nhạy cảm.** `@v4` vẫn là một nhãn có thể bị đẩy đi nơi khác. Mức bảo mật cao nhất là ghim nguyên SHA: `uses: actions/checkout@8f4b7f8...`. Đây là chuẩn ở các công ty làm nghiêm về supply chain.
 
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. Vì sao workflow luôn cần `actions/checkout` ở bước đầu tiên?</b></summary>
+
+Vì runner là **máy ảo hoàn toàn sạch** — nó không có code của bạn, không có Node, không có gì cả. `checkout` chính là bước `git clone` repo về máy đó.
+
+Thiếu bước này thì mọi lệnh sau đều chạy trên thư mục rỗng. Đây cũng chính là lý do CI không bao giờ dính bệnh *'trên máy tôi vẫn chạy'* — máy sạch buộc bạn phải khai rõ mọi thứ cần thiết.
+
+</details>
+
+<details>
+<summary><b>2. Hai job trong cùng một workflow có chia sẻ file với nhau không? Nếu cần chuyển file thì làm sao?</b></summary>
+
+**Không.** Hai job = hai máy ảo hoàn toàn khác nhau. Job A tạo file thì job B không hề thấy file đó.
+
+Muốn chuyển đồ giữa các job phải dùng **artifact**: job này `upload-artifact`, job kia `download-artifact`.
+
+Muốn job chạy **xếp hàng** thay vì song song thì dùng `needs:` — nhưng `needs:` chỉ xếp thứ tự, **không** chia sẻ file.
+
+</details>
+
+<details>
+<summary><b>3. GitHub che secret thành `***` trong log. Vì sao đó không phải bùa hộ mệnh?</b></summary>
+
+Việc che chỉ khớp **giá trị nguyên vẹn** của secret. Nếu bạn *biến đổi* nó rồi mới in — mã hoá base64, cắt chuỗi, nối thêm ký tự — thì phần đã biến đổi **không được che nữa** và vẫn lộ ra log.
+
+Nguyên tắc cứng: **không bao giờ in secret ra log**, kể cả khi nghĩ rằng đã 'mã hoá nhẹ'.
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Workflow / Job / Step** | Cả quy trình (1 file YAML) / nhóm việc trên 1 máy / từng bước trong job |
+| **Runner** | Máy ảo chạy job — **sạch mỗi lần chạy** |
+| **Trigger (`on:`)** | Sự kiện kích hoạt workflow: push, pull_request, schedule... |
+| **Action (`uses:`)** | Khối dựng sẵn người khác viết, dùng lại bằng một dòng |
+| **Artifact** | Gói file lưu lại sau khi job xong — cách duy nhất chuyển đồ giữa các job |
+| **GitHub Secrets** | Nơi cất token/mật khẩu; đọc bằng `${{ secrets.TÊN }}`, che `***` trong log |
+| **Ghim phiên bản action** | Dùng `@v4` thay `@main` để pipeline không gãy khi tác giả sửa |
+
 ### 🎯 Đúc kết Ngày 31
 
 **3 điều phải mang theo:**
@@ -930,6 +975,58 @@ git push origin --delete thu-pha-luat
 - **Lint và test đo hai thứ khác nhau — đừng gộp.** Lint bảo *"code viết có sạch không"*, test bảo *"code chạy có đúng không"*. Code lint sạch tuyệt đối vẫn có thể tính sai tiền. Nhiều người mới tưởng lint xanh là yên tâm.
 - **Test coverage là con dao hai lưỡi.** Ép "phải đạt 80% coverage" thường đẻ ra một đống test rỗng chỉ để chạy qua code chứ không kiểm tra gì. Coverage thấp là tín hiệu đáng xem xét; coverage cao **không** chứng minh chất lượng.
 
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. Vì sao xếp lint trước test, test trước build? Nêu con số minh hoạ.</b></summary>
+
+Đây là bài toán **tiết kiệm thời gian chờ**:
+
+| Lớp | Bắt lỗi gì | Mất bao lâu |
+|---|---|---|
+| Lint | Biến thừa, gọi tên sai | ~10 giây |
+| Test | Lỗi logic | ~1–5 phút |
+| Build | Lỗi ghép nối | ~1–10 phút |
+
+Một lỗi gõ nhầm tên biến bị lint chặn trong 10 giây thì không đáng để chạy hết bộ test 5 phút rồi mới phát hiện. Nhân với số lần push mỗi ngày của cả đội — đó là con số thật.
+
+</details>
+
+<details>
+<summary><b>2. `npm ci` khác `npm install` ở điểm nào? Vì sao CI phải dùng `npm ci`?</b></summary>
+
+`npm install` đọc `package.json` (khoảng phiên bản) và **có thể âm thầm nâng phiên bản**, sửa cả lock file. `npm ci` đọc `package-lock.json` (phiên bản chính xác), **không bao giờ sửa lock**, và xoá sạch `node_modules` trước khi cài.
+
+CI cần **tính tái lập** — chạy hôm nay và chạy tháng sau phải cho kết quả giống hệt. `npm ci` đảm bảo điều đó, và còn nhanh hơn.
+
+</details>
+
+<details>
+<summary><b>3. CI xanh nhưng vẫn có code hỏng vào `main`. Vì sao, và sửa thế nào?</b></summary>
+
+Vì **CI không có branch protection chỉ là một cái đèn để nhìn, không phải cánh cửa có khoá**. Bạn *thấy* code đỏ nhưng vẫn bấm merge được.
+
+Sửa: bật branch protection cho `main` với *Require status checks to pass before merging*. Khi đó nút Merge bị khoá cứng tới khi CI xanh — không ai phá lệ được, kể cả bạn.
+
+Đây là bước biến CI từ **trang trí** thành **rào chắn**.
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **`needs:`** | Khai báo job này chờ job kia xong mới chạy; job trước đỏ thì job sau bị skip |
+| **Matrix** | Chạy cùng một job trên nhiều phiên bản/OS song song |
+| **`fail-fast: false`** | Một bản matrix hỏng vẫn chạy nốt các bản còn lại để thấy toàn cảnh |
+| **Cache** | Lưu lại thư viện đã tải để lần sau không tải lại — tiết kiệm phút runner |
+| **`npm ci`** | Cài đúng theo lock file, không sửa lock — bắt buộc dùng trong CI |
+| **Branch protection** | Luật chặn merge vào nhánh chính khi CI chưa xanh |
+| **`concurrency`** | Huỷ các lần chạy cũ khi push liên tiếp, chỉ giữ lần mới nhất |
+| **Test coverage** | Tỉ lệ code được test chạy qua; cao **không** chứng minh chất lượng |
+
 ### 🎯 Đúc kết Ngày 32
 
 **3 điều phải mang theo:**
@@ -1324,6 +1421,54 @@ docker rm -f thu-cu
 - **Đừng nhét secret vào image.** Mọi `ENV` và mọi file `COPY` vào đều nằm trong lịch sử các lớp — ai kéo image về cũng đọc được bằng `docker history`. Secret phải được đưa vào **lúc chạy** (biến môi trường, file mount), không phải lúc build.
 - **Kho image phình rất nhanh.** Mỗi commit một image, vài tháng là hàng nghìn tag chiếm hàng chục GB. Đặt chính sách dọn dẹp (giữ N bản gần nhất) — nếu không, một ngày đẹp trời bạn sẽ nhận hoá đơn hoặc cảnh báo hết dung lượng.
 - **Multi-arch khi đội dùng máy Apple Silicon.** Image build trên runner là `amd64`; máy M1/M2/M3 là `arm64` → chạy qua giả lập, chậm hoặc lỗi lạ. Khi cần, thêm `platforms: linux/amd64,linux/arm64` vào `build-push-action`.
+
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. Deploy bằng tag `latest` gây ra ba vấn đề gì?</b></summary>
+
+1. **Không biết đang chạy gì** — hỏi *'production đang chạy code nào?'* thì không ai trả lời được
+2. **Không quay lui được** — `latest` đã bị ghi đè, bản cũ không còn tên để gọi
+3. **Không tái lập được** — hai máy kéo `latest` ở hai thời điểm sẽ chạy hai bản khác nhau
+
+Cách đúng: tag theo **SHA commit** (bất biến, truy ngược ra code được). Có thể thêm `latest` làm bí danh tiện tay, nhưng deploy luôn dùng tag SHA.
+
+</details>
+
+<details>
+<summary><b>2. Vì sao `COPY package*.json` phải đứng TRƯỚC `COPY . .` trong Dockerfile?</b></summary>
+
+Vì **cache lớp Docker phụ thuộc vào thứ tự dòng**. Docker cache từng lớp; một lớp đổi thì mọi lớp sau đều phải làm lại.
+
+Copy `package*.json` rồi `npm ci` trước, sau đó mới `COPY . .`: sửa code không làm đổi `package.json` → lớp cài thư viện được lấy từ cache → build nhanh.
+
+Đảo thứ tự lại: mỗi lần sửa một dòng code là cài lại toàn bộ thư viện từ đầu.
+
+</details>
+
+<details>
+<summary><b>3. Vì sao không được đưa secret vào image bằng `ENV` hoặc `COPY`?</b></summary>
+
+Vì mọi `ENV` và mọi file `COPY` vào đều nằm trong **lịch sử các lớp** của image. Bất kỳ ai kéo image về đều đọc được bằng `docker history` hoặc giải nén các lớp — kể cả khi lớp sau đã xoá file đi.
+
+Secret phải được đưa vào **lúc chạy**: biến môi trường khi `docker run`, file mount, hoặc hệ quản lý bí mật.
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Registry** | Kho chứa image (GHCR, Docker Hub, ECR); nơi image sống sau khi runner bị xoá |
+| **GHCR** | GitHub Container Registry — đăng nhập bằng `GITHUB_TOKEN` có sẵn |
+| **Tag bất biến** | Tag không bao giờ bị ghi đè (thường là SHA commit) — điều kiện để rollback |
+| **`latest`** | Nhãn dán di động trỏ tới bản mới nhất — **không dùng để deploy** |
+| **Multi-stage build** | Tầng đầu cài/biên dịch, tầng cuối chỉ chép phần cần chạy → image nhỏ |
+| **`.dockerignore`** | Danh sách file không gửi vào trình build — build nhanh hơn, image sạch hơn |
+| **HEALTHCHECK** | Lệnh Docker tự chạy để biết container còn khoẻ không |
+| **SBOM** | Danh mục thành phần phần mềm — trả lời 'ta có dùng thư viện dính CVE không?' |
 
 ### 🎯 Đúc kết Ngày 33
 
@@ -1796,6 +1941,57 @@ Tạo 3 secret trong **Settings → Secrets and variables → Actions**: `SSH_HO
 - **Self-hosted runner là con dao hai lưỡi.** Nó không sạch sau mỗi lần chạy như runner GitHub — rác, cache và cả secret của lần trước đều còn đó. Đừng bao giờ gắn vào repo public, và định kỳ dọn: `docker system prune -af --filter "until=168h"`.
 - **`concurrency` cho job deploy quan trọng hơn cho CI.** Hai lần deploy chạy chồng nhau có thể để lại hệ thống ở trạng thái nửa vời, khó đoán. Với deploy hãy dùng `cancel-in-progress: false` (xếp hàng, đừng huỷ) — khác với CI.
 - **Giữ log deploy như tài sản.** Câu hỏi "ai deploy cái gì lúc mấy giờ" xuất hiện trong *mọi* buổi mổ xẻ sự cố. Lịch sử Actions trả lời được điều đó — đây là một lợi ích của CD mà người mới thường không để ý.
+
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. Mô hình push và pull khác nhau ở điểm cốt lõi nào về bảo mật?</b></summary>
+
+**Chiều của kết nối, và ai giữ chìa khoá.**
+
+- **Push** (hôm nay): CI ở ngoài giữ khoá SSH/kubeconfig và chủ động vào server ra lệnh. Ai chiếm được CI thì chiếm được cả server.
+- **Pull** (GitOps, Ngày 43): một tác nhân sống **bên trong** hạ tầng tự kéo từ Git về. Không ai bên ngoài cần giữ chìa khoá, và server không cần mở cổng vào.
+
+Đây chính là nhược điểm của push mà GitOps sinh ra để giải quyết.
+
+</details>
+
+<details>
+<summary><b>2. Vì sao self-hosted runner tuyệt đối không được gắn vào repo public?</b></summary>
+
+Vì bất kỳ ai cũng mở được Pull Request vào repo public, và workflow sẽ chạy code của họ **ngay trên máy bạn** — với quyền của user chạy runner.
+
+Thêm nữa, runner tự host **không sạch sau mỗi lần chạy** như runner của GitHub: rác, cache và cả secret của lần trước đều còn đó.
+
+Đó là lý do Ngày 31 bắt tạo repo Private ngay từ đầu.
+
+</details>
+
+<details>
+<summary><b>3. Deploy thành công nhưng tại sao vẫn phải kiểm tra sức khoẻ sau đó?</b></summary>
+
+Vì **container `Up` không có nghĩa là ứng dụng phục vụ được**. Nó có thể đang chờ database, đang chạy migration, hoặc đã chết bên trong mà tiến trình vẫn sống.
+
+Không có bước kiểm tra sức khoẻ thì pipeline luôn báo xanh kể cả khi vừa đẩy một bản hỏng ra production — và bạn chỉ biết khi người dùng gọi điện.
+
+Bước kiểm tra phải có **thử lại** (vài lần, cách nhau vài giây) vì ứng dụng cần thời gian khởi động.
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Push vs Pull deployment** | CI đẩy vào hạ tầng vs tác nhân trong hạ tầng tự kéo về |
+| **Self-hosted runner** | Máy của bạn tự cắm vào GitHub nhận việc; không cần IP public |
+| **Environment** | Cổng có người gác trong GitHub Actions — chờ duyệt mới deploy |
+| **`workflow_run`** | Trigger chạy workflow này sau khi workflow kia kết thúc |
+| **Health check sau deploy** | Gọi `/health` có thử lại; thất bại thì báo đỏ, chặn bản hỏng |
+| **Rollback** | Quay về bản trước bằng cách deploy lại tag SHA cũ |
+| **`ssh-keyscan`** | Nạp host key trước khi SSH tự động, tránh treo chờ xác nhận |
+| **Migration tương thích ngược** | Thêm cột trước, bỏ cột ở lần sau — để code cũ vẫn chạy được |
 
 ### 🎯 Đúc kết Ngày 34
 
@@ -2463,6 +2659,59 @@ minikube stop            # dừng cluster, GIỮ nguyên mọi thứ cho Ngày 3
 - **Luôn khai `resources.requests`.** Không khai thì Scheduler không biết pod cần bao nhiêu → xếp nhầm chỗ → các pod tranh nhau RAM → node lăn ra chết kéo theo mọi thứ trên đó. Đây là nguyên nhân sự cố cực kỳ phổ biến ở cluster của đội mới dùng K8s.
 - **etcd là thứ phải backup.** Mất etcd = cluster mất trí nhớ hoàn toàn. Với managed K8s (EKS/GKE/AKS), nhà cung cấp lo giúp — đây là một lý do rất chính đáng để **không tự dựng cluster** khi chưa có đội chuyên trách.
 - **Đừng vội lên K8s.** Nếu bạn chỉ có 2–3 dịch vụ trên một máy, Docker Compose (Ngày 20) đơn giản hơn nhiều và **hoàn toàn đủ dùng**. K8s bắt đầu đáng giá khi có nhiều dịch vụ, nhiều máy, và yêu cầu không gián đoạn. Chọn công cụ theo bài toán, không theo mốt.
+
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. Giải thích vòng điều hoà của Kubernetes bằng lời của bạn. Vì sao nó là gốc của mọi tính năng?</b></summary>
+
+Một vòng lặp chạy liên tục: **đọc trạng thái mong muốn** (bạn khai trong YAML) → **so với thực tế** (pod đang chạy) → **khác nhau thì sửa cho khớp** → lặp lại sau vài giây.
+
+Không có phép màu nào cả. Và mọi tính năng chỉ là vòng lặp này áp vào tình huống khác nhau:
+- *Tự phục hồi* = mong muốn 3, thực tế 2 → tạo thêm 1
+- *Tự mở rộng* = HPA sửa con số mong muốn
+- *Cập nhật không gián đoạn* = đổi mong muốn từ từ
+
+Bạn sẽ gặp lại đúng khuôn này ở ArgoCD (Ngày 43), Ansible (47) và Terraform (48).
+
+</details>
+
+<details>
+<summary><b>2. Vì sao thực tế gần như không ai tạo Pod trần?</b></summary>
+
+Vì **không ai 'mong muốn' nó tồn tại cả**. Bạn bảo tạo thì K8s tạo; pod chết thì thôi, không có gì tạo lại.
+
+Deployment thì khác: nó khai `replicas: 3` là một *trạng thái mong muốn*, và vòng điều hoà sẽ giữ đúng con số đó. Giết pod bao nhiêu lần cũng có pod mới thay thế trong vài giây.
+
+Pod là **đồ dùng một lần** — đừng chăm sóc pod, hãy mô tả cái bạn muốn có.
+
+</details>
+
+<details>
+<summary><b>3. Ai đó `kubectl scale` lên 10 pod lúc nửa đêm để chữa cháy nhưng không sửa file YAML. Chuyện gì xảy ra sau đó?</b></summary>
+
+Con số 10 tồn tại cho tới lần `kubectl apply` tiếp theo — có thể là **vài tuần sau**, khi không ai còn nhớ. Lúc đó nó âm thầm quay về con số trong file, **sự cố tái diễn, và không ai hiểu vì sao**.
+
+Hiện tượng này gọi là **trôi cấu hình** (configuration drift). File YAML là nguồn sự thật; lệnh gõ tay chỉ là sửa tạm.
+
+Đây chính là vấn đề mà GitOps (Ngày 43) sinh ra để giải quyết — ở đó, sửa tay sẽ bị **tự động hoàn tác trong 30 giây**.
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Declarative** | Khai báo trạng thái mong muốn, không ra lệnh từng bước |
+| **Vòng điều hoà (reconciliation loop)** | So mong muốn với thực tế rồi sửa cho khớp — gốc của mọi tính năng K8s |
+| **Control Plane** | Ban giám đốc cluster: API Server, etcd, Scheduler, Controller Manager |
+| **etcd** | Sổ cái lưu toàn bộ trạng thái cluster — mất etcd là cluster mất trí nhớ |
+| **kubelet** | Tổ trưởng trên mỗi node: nhận lệnh từ API Server, bảo runtime chạy container |
+| **Pod** | Đơn vị nhỏ nhất K8s quản lý; **đồ dùng một lần**, chết là thay cái mới |
+| **Namespace** | Ranh giới chia ngăn cluster — dùng cho quota và phân quyền RBAC |
+| **Configuration drift** | Thực tế trôi khỏi file khai báo, thường do ai đó sửa tay |
 
 ### 🎯 Đúc kết Ngày 36
 
@@ -3414,6 +3663,63 @@ minikube stop
 - **NetworkPolicy mặc định KHÔNG bật.** Nhiều người tưởng namespace là bức tường bảo mật. Không phải: mặc định **mọi pod gọi được mọi pod**, kể cả khác namespace. Muốn chặn phải khai `NetworkPolicy` (và CNI phải hỗ trợ).
 - **DNS trong cluster có bộ nhớ đệm.** Khi Service vừa đổi mà ứng dụng vẫn gọi vào địa chỉ cũ, thủ phạm thường là cache DNS phía client (nhiều thư viện HTTP tự cache). Không phải lúc nào cũng tại K8s.
 
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. Vì sao tuyệt đối không gọi pod bằng IP của nó?</b></summary>
+
+Vì pod là đồ dùng một lần: nó chết thì bản mới sinh ra với **IP hoàn toàn khác**. Mà pod chết xảy ra suốt — cập nhật phiên bản, node bảo trì, tự mở rộng, hết RAM.
+
+Ghi IP pod vào cấu hình là tự đặt bom hẹn giờ: ứng dụng sẽ chết vào đúng lần cập nhật tiếp theo, và lúc 3 giờ sáng thì rất khó đoán nguyên nhân.
+
+Gọi qua **Service** — một địa chỉ cố định đứng trước nhóm pod, và gọi bằng **tên** chứ không phải IP.
+
+</details>
+
+<details>
+<summary><b>2. Gọi Service không được. Lệnh đầu tiên bạn chạy là gì, và nó trả lời câu hỏi gì?</b></summary>
+
+```bash
+kubectl get endpoints <ten-service>
+```
+
+Nó trả lời: *'Service này có tìm thấy pod nào không?'*
+
+- Thấy danh sách IP → Service ổn, vấn đề ở chỗ khác (cổng, ứng dụng, mạng)
+- Thấy **`<none>`** → **selector của Service không khớp labels của pod**
+
+Trường hợp thứ hai là nguyên nhân của phần lớn ca 'gọi Service không được'. So hai bên bằng `kubectl get svc <svc> -o jsonpath='{.spec.selector}'` và `kubectl get pods --show-labels`.
+
+</details>
+
+<details>
+<summary><b>3. Phân biệt Ingress và Ingress Controller. Khai Ingress mà chưa cài Controller thì sao?</b></summary>
+
+**Ingress** chỉ là một **tờ khai luật định tuyến** — một object YAML, bản thân nó không làm gì cả.
+
+**Ingress Controller** mới là **phần mềm thật sự chạy** (thường là nginx) đọc các tờ khai đó và thực thi.
+
+Khai Ingress mà chưa cài Controller thì **không có gì xảy ra cả** — không báo lỗi, chỉ là truy cập không được và cột `ADDRESS` trống. Đây là bẫy kinh điển của người mới.
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Service** | Địa chỉ cố định đứng trước nhóm pod hay thay đổi; tự chia tải |
+| **Selector / Label** | Service tìm pod bằng **nhãn**, không giữ danh sách IP |
+| **Endpoints** | Danh sách IP pod mà Service tìm thấy — lệnh chẩn đoán số một |
+| **ClusterIP** | Loại Service mặc định — chỉ gọi được từ trong cluster (90% trường hợp) |
+| **NodePort** | Mở cổng 30000–32767 trên mọi node; tiện cho lab, không dùng production |
+| **LoadBalancer** | Cloud cấp bộ cân bằng tải riêng — mỗi cái là một hoá đơn |
+| **Ingress** | Tờ khai luật định tuyến theo tên miền/đường dẫn |
+| **Ingress Controller** | Phần mềm thực thi các luật Ingress — **phải cài riêng** |
+| **DNS nội bộ** | `web-svc.default.svc.cluster.local` — gọi dịch vụ bằng tên, không IP |
+| **NetworkPolicy** | Luật giới hạn pod nào gọi được pod nào; **mặc định KHÔNG bật** |
+
 ### 🎯 Đúc kết Ngày 38
 
 **3 điều phải mang theo:**
@@ -3970,6 +4276,62 @@ minikube stop
 - **`strategy: Recreate` cho database, không phải `RollingUpdate`.** Mặc định K8s tạo pod mới trước rồi mới xoá pod cũ — nhưng hai pod database không thể cùng gắn một ổ RWO, nên pod mới sẽ kẹt vĩnh viễn. File `postgres.yaml` ở trên đã xử lý sẵn điều này.
 - **PVC không tự thu nhỏ, và thường không tự phình.** Mở rộng được (nếu StorageClass cho phép `allowVolumeExpansion`) nhưng **không bao giờ thu nhỏ lại được**. Xin dung lượng phải tính trước.
 - **Đừng để database trong K8s nếu chưa có đội vận hành mạnh.** Đây là lời khuyên thật lòng: sao lưu, khôi phục, nâng cấp phiên bản, chuyển đổi dự phòng — database quản lý bởi cloud (RDS, Cloud SQL) đáng đồng tiền hơn nhiều so với tự vận hành trên K8s. Lab thì cứ làm để hiểu; production thì hãy cân nhắc rất kỹ.
+
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. Bạn sửa ConfigMap nhưng ứng dụng vẫn chạy giá trị cũ. Vì sao, và sửa thế nào?</b></summary>
+
+Vì bạn tiêm bằng **biến môi trường** (`env`/`envFrom`). Biến môi trường được ấn định **lúc container khởi động** và không bao giờ đổi sau đó.
+
+Ngược lại, ConfigMap gắn thành **file** (`volumeMount`) sẽ **tự cập nhật** sau khoảng 1 phút.
+
+Sửa: `kubectl rollout restart deployment/<ten>` — khởi động lại theo kiểu cuốn chiếu, không gián đoạn dịch vụ.
+
+Cách làm chuyên nghiệp hơn: gắn hash của ConfigMap vào annotation của pod template, ConfigMap đổi thì hash đổi và K8s tự coi là phiên bản mới (Helm có sẵn mẹo này).
+
+</details>
+
+<details>
+<summary><b>2. Secret của Kubernetes có được mã hoá không? Hệ quả thực tế là gì?</b></summary>
+
+**Không.** Nó chỉ được mã hoá dạng **base64** — ai cũng giải ngược trong một giây bằng `base64 -d`.
+
+Ba hệ quả thực tế:
+1. **Không bao giờ commit Secret vào Git** — cả thế giới đọc được
+2. Ai có quyền `get secret` trên namespace là **có mọi mật khẩu** ở đó → phải siết RBAC
+3. Bí mật thật nên nằm ở **Vault** hoặc dịch vụ bí mật của cloud; nếu buộc phải để trong Git thì dùng **Sealed Secrets** hoặc **SOPS** (mã hoá thật)
+
+Secret khác ConfigMap ở chỗ: không bị in ra khi `kubectl get`, phân quyền RBAC riêng được, và **có thể** bật mã hoá trong etcd (nhưng phải cấu hình thêm).
+
+</details>
+
+<details>
+<summary><b>3. Vì sao database cần `strategy: Recreate` thay vì `RollingUpdate` mặc định?</b></summary>
+
+Vì `RollingUpdate` **tạo pod mới trước rồi mới xoá pod cũ**. Nhưng hai pod database không thể cùng gắn một ổ đĩa `ReadWriteOnce` — pod mới sẽ kẹt vĩnh viễn ở `ContainerCreating` với lỗi `Multi-Attach error`.
+
+`Recreate` xoá pod cũ **rồi mới** tạo pod mới → không tranh chấp ổ đĩa. Đánh đổi: có một khoảng gián đoạn ngắn — chấp nhận được với database một bản.
+
+Đi kèm: database phải `replicas: 1`. Cần nhiều bản thì dùng **StatefulSet**, mỗi bản một PVC riêng.
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **ConfigMap** | Nơi chứa cấu hình thường: URL, cổng, tên miền |
+| **Secret** | Nơi chứa dữ liệu nhạy cảm — **chỉ base64, KHÔNG phải mã hoá** |
+| **`envFrom` vs `volumeMount`** | Tiêm thành biến môi trường (cố định) vs thành file (tự cập nhật) |
+| **`kubectl rollout restart`** | Khởi động lại pod cuốn chiếu, không gián đoạn dịch vụ |
+| **PV / PVC** | Ổ đĩa thật / yêu cầu xin ổ đĩa; bạn chỉ viết PVC, cluster lo phần còn lại |
+| **StorageClass** | Nhà cung cấp ổ đĩa — tự tạo PV khi có PVC |
+| **RWO / RWX** | ReadWriteOnce (một node ghi) / ReadWriteMany (nhiều node cùng ghi) |
+| **`strategy: Recreate`** | Xoá pod cũ rồi mới tạo mới — bắt buộc cho database dùng ổ RWO |
+| **Sealed Secrets / SOPS** | Mã hoá thật để commit bí mật vào Git an toàn |
 
 ### 🎯 Đúc kết Ngày 39
 
@@ -4731,6 +5093,62 @@ minikube stop
 - **Cluster Autoscaler là tầng khác.** HPA thêm pod; nếu node không còn chỗ, pod mới nằm `Pending` mãi. Muốn tự thêm **máy** thì cần Cluster Autoscaler (cloud) hoặc Karpenter. Nhiều người tưởng HPA lo cả hai.
 - **PodDisruptionBudget bảo vệ bạn lúc bảo trì.** Khi node được nâng cấp, K8s sẽ dồn pod đi nơi khác — không có PDB thì nó có thể xoá cùng lúc mọi bản sao của bạn. Khai `minAvailable: 1` là đủ tránh một sự cố rất vô duyên.
 
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. Phân biệt readinessProbe và livenessProbe. Hậu quả khi đặt nhầm là gì?</b></summary>
+
+| | readiness | liveness |
+|---|---|---|
+| Hỏi gì | *'Nhận khách được chưa?'* | *'Còn cứu được không?'* |
+| Trượt thì sao | **Rút pod khỏi Service** | **Giết và tạo lại container** |
+| `RESTARTS` | Không tăng | Tăng |
+
+**Hậu quả khi đặt nhầm:** nếu liveness kiểm tra kết nối tới database, thì khi database chậm đi, **mọi pod trượt liveness cùng lúc** → K8s giết sạch → khởi động lại đồng thời → database càng ngộp → vòng xoáy chết. Một sự cố nhỏ thành sập toàn hệ thống.
+
+Quy tắc: **liveness chỉ kiểm tra chính tiến trình đó**; kiểm tra phụ thuộc bên ngoài là việc của readiness.
+
+</details>
+
+<details>
+<summary><b>2. `requests` và `limits` khác nhau thế nào về vai trò? Ai dùng con số nào?</b></summary>
+
+- **`requests`** = *'pod này cần tối thiểu ngần này'*. **Scheduler** dùng nó để chọn node còn đủ chỗ. Đây cũng là con số bạn **trả tiền**.
+- **`limits`** = *'không được vượt quá'*. **Kernel** cưỡng chế lúc chạy.
+
+Vượt ngưỡng: RAM → **bị giết (OOMKilled, Exit 137)**; CPU → **bị bóp chậm lại (throttle)**, không bị giết.
+
+Ba lớp QoS sinh ra từ hai con số này, quyết định ai bị hy sinh trước khi node cạn RAM: **Guaranteed** (requests=limits) bị giết cuối, **BestEffort** (không khai gì) bị giết **đầu tiên**.
+
+</details>
+
+<details>
+<summary><b>3. HPA báo `<unknown>` ở cột TARGETS. Hai nguyên nhân có thể là gì?</b></summary>
+
+1. **metrics-server chưa chạy** — HPA không có nguồn số liệu. Kiểm tra bằng `kubectl top nodes`.
+2. **Pod chưa khai `requests.cpu`** — HPA tính phần trăm **dựa trên requests**, không có requests thì không có mẫu số để chia.
+
+Điểm quan trọng hay bị hiểu nhầm: HPA tính % theo `requests`, **không** theo dung lượng node. Pod khai `requests: 100m` mà dùng `90m` thì HPA hiểu là **90%** — dù node còn rảnh 90%.
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **startupProbe** | Hỏi 'khởi động xong chưa?' — tạm hoãn hai probe kia trong lúc app đang lên |
+| **readinessProbe** | Hỏi 'nhận khách được chưa?' — trượt thì **rút khỏi Service**, pod vẫn sống |
+| **livenessProbe** | Hỏi 'còn cứu được không?' — trượt thì **giết và tạo lại container** |
+| **`requests`** | Tài nguyên đặt chỗ; Scheduler dùng để xếp node, HPA dùng làm mẫu số |
+| **`limits`** | Trần cứng; vượt RAM → OOMKilled, vượt CPU → bị bóp chậm |
+| **OOMKilled / Exit 137** | Container bị kernel giết vì vượt limits RAM |
+| **QoS class** | Guaranteed / Burstable / BestEffort — quyết định ai bị giết trước khi cạn RAM |
+| **HPA** | Tự tăng giảm **số pod** theo tải; cần metrics-server và requests |
+| **Cluster Autoscaler** | Tự thêm **node** khi pod không còn chỗ — tầng khác với HPA |
+| **PodDisruptionBudget** | Đảm bảo tối thiểu N pod sống khi node được bảo trì |
+
 ### 🎯 Đúc kết Ngày 41
 
 **3 điều phải mang theo:**
@@ -5223,6 +5641,58 @@ minikube stop
 - **`--set` tiện nhưng chóng quên.** Giá trị truyền bằng `--set` không nằm trong Git → không ai biết production đang chạy cấu hình gì. Dùng `--set` khi thử nghiệm; với môi trường thật hãy để mọi thứ trong **file values được commit vào Git** (đây chính là tiền đề của GitOps ngày mai).
 - **Chart của bạn cũng cần đánh phiên bản.** `Chart.yaml` có hai trường: `version` (phiên bản của *chart*) và `appVersion` (phiên bản của *ứng dụng*). Sửa template thì tăng `version`; đổi image thì đổi `appVersion`. Lẫn lộn hai cái là rắc rối về sau.
 
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. Phân biệt chart, values và release.</b></summary>
+
+- **Chart**: gói khuôn mẫu (template + giá trị mặc định) — như file cài đặt `.deb`
+- **Values**: giá trị bạn truyền vào để điền chỗ trống — như tuỳ chọn khi cài
+- **Release**: **một lần cài** chart vào cluster, có tên riêng — như phần mềm đã cài xong
+
+Một chart cài được nhiều lần thành nhiều release: `helm install shop-dev ./chart` và `helm install shop-prod ./chart -f values-prod.yaml` — cùng khuôn, khác cấu hình, sống song song.
+
+</details>
+
+<details>
+<summary><b>2. Vì sao luôn chạy `helm template` trước `helm install`?</b></summary>
+
+Vì nó **render YAML thật sự sẽ được sinh ra** mà **không đụng tới cluster** — chạy hoàn toàn ngoại tuyến.
+
+Sai thụt lề, sai tên biến, điều kiện `if` không như ý — tất cả lộ ra ngay tại đây, thay vì làm hỏng cluster rồi mới biết.
+
+Với production, thêm `helm diff upgrade` (plugin) để thấy **chính xác cái gì sắp đổi**. Đây là bước người làm lâu năm không bao giờ bỏ qua — cùng tinh thần với `terraform plan` và `ansible --check`.
+
+</details>
+
+<details>
+<summary><b>3. `helm upgrade --atomic` làm gì? Vì sao nên dùng cho production?</b></summary>
+
+Nếu bản mới **không lên được** trong thời gian `--timeout`, Helm **tự động quay lui** về bản cũ.
+
+Không có nó, bạn mắc kẹt ở trạng thái nửa vời: một nửa pod mới hỏng, một nửa pod cũ, và phải tự dọn bằng tay — đúng lúc đang căng thẳng.
+
+Kiểm chứng dễ: `helm upgrade ... --set image.tag=khong-ton-tai --atomic` → Helm báo lỗi nhưng các pod **vẫn chạy bản cũ bình thường**, và lịch sử ghi lại cả lần thất bại lẫn lần rollback tự động.
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Chart** | Gói khuôn mẫu Kubernetes (templates + values mặc định) |
+| **Values** | Giá trị truyền vào chart để điền chỗ trống |
+| **Release** | Một lần cài chart vào cluster, có tên riêng |
+| **Revision** | Mỗi lần upgrade tạo một đời mới — `helm history` xem, `helm rollback` quay lui |
+| **`helm template`** | Render YAML ngoại tuyến, không đụng cluster — công cụ gỡ lỗi số một |
+| **`helm lint`** | Kiểm tra chart hợp lệ trước khi cài |
+| **`--atomic`** | Upgrade thất bại thì tự động quay lui về bản cũ |
+| **`{{ .Values.x }}`** | Cú pháp lấy giá trị từ values.yaml trong template |
+| **`{{-`** | Nuốt khoảng trắng phía trước — thiếu nó là sai thụt lề YAML |
+| **`version` vs `appVersion`** | Phiên bản của *chart* vs phiên bản của *ứng dụng* |
+
 ### 🎯 Đúc kết Ngày 42
 
 **3 điều phải mang theo:**
@@ -5691,6 +6161,58 @@ minikube stop
 - **ArgoCD mặc định hỏi Git mỗi 3 phút.** Muốn phản hồi tức thì thì gắn **webhook** từ GitHub → cluster. Không có webhook thì đừng hoảng khi thấy chậm — đó là hành vi bình thường, không phải lỗi.
 - **`Synced` không có nghĩa là đúng.** ArgoCD chỉ đảm bảo cluster *giống Git*. Nếu Git sai thì cluster sai một cách rất trung thành. Chất lượng của GitOps phụ thuộc hoàn toàn vào chất lượng review Pull Request — đây là lý do branch protection (Ngày 32) trở nên quan trọng gấp bội.
 
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. GitOps giải quyết hai vấn đề nào còn tồn đọng từ Ngày 34 và Ngày 36?</b></summary>
+
+**Vấn đề 1 — chìa khoá nằm sai chỗ (Ngày 34):** deploy kiểu push buộc CI giữ khoá SSH/kubeconfig của production. Ai chiếm được CI thì chiếm được cluster. GitOps lật ngược chiều: tác nhân **trong** cluster tự kéo từ Git, **không ai bên ngoài cần giữ chìa khoá**.
+
+**Vấn đề 2 — trôi cấu hình (Ngày 36):** ai đó `kubectl scale` lúc nửa đêm, sáng ra không ai nhớ, và lần deploy sau nó âm thầm quay lại. GitOps với `selfHeal: true` **phát hiện và tự hoàn tác trong 30 giây**.
+
+</details>
+
+<details>
+<summary><b>2. Phân biệt trạng thái `Synced` và `Healthy` của ArgoCD. Có thể vừa Synced vừa Degraded không?</b></summary>
+
+Hai **trục hoàn toàn khác nhau**:
+- **Synced** = cluster có **giống Git** không
+- **Healthy** = ứng dụng có **chạy được** không
+
+Hoàn toàn có thể `Synced` mà `Degraded`: nghĩa là Git mô tả **đúng ý bạn**, nhưng thứ bạn mô tả **đang hỏng** (ví dụ image tag không tồn tại).
+
+Hệ quả quan trọng: ArgoCD chỉ đảm bảo cluster giống Git. **Git sai thì cluster sai một cách rất trung thành.** Chất lượng GitOps phụ thuộc hoàn toàn vào chất lượng review Pull Request — đó là lý do branch protection (Ngày 32) trở nên quan trọng gấp bội.
+
+</details>
+
+<details>
+<summary><b>3. Vì sao GitOps bắt buộc phải xử lý bí mật tử tế?</b></summary>
+
+Vì **mọi thứ đều nằm trong Git** — đó là cả điểm mạnh lẫn ràng buộc. Mà Secret của K8s chỉ là base64 (Ngày 39), nên **không thể commit thẳng**.
+
+Ba giải pháp thường đi kèm GitOps:
+- **Sealed Secrets**: mã hoá bằng khoá công khai của cluster, chỉ cluster giải được
+- **SOPS**: mã hoá file bằng khoá từ KMS/age
+- **External Secrets Operator**: Git chỉ chứa *tham chiếu*, giá trị thật nằm ở Vault/cloud
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **GitOps** | Git là nguồn sự thật; tác nhân trong cluster tự kéo về và sửa cho khớp |
+| **ArgoCD** | Công cụ GitOps phổ biến nhất cho Kubernetes |
+| **Application (CRD)** | Object khai báo: theo dõi repo nào, nhánh nào, thư mục nào, deploy vào đâu |
+| **Synced / OutOfSync** | Cluster có khớp Git không |
+| **Healthy / Degraded** | Ứng dụng có chạy được không — **trục khác** với Synced |
+| **`selfHeal`** | Tự hoàn tác mọi thay đổi thủ công trên cluster |
+| **`prune`** | Xoá file trong Git thì xoá luôn tài nguyên trong cluster — con dao hai lưỡi |
+| **Repo cấu hình** | Repo riêng chứa YAML/Helm values; tách khỏi repo mã nguồn |
+| **App-of-Apps** | Một Application trỏ tới thư mục chứa các Application khác |
+
 ### 🎯 Đúc kết Ngày 43
 
 **3 điều phải mang theo:**
@@ -6158,6 +6680,60 @@ docker compose down        # tắt container, GIỮ lại dữ liệu metric
 - **Pushgateway chỉ dành cho job siêu ngắn.** Cronjob chạy 3 giây rồi tắt thì Prometheus không kịp scrape — *chỉ* trường hợp này mới dùng Pushgateway. Dùng cho service thường trực là sai kiến trúc.
 - **Khung để nghĩ khi đặt alert:** **RED** (Rate / Errors / Duration — cho service) hoặc **USE** (Utilization / Saturation / Errors — cho tài nguyên). Có khung thì bạn đặt alert theo hệ thống, không theo cảm tính.
 - **Cảnh báo về chính cảnh báo — "alert fatigue".** Báo nhiều quá hoá nhờn, đến lúc có sự cố thật thì không ai buồn nhìn nữa. Chỉ alert vào thứ **người dùng thực sự cảm nhận được** (chậm, lỗi, không vào được) — không alert mọi dao động CPU.
+
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. Vì sao Prometheus chọn mô hình pull thay vì push? Lợi ích lớn nhất là gì?</b></summary>
+
+Prometheus **chủ động đi hỏi** (`GET /metrics` mỗi 15 giây) thay vì chờ dịch vụ tự gửi.
+
+Lợi ích lớn nhất: **target chết là biết ngay**. Gọi không được → `up == 0` → cảnh báo. Với push model, dịch vụ im lặng thì không phân biệt được *đã chết* hay *đang rảnh không có gì để gửi*.
+
+Lợi ích phụ: dễ debug (mở thẳng `/metrics` bằng `curl` là thấy), và target không cần biết địa chỉ Prometheus.
+
+</details>
+
+<details>
+<summary><b>2. Vì sao counter bắt buộc phải bọc `rate()`? Gauge có cần không?</b></summary>
+
+Counter **chỉ tăng**, nên con số thô gần như vô nghĩa — biết *'đã phục vụ 3 triệu request từ hôm khai trương'* thì để làm gì?
+
+Cái bạn cần là **tốc độ hiện tại**: *'đang 120 request/giây, trong khi bình thường là 40'*. `rate(x[5m])` chính là phép tính 'trung bình mỗi giây tăng bao nhiêu trong 5 phút qua'.
+
+**Gauge thì đọc thẳng** (RAM còn trống, số kết nối) — bọc `rate()` vào gauge sẽ ra kết quả vô nghĩa. Đây là lỗi kinh điển của người mới.
+
+</details>
+
+<details>
+<summary><b>3. Cardinality explosion là gì? Cho một ví dụ nhãn KHÔNG được đặt.</b></summary>
+
+Mỗi **tổ hợp nhãn khác nhau** tạo ra một chuỗi time-series riêng nằm trong RAM. Đặt nhãn động thì số chuỗi bùng nổ → Prometheus ngốn hết RAM rồi chết.
+
+Ví dụ nhãn **không được** đặt: `user_id`, `request_id`, `email`, hoặc đường dẫn thật (`/don-hang/12345`). Mỗi người dùng/request lại đẻ một chuỗi mới.
+
+**Quy tắc:** nhãn chỉ dùng cho giá trị **hữu hạn và ít** — mã HTTP, tên service, môi trường. Với đường dẫn thì dùng *mẫu* (`/don-hang/:id`), không dùng giá trị thật.
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Metric** | Một con số + nhãn + mốc thời gian, expose ở trang `/metrics` |
+| **Scrape / Target** | Việc Prometheus đi hỏi / nơi bị hỏi |
+| **Pull vs Push** | Prometheus tự đi lấy (biết ngay khi target chết) vs dịch vụ tự gửi |
+| **Exporter** | Chương trình nhỏ bày thông tin hệ thống ra dạng metric (node-exporter, cAdvisor) |
+| **Counter** | Chỉ tăng — **bắt buộc bọc `rate()`** |
+| **Gauge** | Lên xuống tự do — đọc thẳng, không bọc `rate()` |
+| **Histogram** | Chia giá trị vào các 'xô' — dùng `histogram_quantile()` tính p95/p99 |
+| **PromQL** | Ngôn ngữ truy vấn metric của Prometheus |
+| **`up`** | Metric Prometheus tự sinh: 1 = scrape thành công, 0 = thất bại |
+| **`for:`** | Điều kiện phải duy trì bao lâu mới báo động — lọc bỏ nhấp nháy ngắn |
+| **Cardinality explosion** | Nhãn động làm số chuỗi bùng nổ và giết Prometheus |
+| **Recording rule** | Tính sẵn truy vấn nặng theo chu kỳ, lưu thành metric mới |
 
 ### 🎯 Đúc kết Ngày 44
 
@@ -6634,6 +7210,57 @@ docker compose stop        # giữ nguyên để Ngày 46 cắm Loki vào
 - **Một alert tốt phải kèm hướng dẫn xử lý.** Cảnh báo chỉ nói "CPU cao" thì người bị gọi dậy lúc nửa đêm vẫn không biết làm gì. Đưa vào phần annotation một **runbook**: kiểm tra gì trước, lệnh nào chạy, khi nào thì leo thang. Đây là dấu hiệu rõ nhất phân biệt đội vận hành nghiệp dư với chuyên nghiệp.
 - **Alert nên gắn với thứ người dùng cảm nhận được.** "CPU 85%" chưa chắc là vấn đề nếu người dùng vẫn được phục vụ nhanh. "p95 độ trễ vượt 2 giây" hoặc "tỉ lệ lỗi 5xx trên 1%" mới đúng là thứ đáng đánh thức người ta dậy. Ngày 51 (SLO) sẽ hệ thống hoá đúng ý này.
 
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. Bốn tín hiệu vàng là gì? Vì sao cần chúng khi đã có hàng nghìn metric?</b></summary>
+
+**Traffic** (có bao nhiêu khách), **Errors** (bao nhiêu % hỏng), **Latency** (khách chờ bao lâu), **Saturation** (còn dư sức không).
+
+Một exporter bày ra hàng nghìn metric — nhìn hết là không nhìn gì cả. Bốn tín hiệu này là **bộ lọc** giúp biết nhìn gì để trả lời câu *'hệ thống có ổn không?'* trong 5 giây.
+
+Biến thể gọn hơn: **RED** (Rate/Errors/Duration) cho dịch vụ, **USE** (Utilization/Saturation/Errors) cho tài nguyên.
+
+</details>
+
+<details>
+<summary><b>2. Vì sao nhìn p95 thay vì giá trị trung bình?</b></summary>
+
+Trung bình **che giấu** trải nghiệm tệ. Ví dụ: 100 request, 95 cái nhanh 50ms, 5 cái chậm 10 giây → trung bình ≈ 550ms, nhìn vào thấy 'ổn'. Nhưng có **5 khách hàng đang rất bực**.
+
+**p95 = 95% số request nhanh hơn con số này** — nó cho thấy trải nghiệm của nhóm chịu thiệt nhất, đúng nhóm sẽ bỏ đi hoặc gọi phàn nàn.
+
+Ở quy mô lớn người ta còn nhìn p99 và p99.9 — 1% của một triệu request vẫn là mười nghìn người.
+
+</details>
+
+<details>
+<summary><b>3. Vì sao dashboard phải sinh ra từ file thay vì bấm chuột tạo?</b></summary>
+
+Ba lý do thực tế:
+1. Container Grafana bị xoá → **mất sạch** dashboard bấm tay
+2. Không ai biết **ai đã đổi gì, lúc nào** — không có lịch sử, không review được
+3. Dựng môi trường mới → ngồi bấm lại từ đầu
+
+**Provisioning** bằng file YAML/JSON đưa dashboard vào Git: có review, có đường lui, tái lập được ở bất cứ đâu. Đây chính là tư duy Infrastructure as Code áp cho giám sát — cùng tinh thần với GitOps ở Ngày 43.
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **4 tín hiệu vàng** | Traffic · Errors · Latency · Saturation — bộ lọc để biết nhìn gì |
+| **RED / USE** | Rate-Errors-Duration (dịch vụ) / Utilization-Saturation-Errors (tài nguyên) |
+| **p95 / p99** | Phân vị — 95%/99% số request nhanh hơn con số này |
+| **Provisioning** | Khai báo datasource và dashboard bằng file để Grafana tự nạp |
+| **`$__rate_interval`** | Biến Grafana tự tính khoảng thời gian, thay cho `[5m]` cố định |
+| **Threshold** | Ngưỡng màu trên panel — để liếc 2 giây là biết có chuyện |
+| **Runbook** | Hướng dẫn xử lý kèm theo cảnh báo — dấu hiệu của đội chuyên nghiệp |
+| **Alert fatigue** | Báo nhiều quá hoá nhờn, đến lúc có sự cố thật thì không ai nhìn |
+
 ### 🎯 Đúc kết Ngày 45
 
 **3 điều phải mang theo:**
@@ -7063,6 +7690,62 @@ docker compose stop
 - **Retention là quyết định về tiền, không phải kỹ thuật.** Giữ log 30 ngày nghe hay, nhưng đó là hoá đơn lưu trữ thật. Cách làm phổ biến: giữ đầy đủ 7 ngày, còn thứ cần lâu hơn thì rút thành metric (như ở Bước 4) — metric rẻ hơn log rất nhiều lần.
 - **Đồng bộ giờ là điều kiện tiên quyết.** Log từ nhiều máy lệch giờ nhau thì dòng thời gian trở nên vô nghĩa và bạn sẽ suy luận sai nhân quả. `chrony`/`systemd-timesyncd` phải chạy đúng trên mọi máy (Ngày 10).
 - **Cùng một `trace_id` trong log là bước đệm sang tracing.** Nếu mọi dịch vụ ghi kèm một mã định danh chung cho mỗi request, bạn có thể lần theo một request qua toàn hệ thống chỉ bằng log — đó là cây cầu dẫn sang distributed tracing (Module nâng cao NC1).
+
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. Loki khác Elasticsearch ở điểm cốt lõi nào? Cái giá phải trả là gì?</b></summary>
+
+Loki **chỉ đánh chỉ mục nhãn**, không đánh chỉ mục nội dung log. Nội dung được nén lại để đó. Khi tìm, nó lọc theo nhãn trước cho tập nhỏ lại, rồi mới quét nội dung.
+
+Nhờ vậy Loki nhẹ hơn ELK rất nhiều về RAM và đĩa.
+
+**Cái giá:** phần chọn nhãn là **bắt buộc** — không thể tìm khơi khơi trên toàn bộ log như Google. Phải nói rõ 'trong container nào / job nào' trước.
+
+</details>
+
+<details>
+<summary><b>2. Mô tả quy trình điều tra một sự cố bằng ba trụ cột observability.</b></summary>
+
+Ba trụ cột không phải ba lựa chọn thay thế nhau — chúng là **ba bước liên tiếp** của cùng một cuộc điều tra:
+
+| Bước | Công cụ | Trả lời |
+|---|---|---|
+| 1 | Metric (Prometheus/Grafana) | *Có chuyện gì không?* |
+| 2 | **Log (Loki)** | *Sai cái gì?* |
+| 3 | Trace (Jaeger/Tempo) | *Sai ở khúc nào trong chuỗi dịch vụ?* |
+
+Ví dụ thật: dashboard báo target chết → tra log thấy `connection refused` → biết dịch vụ không còn lắng nghe → khởi động lại.
+
+</details>
+
+<details>
+<summary><b>3. Vì sao không được đưa `request_id` vào nhãn của Loki? Vậy tìm theo nó bằng cách nào?</b></summary>
+
+Vì đó là **giá trị vô hạn** — mỗi request đẻ một nhãn mới → số chuỗi bùng nổ → Loki chậm đi trông thấy. Đúng bài học cardinality của Ngày 44, lặp lại ở tầng log.
+
+`request_id` thuộc về **nội dung** log, không phải nhãn. Tìm nó bằng bộ lọc chữ:
+```logql
+{job="docker"} |= "abc-123-def"
+```
+Hoặc nếu log ở dạng JSON có cấu trúc: `{job="docker"} | json | request_id="abc-123-def"`
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Loki** | Hệ gom log 'như Prometheus' — chỉ đánh chỉ mục nhãn, không đánh chỉ mục nội dung |
+| **Promtail / Alloy** | Tác nhân đọc log container, gắn nhãn, đẩy về Loki |
+| **LogQL** | Ngôn ngữ truy vấn log: `{nhãn} |= "chuỗi"` |
+| **`|=` `!=` `|~` `!~`** | Chứa / không chứa / khớp regex / không khớp regex |
+| **Structured logging** | Ghi log dạng JSON để lọc được theo trường, không phải khớp chuỗi |
+| **Retention** | Thời gian giữ log — quyết định về **tiền**, không phải kỹ thuật |
+| **3 trụ cột observability** | Metrics (có sai không) → Logs (sai gì) → Traces (sai ở đâu) |
+| **`trace_id`** | Mã định danh chung cho một request qua nhiều dịch vụ — cầu nối sang tracing |
 
 ### 🎯 Đúc kết Ngày 46
 
@@ -7632,6 +8315,65 @@ docker compose down
 - **Dùng `serial` để khỏi tự sập cả hệ thống.** Playbook mặc định chạy song song trên **mọi** máy. Với dịch vụ đang phục vụ, `serial: 1` (hoặc `serial: "25%"`) sẽ cập nhật lần lượt — giống rolling update của K8s. Không có nó, một cấu hình sai sẽ hạ toàn bộ đội máy cùng lúc.
 - **Ansible chậm với số máy lớn.** Đẩy qua SSH nên hàng trăm máy là thấy rõ. Bật `pipelining = True` trong `ansible.cfg` và tăng `forks` là cải thiện đáng kể.
 - **Role và Ansible Galaxy để khỏi viết lại.** Cài nginx, Docker, PostgreSQL — đã có người viết sẵn và kiểm thử kỹ trên [Galaxy](https://galaxy.ansible.com). Nhưng nhớ **đọc code trước khi dùng** và ghim phiên bản: bạn đang cho code của người lạ chạy với quyền root trên máy chủ của mình.
+
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. Idempotent nghĩa là gì? Vì sao Bash script thiếu nó lại nguy hiểm?</b></summary>
+
+**Idempotent** = chạy 1 lần hay 100 lần đều cho cùng một kết quả.
+
+Bash script thường không có tính này:
+```bash
+echo "..." >> /etc/nginx/x.conf   # chạy lần 2 -> ghi thêm lần nữa -> file hỏng
+useradd deploy                    # chạy lần 2 -> báo lỗi
+```
+
+Ansible mô tả **trạng thái mong muốn** (`state: present`) và tự kiểm tra trước khi hành động. Nhờ vậy playbook chạy lại **bất cứ lúc nào** cũng an toàn — và đó chính là điều cho phép dùng nó để *sửa trôi cấu hình*.
+
+</details>
+
+<details>
+<summary><b>2. Handler khác task thường ở điểm nào? Cho ví dụ vì sao nó quan trọng.</b></summary>
+
+Handler **chỉ chạy khi task báo có thay đổi thật sự** (qua `notify`).
+
+Ví dụ: task đặt file cấu hình nginx `notify: khoi dong lai nginx`. Chạy playbook 10 lần mà file không đổi → nginx **không bị khởi động lại lần nào**.
+
+Không có cơ chế này, mỗi lần chạy playbook là một lần gián đoạn dịch vụ vô cớ. Đây là thứ khiến playbook an toàn để chạy định kỳ (ví dụ mỗi giờ để chống trôi cấu hình).
+
+</details>
+
+<details>
+<summary><b>3. Khi nào dùng Terraform, khi nào dùng Ansible? Chúng thay thế nhau được không?</b></summary>
+
+**Không thay thế nhau — chúng bổ sung:**
+- **Terraform tạo ra** hạ tầng: máy ảo, mạng, ổ đĩa, load balancer
+- **Ansible cấu hình bên trong** máy: cài gói, đặt file cấu hình, tạo user
+
+Quy trình thường thấy: `terraform apply` dựng VM → xuất danh sách IP ra inventory → `ansible-playbook` cấu hình.
+
+Dùng Terraform để cài gói phần mềm, hay dùng Ansible để tạo VPC, đều là **dùng sai công cụ** — làm được nhưng rất gượng ép.
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Idempotent** | Chạy bao nhiêu lần cũng cho cùng kết quả — khái niệm quan trọng nhất |
+| **Inventory** | Danh sách máy cần quản lý, chia theo nhóm |
+| **Playbook** | File YAML mô tả trạng thái mong muốn của các máy |
+| **Module** | Đơn vị việc dựng sẵn (`apt`, `copy`, `service`) — hơn 3000 cái |
+| **Handler** | Task chỉ chạy khi có thay đổi thật sự (qua `notify`) |
+| **Role** | Cách đóng gói playbook để dùng lại — như thư viện |
+| **Facts** | Thông tin Ansible tự thu thập về máy (OS, CPU, IP...) |
+| **Ansible Vault** | Mã hoá **AES256 thật** — khác hẳn base64 của K8s Secret |
+| **`--check --diff`** | Chạy khô: báo sẽ đổi gì mà không đổi thật |
+| **`serial`** | Cập nhật lần lượt từng nhóm máy thay vì tất cả cùng lúc |
+| **Agentless** | Không cần cài gì lên máy đích — chỉ cần SSH + Python |
 
 ### 🎯 Đúc kết Ngày 47
 
@@ -8258,6 +9000,57 @@ docker compose -f minio-compose.yml down -v
 - **`terraform import` để tiếp quản hạ tầng có sẵn.** Vào công ty mới, hạ tầng đã dựng tay hết — không cần đập đi xây lại. Viết code mô tả nó rồi `import` vào state, dần dần đưa mọi thứ về IaC.
 - **Đừng dùng workspace cho dev/prod khi hai môi trường khác nhau nhiều.** Nghe tiện nhưng rủi ro apply nhầm là có thật, và khi kiến trúc bắt đầu khác nhau thì code sẽ đầy `if`. Đa số đội chọn thư mục riêng cho mỗi môi trường, dùng chung module — rõ ràng hơn và an toàn hơn.
 
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. State của Terraform là gì? Điều gì xảy ra nếu mất nó?</b></summary>
+
+State là **sổ ghi chép ánh xạ** giữa code và tài nguyên thật: `resource "web"` ↔ `id "a3f2c9..."` ↔ container/VM đang chạy.
+
+Mất state thì Terraform **không biết thứ nào nó đã tạo** → `apply` tưởng chưa có gì → **tạo trùng toàn bộ hạ tầng**.
+
+Hệ quả khác: state ở laptop thì đồng nghiệp chạy `apply` cũng tạo trùng; hai người chạy cùng lúc thì ghi đè state của nhau và sổ ghi sai lệch với thực tế.
+
+</details>
+
+<details>
+<summary><b>2. Vì sao không bao giờ được commit `terraform.tfstate` vào Git?</b></summary>
+
+Hai lý do:
+1. **State chứa bí mật ở dạng chữ thường** — mật khẩu database do Terraform tạo ra nằm nguyên trong đó
+2. **Xung đột khi làm nhóm** — hai người sửa state cùng lúc là hỏng, và Git không merge được file này
+
+Cách đúng: remote state (S3/GCS/Terraform Cloud) có **mã hoá** và **khoá**. Khi một người đang `apply`, người thứ hai bị chặn lại thay vì ghi đè.
+
+</details>
+
+<details>
+<summary><b>3. Khi nào nên dùng workspace, khi nào nên tách thư mục cho mỗi môi trường?</b></summary>
+
+**Workspace** hợp khi các môi trường **gần như giống hệt nhau**, chỉ khác quy mô — cùng code, khác file state.
+
+**Tách thư mục** hợp hơn khi dev và prod **khác nhau về kiến trúc** (prod có thêm bản dự phòng, CDN, tài khoản cloud riêng). Dùng workspace lúc này sẽ khiến code đầy `if`.
+
+Rủi ro lớn nhất của workspace: **quên `select` và lỡ tay apply nhầm lên production**. Tạo thói quen chạy `terraform workspace show` trước mọi lệnh apply/destroy.
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **State** | Sổ ghi ánh xạ code ↔ tài nguyên thật; mất nó là Terraform mù |
+| **Remote state** | State lưu ở kho dùng chung (S3/GCS) thay vì trên máy cá nhân |
+| **State locking** | Khoá state khi đang apply, chặn người thứ hai ghi đè |
+| **Module** | Thư mục `.tf` dùng lại được với tham số khác nhau — như hàm số |
+| **Workspace** | Nhiều file state cho cùng một bộ code |
+| **`terraform plan`** | Xem trước thay đổi; chú ý dòng `-/+` = **huỷ rồi tạo lại** |
+| **`terraform import`** | Đưa hạ tầng đã có sẵn vào quản lý của Terraform |
+| **`prevent_destroy`** | Chặn xoá nhầm tài nguyên quan trọng |
+| **Drift** | Thực tế trôi khỏi state, thường do ai đó sửa tay trên console |
+
 ### 🎯 Đúc kết Ngày 48
 
 **3 điều phải mang theo:**
@@ -8842,6 +9635,66 @@ Tổng số thành phần: 42
 - **Dependabot / Renovate lo phần nâng cấp.** Quét chỉ cho biết có vấn đề; hai công cụ này **tự mở Pull Request** nâng phiên bản thư viện. Kết hợp với CI đầy đủ (Ngày 32), bạn có được vòng lặp cập nhật gần như tự động.
 - **Người là lớp phòng thủ cuối, không phải lớp đầu.** Công cụ bắt được cái đã biết; còn logic phân quyền sai (người dùng A xem được đơn hàng của người dùng B) thì không công cụ nào phát hiện. Quét tự động để giải phóng thời gian con người cho những thứ chỉ con người thấy được.
 - **Đừng để quá trình build tự tải mã lạ về chạy.** `curl | bash` trong Dockerfile, action GitHub ghim `@main`, thư viện không khoá phiên bản — đó là những cánh cửa của tấn công chuỗi cung ứng. Ghim phiên bản (lý tưởng là ghim SHA) ở mọi tầng: image nền, thư viện, action, module Terraform.
+
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. Shift-left nghĩa là gì? Minh hoạ bằng chi phí sửa lỗi.</b></summary>
+
+**Đẩy việc kiểm tra về phía trái** của dòng thời gian — càng sớm càng rẻ:
+
+| Phát hiện lúc | Chi phí tương đối |
+|---|---|
+| Gõ code | 1 |
+| Chạy CI | ~5 |
+| Trên production | ~50 |
+| Sau khi bị tấn công | ~500 và mất uy tín |
+
+Cùng một lỗi, chỉ khác thời điểm phát hiện. DevSecOps là biến bảo mật thành **một bước tự động trong pipeline**, không phải một cuộc họp ở cuối dự án.
+
+</details>
+
+<details>
+<summary><b>2. Bạn `git rm` file chứa mật khẩu rồi commit. Vấn đề đã xong chưa?</b></summary>
+
+**Chưa.** Git lưu **toàn bộ lịch sử** — bất kỳ ai clone repo vẫn lấy được mật khẩu từ commit cũ. `git rm` chỉ xoá ở hiện tại.
+
+Quy trình đúng, **theo đúng thứ tự này**:
+1. **Vô hiệu hoá bí mật ngay** (đổi mật khẩu, thu hồi token) — quan trọng nhất, làm đầu tiên
+2. Xoá khỏi lịch sử (`git filter-repo` hoặc BFG)
+3. Bật quét tự động để không tái diễn
+
+Ghi nhớ: **bí mật đã lộ thì phải coi như đã bị đánh cắp**, kể cả repo private.
+
+</details>
+
+<details>
+<summary><b>3. Vì sao không nên đặt ngưỡng chặn pipeline ở mọi mức nghiêm trọng ngay từ đầu?</b></summary>
+
+Vì bật quét ở mọi mức sẽ cho ra **hàng trăm phát hiện ngày đầu tiên**. Cả đội nản, rồi bắt đầu bỏ qua cảnh báo — **kể cả cái CRITICAL thật sự nguy hiểm**.
+
+Đây chính là *alert fatigue* của Ngày 44, áp cho bảo mật.
+
+Cách làm đúng: bắt đầu bằng **CRITICAL + HIGH**, và chỉ những cái **đã có bản vá** (`ignore-unfixed` — lỗ hổng chưa có bản vá thì chặn cũng không giải quyết được gì). Rồi siết dần khi đội đã quen.
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Shift-left** | Đẩy kiểm tra về sớm trong vòng đời — càng sớm càng rẻ |
+| **CVE / CVSS** | Mã định danh lỗ hổng công bố / điểm nghiêm trọng 0–10 |
+| **Gitleaks** | Quét bí mật lỡ commit — quét **cả lịch sử**, cần `fetch-depth: 0` |
+| **Trivy** | Quét lỗ hổng trong thư viện và image |
+| **Hadolint** | Kiểm tra cách viết Dockerfile |
+| **Checkov** | Quét cấu hình hạ tầng dạng code (Terraform, K8s) |
+| **SBOM** | Danh mục thành phần — trả lời 'ta có dùng thư viện dính CVE không?' |
+| **`ignore-unfixed`** | Bỏ qua lỗ hổng chưa có bản vá — thực dụng, tránh chặn vô ích |
+| **Supply chain attack** | Tấn công qua thư viện/action/image bên thứ ba |
+| **Dependabot / Renovate** | Tự mở PR nâng phiên bản thư viện có lỗ hổng |
 
 ### 🎯 Đúc kết Ngày 49
 

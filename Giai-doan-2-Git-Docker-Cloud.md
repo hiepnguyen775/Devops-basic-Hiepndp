@@ -3564,6 +3564,52 @@ echo "  (phải là 0 — tài khoản gốc KHÔNG nên có khoá)"
 - **Dùng LocalStack để học và để chạy test.** Không chỉ hợp cho người mới: nhiều đội dùng nó trong CI để kiểm thử mã tương tác với AWS mà không tốn tiền và không cần tài khoản thật.
 - **Mọi thứ hôm nay bấm tay, ba ngày nữa sẽ viết thành code.** Ngày 29 bạn học Terraform và làm lại đúng những việc này bằng khai báo. Hãy bấm tay hôm nay để hiểu *cái gì đang được tạo ra* — rồi mới tự động hoá.
 
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. Mô hình trách nhiệm chia sẻ: nhà cung cấp lo gì, bạn lo gì? Cho một ví dụ mà 'lên cloud' KHÔNG tự động an toàn.</b></summary>
+
+Nhà cung cấp lo bảo mật **của** cloud: phần cứng, trung tâm dữ liệu, lớp ảo hoá. **Bạn** lo bảo mật **trong** cloud: cấu hình, phân quyền, dữ liệu, bản vá.
+
+Ví dụ điển hình: một bucket S3 cấu hình sai quyền vẫn công khai ra Internet — AWS không ngăn bạn làm điều đó, vì đó là phần của bạn. Tương tự với khoá truy cập lỡ commit lên GitHub.
+
+</details>
+
+<details>
+<summary><b>2. Vì sao phải đặt cảnh báo ngân sách TRƯỚC khi tạo tài nguyên đầu tiên, chứ không phải sau?</b></summary>
+
+Vì hoá đơn cloud về **sau một tháng** — biết mình tiêu quá thì đã tiêu xong rồi. Cảnh báo ngân sách 1 USD nghĩa là bất kỳ khoản phát sinh nào cũng làm bạn nhận email ngay.
+
+Và free tier **không phải miễn phí vô điều kiện**: nó miễn phí trong hạn mức, vượt hạn mức là tính tiền bình thường, không ai chặn bạn lại.
+
+</details>
+
+<details>
+<summary><b>3. Bạn lỡ commit `AWS_SECRET_ACCESS_KEY` lên GitHub. Việc đầu tiên phải làm là gì, và vì sao đúng thứ tự đó?</b></summary>
+
+**Vô hiệu hoá khoá đó ngay lập tức** — trước cả khi xoá khỏi lịch sử Git.
+
+Lý do về thời gian: có bot liên tục quét GitHub tìm khoá mới commit. Thời gian từ lúc push tới lúc khoá bị dùng để đào tiền ảo thường tính bằng **phút**. Dọn lịch sử Git mất vài chục phút — đến lúc đó thì đã muộn.
+
+Sau khi thu hồi mới tới: dọn lịch sử (`git filter-repo`/BFG), kiểm tra hoá đơn và tài nguyên lạ, rồi bật quét bí mật tự động.
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **IaaS / PaaS / SaaS** | Ba mức 'ăn sẵn' — càng lên cao bạn càng lo ít, càng mất quyền kiểm soát |
+| **Region** | Khu vực địa lý đặt trung tâm dữ liệu; ảnh hưởng độ trễ, giá, tuân thủ pháp lý |
+| **Availability Zone (AZ)** | Một trung tâm dữ liệu riêng biệt bên trong một region |
+| **Shared Responsibility** | Nhà cung cấp lo bảo mật *của* cloud, bạn lo bảo mật *trong* cloud |
+| **IAM** | Hệ quản lý người dùng và quyền trên cloud |
+| **Least privilege** | Đặc quyền tối thiểu — cho đúng quyền cần thiết, không hơn |
+| **Free tier** | Hạn mức dùng miễn phí; **vượt hạn mức vẫn tính tiền bình thường** |
+| **LocalStack** | Công cụ giả lập dịch vụ AWS trên máy — học và test không tốn chi phí |
+
 ### 🎯 Đúc kết Ngày 26
 
 **3 điều phải mang theo:**
@@ -4052,6 +4098,54 @@ Cả ba bảng phải **rỗng**. Ổ đĩa `available` và IP tĩnh không gắ
 - **cloud-init chỉ chạy ở lần khởi động đầu tiên.** Sửa file rồi khởi động lại máy cũ **không** có tác dụng gì. Phải tạo máy mới. Nhiều người mất cả buổi vì hiểu nhầm điểm này.
 - **Đọc `/var/log/cloud-init-output.log` khi có chuyện.** Đây là nơi duy nhất cho biết lệnh nào trong `runcmd` đã thất bại và vì sao. Không có nó thì bạn chỉ đoán mò.
 - **Ảnh hệ điều hành tự dựng (golden image) cho môi trường lớn.** cloud-init chạy lúc khởi động nên máy mất 1–2 phút mới sẵn sàng. Khi cần mở rộng nhanh, người ta nướng sẵn mọi thứ vào một ảnh hệ điều hành (bằng Packer) — máy lên là dùng được ngay. Cùng tư duy với Docker image ở Ngày 17.
+
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. cloud-init chạy vào lúc nào? Sửa file rồi khởi động lại máy cũ có tác dụng không?</b></summary>
+
+cloud-init **chỉ chạy ở lần khởi động đầu tiên** của máy. Sửa file rồi reboot máy cũ **không** có tác dụng gì — phải tạo máy mới.
+
+Rất nhiều người mất cả buổi vì hiểu nhầm điểm này. Khi cloud-init không như ý, xem `/var/log/cloud-init-output.log` — đó là nơi duy nhất cho biết lệnh nào trong `runcmd` đã thất bại và vì sao.
+
+</details>
+
+<details>
+<summary><b>2. Phân biệt tường lửa của cloud và tường lửa trong máy. Hai loại lỗi kết nối tương ứng là gì?</b></summary>
+
+**Tường lửa cloud** (Security Group) đứng *trước* khi gói tin tới máy, do nhà cung cấp quản, mặc định chặn hết chiều vào. **Tường lửa trong máy** (UFW) nằm bên trong hệ điều hành, do bạn quản qua SSH.
+
+Hai tín hiệu lỗi:
+- `Connection timed out` → gói tin bị **chặn im lặng**, thường là tường lửa cloud
+- `Connection refused` → tới được máy nhưng **không có dịch vụ nào nghe** ở cổng đó
+
+Phân biệt được hai cái này tiết kiệm rất nhiều thời gian mò mẫm.
+
+</details>
+
+<details>
+<summary><b>3. `stop` và `terminate` khác nhau thế nào về chi phí? Nêu thêm một hệ quả kỹ thuật của `stop`.</b></summary>
+
+**`stop`**: tắt máy nhưng **giữ ổ đĩa** → vẫn trả tiền lưu trữ hằng tháng. **`terminate`**: xoá hẳn, ổ đĩa cũng xoá theo mặc định → hết tính tiền.
+
+Hệ quả kỹ thuật của `stop`: **địa chỉ IP công khai bị mất**. Bật lại máy sẽ có IP mới, nên mọi thứ trỏ tới IP cũ đều hỏng. Muốn IP cố định phải xin IP tĩnh — và IP tĩnh **không gắn với máy nào cũng bị tính tiền**.
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **cloud-init** | Cơ chế máy tự cấu hình ở lần khởi động đầu tiên (AWS gọi là *user data*) |
+| **Security Group** | Tường lửa ở tầng cloud, đứng trước máy; mặc định chặn hết chiều vào |
+| **Key pair** | Cặp khoá SSH — phần công khai nạp vào máy, phần riêng bạn giữ |
+| **AMI / Image** | Ảnh hệ điều hành dùng để tạo máy ảo |
+| **Elastic IP / IP tĩnh** | Địa chỉ IP cố định; không gắn với máy nào thì vẫn bị tính tiền |
+| **stop vs terminate** | Tắt (giữ ổ đĩa, vẫn tính tiền) vs xoá hẳn (hết tính tiền) |
+| **Cattle, not pets** | Coi máy chủ là đồ dùng một lần — hỏng thì xoá dựng lại, không ngồi chữa |
+| **Golden image** | Ảnh hệ điều hành nướng sẵn mọi thứ; máy lên là dùng được ngay (Packer) |
 
 ### 🎯 Đúc kết Ngày 27
 
@@ -4555,6 +4649,55 @@ multipass delete may-web --purge
 - **HTTPS ở production là bắt buộc.** Lab này dùng HTTP cho gọn. Ngoài đời, cách nhanh nhất là dùng **Caddy** (tự xin và gia hạn chứng chỉ Let's Encrypt, chỉ cần vài dòng cấu hình) hoặc `certbot` với nginx.
 - **`docker compose up -d --build` trên máy chủ production là cách làm tạm.** Nó build ngay trên máy đang phục vụ — tốn CPU, và nếu build lỗi thì bạn kẹt ở trạng thái nửa vời. Cách đúng: **build ở nơi khác, đẩy lên registry, máy chủ chỉ kéo image về chạy** (Ngày 33).
 - **Nếu phải deploy tay, ít nhất hãy viết thành script.** Một file `deploy.sh` có `set -euo pipefail` vẫn tốt hơn nhiều so với gõ tay sáu lệnh. Nó là bước đệm tự nhiên dẫn tới pipeline ở Ngày 31 — thực chất pipeline chỉ là script đó, chạy bởi máy, có log và có dấu vết.
+
+### 📝 Tự kiểm tra
+
+> Nghĩ câu trả lời **thành lời** trước khi mở đáp án — nghĩ thầm luôn thấy mình hiểu.
+
+<details>
+<summary><b>1. Vì sao đặt nginx trước ứng dụng thay vì cho ứng dụng nghe thẳng cổng 80?</b></summary>
+
+Năm lý do:
+1. **Chấm dứt HTTPS** ở một chỗ, thay vì cấu hình TLS cho từng ứng dụng
+2. **Phục vụ file tĩnh** nhanh hơn Node/Python rất nhiều
+3. **Giới hạn tần suất**, chặn request rác trước khi tới ứng dụng
+4. **Định tuyến nhiều ứng dụng** trên cùng một máy
+5. Cổng dưới 1024 cần quyền root — không có proxy thì phải chạy ứng dụng bằng root
+
+</details>
+
+<details>
+<summary><b>2. Phân biệt `expose` và `ports` trong Docker Compose. Dịch vụ nào dùng cái nào?</b></summary>
+
+`ports: "3000:3000"` **mở cổng ra ngoài máy chủ** — ai truy cập được máy là truy cập được dịch vụ.
+
+`expose: "3000"` chỉ cho các container **trong cùng mạng Docker** thấy — không lộ ra ngoài.
+
+Quy tắc: chỉ **reverse proxy** dùng `ports`. Mọi thứ phía sau (ứng dụng, database) dùng `expose`. Đây là nguyên tắc chỉ mở ra thứ cần mở.
+
+</details>
+
+<details>
+<summary><b>3. Vì sao quay lui bằng cách 'sửa code ngược lại rồi build lại' không phải là quay lui thật?</b></summary>
+
+Vì bạn không **quay lui** — bạn đang **tái tạo** bản cũ. Bản cũ không còn tồn tại ở đâu cả.
+
+Hậu quả: nếu quên chính xác bản cũ có gì thì không về được. Và lúc 2 giờ sáng, tay run, sửa code ngược lại là cách rất dễ gây thêm lỗi.
+
+Quay lui thật đòi hỏi bản cũ **vẫn tồn tại dưới một cái tên bất biến** — đó là lý do Ngày 33 tag image theo SHA commit.
+
+</details>
+
+### 📚 Thuật ngữ Anh–Việt (ngày này)
+
+| Thuật ngữ | Nghĩa |
+|---|---|
+| **Reverse proxy** | Máy chủ đứng trước ứng dụng, nhận request thay rồi chuyển vào trong |
+| **expose vs ports** | Chỉ cho container nội bộ thấy vs mở cổng ra ngoài máy chủ |
+| **restart: unless-stopped** | Tự bật lại container sau khi máy khởi động lại, trừ khi bạn chủ động dừng |
+| **Log rotation** | Giới hạn dung lượng log (`max-size`, `max-file`) để không làm đầy ổ đĩa |
+| **Rate limiting** | Giới hạn số request mỗi giây từ một nguồn, chống làm ngộp máy chủ |
+| **Graceful degradation** | Suy giảm có kiểm soát — mất bớt chức năng nhưng vẫn phục vụ được |
 
 ### 🎯 Đúc kết Ngày 28
 
