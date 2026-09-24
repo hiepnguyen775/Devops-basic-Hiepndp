@@ -450,6 +450,13 @@ git branch             # danh sách gọn lại
 git switch -c feature-login
 git branch
 ```
+**Bạn sẽ thấy:**
+```text
+Switched to a new branch 'feature-login'
+* feature-login
+  main
+```
+
 ✅ **Checkpoint:** dấu `*` nằm ở `feature-login`.
 
 **Bước 2 — Merge và xem đồ thị.**
@@ -457,6 +464,18 @@ git branch
 git switch main && git merge feature-login
 git log --oneline --graph
 ```
+**Bạn sẽ thấy:**
+```text
+Updating 3f2a1b0..8c4d5e6
+Fast-forward
+ login.txt | 1 +
+ 1 file changed, 1 insertion(+)
+
+* 8c4d5e6 (HEAD -> main, feature-login) Thêm chức năng đăng nhập
+* 3f2a1b0 Commit đầu tiên
+```
+💡 `Fast-forward` nghĩa là main chưa có commit mới nào, Git chỉ cần *dời con trỏ* tới — không tạo commit merge.
+
 ✅ **Checkpoint:** lịch sử cho thấy nhánh đã hợp nhất vào main.
 
 **Bước 3 — Trải nghiệm giải quyết conflict.** (làm theo Lab Bước 3)
@@ -466,6 +485,26 @@ git status        # sau khi merge conflict: "Unmerged paths: style.txt"
 git add style.txt && git commit
 git status        # "working tree clean"
 ```
+**Bạn sẽ thấy khi có conflict:**
+```text
+Unmerged paths:
+  (use "git add <file>..." to mark resolution)
+        both modified:   style.txt
+```
+Mở file sẽ thấy Git đánh dấu hai phiên bản:
+```text
+<<<<<<< HEAD
+màu nền: xanh
+=======
+màu nền: đỏ
+>>>>>>> feature-mau
+```
+Sau khi sửa và commit:
+```text
+On branch main
+nothing to commit, working tree clean
+```
+
 ✅ **Checkpoint:** sau khi sửa + add + commit → `working tree clean`.
 💡 Conflict không đáng sợ — chỉ là Git hỏi "giữ phần nào". Bạn quyết, xoá dấu, commit.
 
@@ -676,6 +715,15 @@ git remote add origin git@github.com:<username>/my-app.git
 git remote -v          # kiểm tra URL
 git push -u origin main
 ```
+**Bạn sẽ thấy sau khi push:**
+```text
+Enumerating objects: 8, done.
+Writing objects: 100% (8/8), 1.24 KiB | 1.24 MiB/s, done.
+To github.com:ban/repo.git
+ * [new branch]      main -> main
+branch 'main' set up to track 'origin/main'.
+```
+
 ✅ **Checkpoint:** GitHub hiển thị code của bạn.
 💡 `-u` liên kết nhánh local với remote, từ đó chỉ cần gõ `git push` là đủ.
 
@@ -684,6 +732,17 @@ git push -u origin main
 git fetch origin       # chỉ TẢI về, không đụng code đang làm
 git pull               # tải + gộp (= fetch + merge)
 ```
+**Bạn sẽ thấy với `git fetch`:**
+```text
+From github.com:ban/repo
+   3f2a1b0..8c4d5e6  main       -> origin/main
+```
+Code mới đã tải về nhưng **chưa gộp** — xem trước bằng `git log HEAD..origin/main --oneline`:
+```text
+8c4d5e6 Sửa lỗi hiển thị
+```
+💡 `fetch` cho bạn *nhìn trước khi nhảy*; `pull` = `fetch` + `merge` làm luôn một lượt.
+
 ✅ **Checkpoint:** hiểu `fetch` an toàn để xem trước, `pull` gộp luôn.
 
 **Bước 3 — Mở Pull Request (theo Lab Bước 4).**
@@ -691,6 +750,14 @@ git pull               # tải + gộp (= fetch + merge)
 
 **Bước 4 — (Nâng cao) bật Branch protection.**
 Settings → Branches → thêm rule cho `main` (bắt buộc PR). Thử `git push` thẳng vào main → **bị chặn**.
+**Bạn sẽ thấy khi cố push thẳng vào main:**
+```text
+remote: error: GH006: Protected branch update failed for refs/heads/main.
+remote: error: Changes must be made through a pull request.
+To github.com:ban/repo.git
+ ! [remote rejected] main -> main (protected branch hook declined)
+```
+
 ✅ **Checkpoint:** không ai (kể cả bạn) push thẳng được vào `main`.
 
 ### 🐛 Gỡ lỗi nhanh
@@ -1927,6 +1994,16 @@ docker compose up -d     # dữ liệu DB vẫn còn
 ```bash
 docker compose config
 ```
+**Bạn sẽ thấy:**
+```yaml
+services:
+  db:
+    environment:
+      POSTGRES_PASSWORD: matkhau123      # đã thay từ .env, KHÔNG còn ${...}
+    image: postgres:16-alpine
+```
+💡 `docker compose config` là cách kiểm tra biến đã thay đúng chưa **trước khi** chạy thật.
+
 ✅ **Checkpoint:** in ra cấu hình đã merge, thấy `${POSTGRES_PASSWORD}` đã thay bằng giá trị thật từ `.env`.
 💡 Bắt lỗi YAML (thụt lề sai) sớm, trước khi tốn công `up`.
 
@@ -1935,6 +2012,14 @@ docker compose config
 docker compose up -d
 docker compose ps
 ```
+**Bạn sẽ thấy:**
+```text
+NAME              IMAGE                STATUS                   PORTS
+myapp-db-1        postgres:16-alpine   Up 30 seconds (healthy)   5432/tcp
+myapp-adminer-1   adminer:4            Up 25 seconds             0.0.0.0:8080->8080/tcp
+```
+💡 Chữ `(healthy)` chỉ xuất hiện khi có khai `healthcheck` — không có nó thì chỉ thấy `Up`.
+
 ✅ **Checkpoint:** `db` hiện `(healthy)`, `adminer` hiện `Up`.
 
 **Bước 3 — Hiểu `depends_on` + healthcheck.**
@@ -1947,6 +2032,21 @@ docker compose down       # giữ volume
 docker compose up -d      # dữ liệu còn
 docker compose down -v    # ⚠️ chỉ khi muốn XOÁ sạch cả dữ liệu
 ```
+**Bạn sẽ thấy với `docker compose down`:**
+```text
+[+] Running 3/3
+ ✔ Container myapp-adminer-1  Removed
+ ✔ Container myapp-db-1       Removed
+ ✔ Network myapp_default      Removed
+```
+Volume **không** bị xoá — `docker volume ls` vẫn thấy nó.
+
+**Với `docker compose down -v`** có thêm dòng:
+```text
+ ✔ Volume myapp_db-data       Removed
+```
+⚠️ Lúc này dữ liệu database **mất vĩnh viễn**.
+
 ✅ **Checkpoint:** phân biệt được `down` (giữ dữ liệu) vs `down -v` (xoá sạch).
 
 ### 🐛 Gỡ lỗi nhanh
@@ -2384,6 +2484,18 @@ yamllint loi.yml                    # báo lỗi tab/thụt lề
 ```bash
 yamllint app.yml
 ```
+**Bạn sẽ thấy khi YAML HỢP LỆ** — im lặng, hoặc in lại nội dung đã parse:
+```text
+{'ten': 'ung-dung', 'phien_ban': 1, 'cong': [80, 443]}
+```
+
+**Khi YAML SAI** (ví dụ dùng Tab để thụt dòng):
+```text
+yaml.scanner.ScannerError: found character that cannot start any token
+  in "cau-hinh.yaml", line 3, column 1
+```
+💡 Thông báo lỗi chỉ đúng **dòng và cột** — đọc kỹ là biết sửa ở đâu.
+
 ✅ **Checkpoint:** không có dòng lỗi nào in ra.
 💡 Thụt lề bằng **space** (2 space/cấp), danh sách bằng `-`, nhớ khoảng trắng sau `:`.
 
@@ -2406,6 +2518,20 @@ printf "a:\n\tb: 1\n" > loi.yml && yamllint loi.yml
 echo 'country: NO' | yq '.country'      # ra false (boolean)!
 echo 'country: "NO"' | yq '.country'    # ra "NO" (đúng)
 ```
+**Bạn sẽ thấy:**
+```text
+{'quoc_gia': False, 'phien_ban': 1.1, 'ma': 12}
+```
+Ba cái bẫy kinh điển của YAML:
+
+| Bạn viết | YAML hiểu thành | Muốn đúng phải viết |
+|---|---|---|
+| `NO` | `False` (boolean) | `"NO"` |
+| `1.10` | `1.1` (số thực) | `"1.10"` |
+| `012` | `12` (số) | `"012"` |
+
+💡 Quy tắc an toàn: **mọi chuỗi có thể gây nhầm đều đặt trong nháy**.
+
 ✅ **Checkpoint:** thấy `NO` không quote biến thành `false` — nhớ quote chuỗi dễ nhầm.
 
 ### 🐛 Gỡ lỗi nhanh
@@ -2873,6 +2999,16 @@ docker exec -it cache redis-cli get ten        # in: "DevOps"
 ```bash
 docker exec -it db psql -U postgres -c "\dt"    # liệt kê bảng
 ```
+**Bạn sẽ thấy:**
+```text
+ id | ten
+----+-----
+  1 | An
+  2 | Bo
+(2 rows)
+```
+💡 Dấu nhắc `postgres=#` nghĩa là bạn đang ở trong database. `\q` thoát · `\l` liệt kê database · `\dt` xem bảng.
+
 ✅ **Checkpoint:** kết nối được, thấy bảng `users` với dữ liệu An/Bo.
 
 **Bước 2 — Backup nhất quán.**
@@ -2888,6 +3024,16 @@ docker exec -it db psql -U postgres -c "DROP TABLE users;"
 gunzip -c b.sql.gz | docker exec -i db psql -U postgres
 docker exec -it db psql -U postgres -c "SELECT * FROM users;"
 ```
+**Bạn sẽ thấy sau khi khôi phục:**
+```text
+ id | ten
+----+-----
+  1 | An
+  2 | Bo
+(2 rows)
+```
+💡 **Đây mới là lúc bản sao lưu được chứng minh là dùng được.** Chạy `pg_dump` thành công chưa chứng minh gì cả — phải khôi phục thử mới biết.
+
 ✅ **Checkpoint:** An/Bo trở lại → backup thực sự dùng được.
 💡 Backup chưa test restore = backup giả (Ngày 11).
 
@@ -3107,6 +3253,18 @@ Trên GitHub: tạo **Release** từ tag `v1.0.0`.
 git rebase -i HEAD~3      # đổi pick → squash cho 2 dòng sau
 git log --oneline
 ```
+**Bạn sẽ thấy** trình soạn thảo mở ra với danh sách commit:
+```text
+pick 3f2a1b0 wip
+squash 8c4d5e6 wip
+squash a1b2c3d wip
+```
+Sau khi lưu và đặt lại thông điệp, `git log --oneline` chỉ còn **một** commit:
+```text
+7e9f0a1 Thêm chức năng đăng nhập
+```
+💡 `pick` = giữ nguyên · `squash` = gộp vào commit phía trên · `drop` = bỏ hẳn.
+
 ✅ **Checkpoint:** 3 commit "wip" gộp thành 1.
 💡 Chỉ squash nhánh **của riêng bạn**, trước khi mở PR.
 
@@ -3114,6 +3272,17 @@ git log --oneline
 ```bash
 git tag -a v1.0.0 -m "Release 1.0" && git push origin v1.0.0
 ```
+**Bạn sẽ thấy:**
+```text
+v1.0.0
+```
+Và sau khi `git push origin v1.0.0`:
+```text
+To github.com:ban/repo.git
+ * [new tag]         v1.0.0 -> v1.0.0
+```
+⚠️ `git push` **không** tự đẩy tag — phải đẩy riêng, hoặc dùng `git push --tags`.
+
 ✅ **Checkpoint:** `git tag` hiện `v1.0.0`, GitHub thấy tag.
 
 **Bước 3 — Đọc version có ý nghĩa.**
@@ -3125,6 +3294,19 @@ git bisect start; git bisect bad; git bisect good v1.0.0
 # Git checkout giữa, bạn test rồi đánh dấu good/bad → ra đúng commit lỗi
 git bisect reset
 ```
+**Bạn sẽ thấy Git tự chia đôi khoảng để tìm:**
+```text
+Bisecting: 7 revisions left to test after this (roughly 3 steps)
+[8c4d5e6] Sửa giao diện trang chủ
+```
+Sau vài lần `git bisect good` / `git bisect bad`:
+```text
+a1b2c3d is the first bad commit
+commit a1b2c3d
+    Đổi công thức tính giảm giá
+```
+💡 Với 1000 commit, bisect chỉ cần khoảng **10 lần thử** (log2 của 1000) — đó là sức mạnh của tìm kiếm nhị phân.
+
 ✅ **Checkpoint:** bisect chỉ ra commit đầu tiên gây bug.
 
 ### 🐛 Gỡ lỗi nhanh
