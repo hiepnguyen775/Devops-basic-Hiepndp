@@ -20,6 +20,28 @@
 | **GĐ 3** | 31–50 | CI/CD, Kubernetes & Tự động hóa nâng cao | ✅ Hoàn thành |
 | **GĐ 4** | 51–60 | SRE, Chủ đề nâng cao & Dự án tốt nghiệp | ✅ Hoàn thành |
 
+## 🧭 Bắt đầu từ đâu
+
+**Lần đầu mở repo này?** Đọc theo đúng thứ tự sau:
+
+| # | File | Mất bao lâu | Để làm gì |
+|---|---|---|---|
+| 1 | [**ROADMAP.md**](./ROADMAP.md) | 10 phút | Hiểu **học gì, thứ tự nào, vì sao thứ tự đó** + mental model DevOps |
+| 2 | [Tài liệu tham khảo](./Tai-lieu-tham-khao.md) | 5 phút | Cách kết hợp tài liệu này với docs chính thức và cộng đồng |
+| 3 | [**PROGRESS.md**](./PROGRESS.md) | 2 phút | Mở sẵn để tick từng ngày — đây là bảng theo dõi của bạn |
+| 4 | Ngày 1 | 90 phút | Bắt đầu học |
+
+**Bốn file tra cứu — mở khi cần, không đọc tuần tự:**
+
+| File | Mở khi |
+|---|---|
+| 📚 [**GLOSSARY.md**](./GLOSSARY.md) | Gặp thuật ngữ lạ — 171 thuật ngữ, có link về bài gốc |
+| 🐛 [**TROUBLESHOOTING.md**](./TROUBLESHOOTING.md) | **Đang kẹt vì một lỗi** — 118 lỗi gom theo chủ đề + quy trình chẩn đoán 9 bước |
+| 🎤 [**INTERVIEW.md**](./INTERVIEW.md) | Chuẩn bị phỏng vấn — 25 câu tình huống kèm đáp án tham khảo |
+| ✅ [**PROGRESS.md**](./PROGRESS.md) | Sau mỗi ngày học, và khi muốn biết mình đang ở đâu |
+
+---
+
 ## 📂 Danh sách tài liệu
 
 **Lộ trình chính (60 ngày):**
